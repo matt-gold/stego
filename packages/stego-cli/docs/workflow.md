@@ -20,7 +20,6 @@ npm run new-project -- --project <project-id> --title "<title>"
 npm run sync-settings -- --project <project-id>
 npm run validate -- --project <project-id>
 npm run build -- --project <project-id>
-npm run graph -- --project <project-id>
 npm run check-stage -- --project <project-id> --stage <draft|revise|line-edit|proof|final>
 npm run export -- --project <project-id> --format <md|docx|pdf>
 ```
@@ -30,7 +29,6 @@ From a project directory (`/Users/mattgold/Code/writing/projects/<project-id>`):
 ```bash
 npm run validate
 npm run build
-npm run graph
 npm run sync-settings
 npm run check-stage -- --stage revise
 npm run export -- --format md

@@ -10,7 +10,6 @@
     "sync-settings": "node --experimental-strip-types tools/writing-cli.ts sync-settings",
     "validate": "node --experimental-strip-types tools/writing-cli.ts validate",
     "build": "node --experimental-strip-types tools/writing-cli.ts build",
-    "graph": "node --experimental-strip-types tools/writing-cli.ts graph",
     "check-stage": "node --experimental-strip-types tools/writing-cli.ts check-stage",
     "export": "node --experimental-strip-types tools/writing-cli.ts export"
   },

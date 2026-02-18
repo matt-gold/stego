@@ -22,7 +22,6 @@ npm run new-project -- --project my-new-project --title "My New Project"
 npm run sync-settings -- --project plague-demo
 npm run validate -- --project plague-demo
 npm run build -- --project plague-demo
-npm run graph -- --project plague-demo
 npm run check-stage -- --project plague-demo --stage revise
 npm run export -- --project plague-demo --format md
 ```
@@ -135,18 +134,6 @@ npm run sync-settings -- --project <project-id>
 
 - `plague-demo`: multi-file demo with metadata-only continuity IDs and chapter breaks inferred from `chapter` transitions
 
-## Mermaid graphs
-
-Generate Mermaid graphs from manuscript metadata:
-
-```bash
-npm run graph -- --project plague-demo
-```
-
-Output:
-
-- `projects/<project-id>/dist/graphs/<project-id>.md`
-
 ## Placeholder edit workflow (`{{...}}` + Cmd+I)
 
 This repo includes Copilot instruction files to keep placeholder edits scoped:
@@ -164,6 +151,10 @@ Expected behavior:
 
 - Replace only the content inside braces.
 - Preserve surrounding sentence/paragraph text.
+
+## Next Steps
+
+- Add Mermaid graphs of metadata (entity relationships, co-occurrence, chapter sequence).
 
 ## VS Code tasks
 
