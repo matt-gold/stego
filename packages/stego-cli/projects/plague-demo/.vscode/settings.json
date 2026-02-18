@@ -1,0 +1,27 @@
+{
+  "[markdown]": {
+    "editor.fontFamily": "Helvetica Neue, Helvetica, Arial, sans-serif",
+    "editor.fontSize": 17,
+    "editor.lineHeight": 28,
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 72,
+    "editor.lineNumbers": "off"
+  },
+  "markdown.preview.fontFamily": "Helvetica Neue, Helvetica, Arial, sans-serif",
+  "terminal.integrated.env.osx": {
+    "PATH": "/Applications/Codex.app/Contents/Resources:${env:PATH}"
+  },
+  "saurus.ai.provider": "codex",
+  "saurus.ai.path": "/Applications/Codex.app/Contents/Resources/codex",
+  "saurus.ai.model": "gpt-5.3-codex",
+  "saurus.ai.reasoningEffort": "low",
+  "saurus.ai.autoGenerateOnOpen": true,
+  "saurus.suggestions.count": 10,
+  "saurus.context.charsBefore": 220,
+  "saurus.context.charsAfter": 140,
+  "saurus.placeholderHighlight.enabled": true,
+  "saurus.placeholderHighlight.backgroundColor": "rgba(56, 189, 248, 0.12)",
+  "saurus.placeholderHighlight.borderColor": "rgba(2, 132, 199, 0.45)",
+  "saurus.placeholderHighlight.delimiterColor": "#0369a1",
+  "saurus.placeholderHighlight.textColor": "#0c4a6e"
+}

@@ -1,0 +1,12 @@
+{
+  "version": "0.2",
+  "language": "en-US",
+  "words": [
+    "worldbuilding",
+    "lineedit",
+    "storybible"
+  ],
+  "ignorePaths": [
+    "projects/*/dist/**"
+  ]
+}

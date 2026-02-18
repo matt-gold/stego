@@ -1,0 +1,22 @@
+{
+  "name": "stego",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Creative writing monorepo workflow with Markdown build, staged quality gates, and export abstraction.",
+  "scripts": {
+    "list-projects": "node --experimental-strip-types tools/writing-cli.ts list-projects",
+    "new-project": "node --experimental-strip-types tools/writing-cli.ts new-project",
+    "sync-settings": "node --experimental-strip-types tools/writing-cli.ts sync-settings",
+    "validate": "node --experimental-strip-types tools/writing-cli.ts validate",
+    "build": "node --experimental-strip-types tools/writing-cli.ts build",
+    "graph": "node --experimental-strip-types tools/writing-cli.ts graph",
+    "check-stage": "node --experimental-strip-types tools/writing-cli.ts check-stage",
+    "export": "node --experimental-strip-types tools/writing-cli.ts export"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "pandoc": "^0.2.0",
+    "typescript": "^5.9.3"
+  }
+}
