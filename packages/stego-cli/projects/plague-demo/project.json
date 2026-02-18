@@ -3,11 +3,6 @@
   "title": "Under Saturn's Breath (Demo)",
   "subtitle": "A literary-historical sample set during the Black Death in Paris, 1348",
   "author": "Matt Gold",
-  "fontSettings": {
-    "fontFamily": "Helvetica Neue, Helvetica, Arial, sans-serif",
-    "fontSize": 17,
-    "lineHeight": 28
-  },
   "requiredMetadata": [
     "status",
     "chapter",

@@ -19,7 +19,6 @@ This workspace is a Markdown-first creative writing pipeline for short stories t
 cd ~/Code/stego
 npm run list-projects
 npm run new-project -- --project my-new-project --title "My New Project"
-npm run sync-settings -- --project plague-demo
 npm run validate -- --project plague-demo
 npm run build -- --project plague-demo
 npm run check-stage -- --project plague-demo --stage revise
@@ -29,7 +28,6 @@ npm run export -- --project plague-demo --format md
 `npm run new-project` scaffolds `manuscript/`, `notes/`, and `dist/`, and seeds `project.json` with a default `characters` category plus `notes/characters.md`.
 It also creates `projects/<project-id>/.vscode/settings.json` so markdown font settings apply when opening the project folder directly.
 It also creates a project-local `package.json` so you can run `npm run validate`, `npm run build`, etc. from inside that project directory without `--project`.
-Use `npm run sync-settings -- --project <project-id>` after changing project font settings in `project.json`.
 
 ## Export requirements (DOCX/PDF)
 
@@ -108,27 +106,6 @@ Each project can override required keys in `project.json`:
 
 These keys are advisory and reported as warnings when missing; they do not block validate/build/export.
 Files may omit metadata entirely.
-
-## Project font settings
-
-Each project can configure markdown editor typography in `project.json`:
-
-```json
-{
-  "fontSettings": {
-    "fontFamily": "Helvetica Neue, Helvetica, Arial, sans-serif",
-    "fontSize": 17,
-    "lineHeight": 30,
-    "previewFontFamily": "Helvetica Neue, Helvetica, Arial, sans-serif"
-  }
-}
-```
-
-Then apply the changes to `projects/<project-id>/.vscode/settings.json`:
-
-```bash
-npm run sync-settings -- --project <project-id>
-```
 
 ## Included examples
 

@@ -56,15 +56,7 @@ interface ProjectMeta {
   author?: string;
   requiredMetadata?: unknown;
   bibleCategories?: unknown;
-  fontSettings?: unknown;
   [key: string]: unknown;
-}
-
-interface ResolvedFontSettings {
-  fontFamily: string;
-  previewFontFamily: string;
-  fontSize: number;
-  lineHeight: number;
 }
 
 interface BibleCategory {
@@ -156,9 +148,6 @@ function main(): void {
         return;
       case "new-project":
         createProject(readStringOption(options, "project"), readStringOption(options, "title"));
-        return;
-      case "sync-settings":
-        syncProjectSettings(readStringOption(options, "project"));
         return;
       case "validate": {
         const project = resolveProject(readStringOption(options, "project"));
@@ -442,7 +431,7 @@ function parseArgs(argv: string[]): ParseArgsResult {
 }
 
 function printUsage() {
-  console.log(`Writing CLI\n\nCommands:\n  list-projects\n  new-project --project <project-id> [--title <title>]\n  sync-settings --project <project-id>\n  validate --project <project-id>\n  build --project <project-id>\n  graph --project <project-id>\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final>\n  export --project <project-id> --format <md|docx|pdf> [--output <path>]\n`);
+  console.log(`Writing CLI\n\nCommands:\n  list-projects\n  new-project --project <project-id> [--title <title>]\n  validate --project <project-id>\n  build --project <project-id>\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final>\n  export --project <project-id> --format <md|docx|pdf> [--output <path>]\n`);
 }
 
 function listProjects(): void {
@@ -482,11 +471,6 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
     id: projectId,
     title: titleOption?.trim() || toDisplayTitle(projectId),
     requiredMetadata: ["status"],
-    fontSettings: {
-      fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-      fontSize: 17,
-      lineHeight: 28
-    },
     bibleCategories: [
       {
         key: "characters",
@@ -505,8 +489,6 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
     scripts: {
       validate: "node --experimental-strip-types ../../tools/writing-cli.ts validate",
       build: "node --experimental-strip-types ../../tools/writing-cli.ts build",
-      graph: "node --experimental-strip-types ../../tools/writing-cli.ts graph",
-      "sync-settings": "node --experimental-strip-types ../../tools/writing-cli.ts sync-settings",
       "check-stage": "node --experimental-strip-types ../../tools/writing-cli.ts check-stage",
       export: "node --experimental-strip-types ../../tools/writing-cli.ts export"
     }
@@ -516,35 +498,10 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
 
   const charactersNotesPath = path.join(notesDir, "characters.md");
   fs.writeFileSync(charactersNotesPath, "# Characters\n\n", "utf8");
-  const projectSettingsPath = writeProjectSettingsFile(projectRoot, projectJson as ProjectMeta);
   logLine(`Created project: ${path.relative(repoRoot, projectRoot)}`);
   logLine(`- ${path.relative(repoRoot, projectJsonPath)}`);
   logLine(`- ${path.relative(repoRoot, projectPackagePath)}`);
   logLine(`- ${path.relative(repoRoot, charactersNotesPath)}`);
-  logLine(`- ${path.relative(repoRoot, projectSettingsPath)}`);
-}
-
-function syncProjectSettings(projectIdOption?: string): void {
-  const project = resolveProject(projectIdOption);
-  const projectSettingsPath = writeProjectSettingsFile(project.root, project.meta);
-  logLine(`Updated project settings: ${path.relative(repoRoot, projectSettingsPath)}`);
-}
-
-function writeProjectSettingsFile(projectRoot: string, projectMeta: ProjectMeta): string {
-  const projectVscodeDir = path.join(projectRoot, ".vscode");
-  fs.mkdirSync(projectVscodeDir, { recursive: true });
-
-  const projectSettingsPath = path.join(projectVscodeDir, "settings.json");
-  const existingRaw = fs.existsSync(projectSettingsPath) ? readJson<unknown>(projectSettingsPath) : {};
-  const existing = isPlainObject(existingRaw) ? existingRaw : {};
-
-  const nextSettings = {
-    ...existing,
-    ...getMarkdownEditorSettings(projectMeta)
-  };
-
-  fs.writeFileSync(projectSettingsPath, `${JSON.stringify(nextSettings, null, 2)}\n`, "utf8");
-  return projectSettingsPath;
 }
 
 function getProjectIds(): string[] {
@@ -1645,50 +1602,6 @@ function toBoundedInt(value: unknown, fallback: number, min: number, max: number
 
   const rounded = Math.round(parsed);
   return Math.min(max, Math.max(min, rounded));
-}
-
-function resolveProjectFontSettings(raw: unknown): ResolvedFontSettings {
-  const defaults: ResolvedFontSettings = {
-    fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-    previewFontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-    fontSize: 17,
-    lineHeight: 28
-  };
-
-  if (!isPlainObject(raw)) {
-    return defaults;
-  }
-
-  const fontFamily =
-    typeof raw.fontFamily === "string" && raw.fontFamily.trim().length > 0
-      ? raw.fontFamily.trim()
-      : defaults.fontFamily;
-  const previewFontFamily =
-    typeof raw.previewFontFamily === "string" && raw.previewFontFamily.trim().length > 0
-      ? raw.previewFontFamily.trim()
-      : fontFamily;
-
-  return {
-    fontFamily,
-    previewFontFamily,
-    fontSize: toBoundedInt(raw.fontSize, defaults.fontSize, 10, 72),
-    lineHeight: toBoundedInt(raw.lineHeight, defaults.lineHeight, 12, 120)
-  };
-}
-
-function getMarkdownEditorSettings(projectMeta?: ProjectMeta): Record<string, unknown> {
-  const fontSettings = resolveProjectFontSettings(projectMeta?.fontSettings);
-  return {
-    "[markdown]": {
-      "editor.fontFamily": fontSettings.fontFamily,
-      "editor.fontSize": fontSettings.fontSize,
-      "editor.lineHeight": fontSettings.lineHeight,
-      "editor.wordWrap": "wordWrapColumn",
-      "editor.wordWrapColumn": 72,
-      "editor.lineNumbers": "off"
-    },
-    "markdown.preview.fontFamily": fontSettings.previewFontFamily
-  };
 }
 
 function logLine(message: string): void {

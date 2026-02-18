@@ -7,7 +7,6 @@
   "scripts": {
     "list-projects": "node --experimental-strip-types tools/writing-cli.ts list-projects",
     "new-project": "node --experimental-strip-types tools/writing-cli.ts new-project",
-    "sync-settings": "node --experimental-strip-types tools/writing-cli.ts sync-settings",
     "validate": "node --experimental-strip-types tools/writing-cli.ts validate",
     "build": "node --experimental-strip-types tools/writing-cli.ts build",
     "check-stage": "node --experimental-strip-types tools/writing-cli.ts check-stage",
