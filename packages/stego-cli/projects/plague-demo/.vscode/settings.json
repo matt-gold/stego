@@ -1,11 +1,11 @@
 {
   "[markdown]": {
-    "editor.fontFamily": "Helvetica Neue, Helvetica, Arial, sans-serif",
+    "editor.fontFamily": "Inter, Helvetica Neue, Helvetica, Arial, sans-serif",
     "editor.fontSize": 17,
     "editor.lineHeight": 28,
     "editor.wordWrap": "wordWrapColumn",
     "editor.wordWrapColumn": 72,
     "editor.lineNumbers": "off"
   },
-  "markdown.preview.fontFamily": "Helvetica Neue, Helvetica, Arial, sans-serif"
+  "markdown.preview.fontFamily": "Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
 }
