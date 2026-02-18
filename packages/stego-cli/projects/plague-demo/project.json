@@ -1,7 +1,7 @@
 {
   "id": "plague-demo",
   "title": "Under Saturn's Breath (Demo)",
-  "subtitle": "A literary-historical sample set during the Black Death in Paris, 1348",
+  "subtitle": "Paris, 1348 — a scholar builds a total explanation of the pestilence",
   "author": "Matt Gold",
   "requiredMetadata": [
     "status",
@@ -21,9 +21,9 @@
       "notesFile": "locations.md"
     },
     {
-      "key": "objects",
-      "prefix": "OBJ",
-      "notesFile": "objects.md"
+      "key": "sources",
+      "prefix": "SRC",
+      "notesFile": "sources.md"
     }
   ]
 }

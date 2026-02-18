@@ -1,0 +1,10 @@
+{
+  "name": "writing-project-mirror-demo",
+  "private": true,
+  "scripts": {
+    "validate": "node --experimental-strip-types ../../tools/writing-cli.ts validate",
+    "build": "node --experimental-strip-types ../../tools/writing-cli.ts build",
+    "check-stage": "node --experimental-strip-types ../../tools/writing-cli.ts check-stage",
+    "export": "node --experimental-strip-types ../../tools/writing-cli.ts export"
+  }
+}

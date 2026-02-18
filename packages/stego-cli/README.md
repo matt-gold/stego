@@ -109,7 +109,8 @@ Files may omit metadata entirely.
 
 ## Included examples
 
-- `plague-demo`: multi-file demo with metadata-only continuity IDs and chapter breaks inferred from `chapter` transitions
+- `plague-demo`: full configuration — rich metadata (`pov`, `timeline`), three bible categories (`characters`, `locations`, `sources`), cross-linked story bible with Wikipedia reference links
+- `mirror-demo`: minimal configuration — no bible categories, freeform notes only, just `status` and `chapter` metadata
 
 ## Placeholder edit workflow (`{{...}}` + Cmd+I)
 

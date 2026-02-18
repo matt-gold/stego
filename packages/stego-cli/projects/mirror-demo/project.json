@@ -1,0 +1,9 @@
+{
+  "id": "mirror-demo",
+  "title": "The Fidelity Problem (Demo)",
+  "subtitle": "A short story about decision-reconstruction technology and self-knowledge",
+  "author": "Matt Gold",
+  "requiredMetadata": [
+    "status"
+  ]
+}

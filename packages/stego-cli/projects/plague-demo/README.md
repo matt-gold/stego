@@ -1,20 +1,18 @@
 # Under Saturn's Breath (Demo)
 
-This project is intentionally short but structured to demonstrate conventions and tooling:
+A full-configuration demo with rich metadata, three bible categories, cross-linked story bible entries, and external reference links.
 
-- four manuscript files in `manuscript/` with concise metadata
-- sequencing is filename-based using sparse three-digit prefixes (`100`, `200`, `300`, ...)
-- chapter breaks inferred from `chapter` transitions (`1,1,2,2`)
-- literary historical prose sample with social and doctrinal tension
-- continuity IDs in metadata using category keys (`characters`, `locations`, `objects`)
-- story bible source files in `notes/`
+- four manuscript files with full metadata (`status`, `chapter`, `pov`, `timeline`, plus category arrays)
+- three bible categories: `characters`, `locations`, `sources`
+- story bible entries cross-link between files (characters reference sources they use, locations reference the characters and sources tied to them)
+- `sources` category tracks intellectual traditions rather than physical objects, with Wikipedia links to historical references
+- demonstrates the full range of stego's continuity tracking and metadata validation
 
-Run from `/Users/mattgold/Code/writing`:
+Run from `/Users/mattgold/Code/stego`:
 
 ```bash
 npm run validate -- --project plague-demo
 npm run build -- --project plague-demo
-npm run graph -- --project plague-demo
-npm run check-stage -- --project plague-demo --stage revise
+npm run check-stage -- --project plague-demo --stage draft
 npm run export -- --project plague-demo --format md
 ```
