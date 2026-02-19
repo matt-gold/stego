@@ -1,0 +1,116 @@
+{
+  "name": "stego-extension",
+  "displayName": "Stego Bible Links",
+  "description": "Auto-link Bible identifiers like LOC-ASDF in Markdown manuscripts.",
+  "version": "0.0.1",
+  "publisher": "matt-gold",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onCommand:stegoBible.reloadIndex",
+    "onCommand:stegoBible.toggleFrontmatter",
+    "onView:stegoBible.metadataView"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "stegoBible",
+          "title": "Stego",
+          "icon": "assets/stego.svg"
+        }
+      ]
+    },
+    "views": {
+      "stegoBible": [
+        {
+          "id": "stegoBible.metadataView",
+          "name": "Metadata",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "stegoBible.reloadIndex",
+        "title": "Stego Bible: Reload Identifier Index"
+      },
+      {
+        "command": "stegoBible.toggleFrontmatter",
+        "title": "Stego Bible: Toggle Frontmatter Fold"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "stegoBible.reloadIndex",
+          "when": "view == stegoBible.metadataView",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Stego Bible",
+      "properties": {
+        "stegoBible.identifierPattern": {
+          "type": "string",
+          "default": "\\b[A-Z][A-Z0-9]*-[A-Z0-9]+(?:-[A-Z0-9]+)*\\b",
+          "description": "Regex used to find Bible identifiers in Markdown text (for example LOC-ASDF or CHAR-JANE)."
+        },
+        "stegoBible.indexFile": {
+          "type": "string",
+          "default": ".stego/bible-index.json",
+          "description": "Path to the workspace JSON file containing identifier definitions. If missing or partial, Stego also infers entries from project.json bible category prefixes and markdown headings."
+        },
+        "stegoBible.definitionBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional fallback base URL used when an identifier has no explicit URL or path in the index."
+        },
+        "stegoBible.enableHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show identifier details on hover."
+        },
+        "stegoBible.reportUnknownIdentifiers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when identifiers are found in text but missing from the index file."
+        },
+        "stegoBible.linkInCodeFences": {
+          "type": "boolean",
+          "default": false,
+          "description": "Create links inside fenced code blocks."
+        },
+        "stegoBible.autoFoldFrontmatter": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically fold YAML frontmatter in Markdown files."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^20.14.10",
+    "@types/vscode": "^1.92.0",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "markdown-it": "^14.1.1"
+  }
+}

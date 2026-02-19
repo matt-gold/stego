@@ -1,0 +1,13 @@
+{
+  "LOC-ASDF": {
+    "title": "Location Alpha",
+    "description": "Primary coastal site used in chapter 3.",
+    "url": "https://example.com/bible/LOC-ASDF"
+  },
+  "LOC-QWER": {
+    "title": "Location Q",
+    "description": "Secondary fallback location.",
+    "path": "docs/bible/location-qwer.md",
+    "anchor": "definition"
+  }
+}

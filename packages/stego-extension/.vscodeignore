@@ -1,0 +1,7 @@
+.vscode/**
+src/**
+tsconfig.json
+README.md
+CHANGELOG.md
+examples/**
+node_modules/**/.bin/**
