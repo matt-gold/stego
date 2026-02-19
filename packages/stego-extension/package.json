@@ -40,22 +40,13 @@
     "commands": [
       {
         "command": "stegoBible.reloadIndex",
-        "title": "Stego Bible: Reload Identifier Index"
+        "title": "Stego Bible: Rebuild Index"
       },
       {
         "command": "stegoBible.toggleFrontmatter",
         "title": "Stego Bible: Toggle Frontmatter Fold"
       }
     ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "stegoBible.reloadIndex",
-          "when": "view == stegoBible.metadataView",
-          "group": "navigation@1"
-        }
-      ]
-    },
     "configuration": {
       "title": "Stego Bible",
       "properties": {

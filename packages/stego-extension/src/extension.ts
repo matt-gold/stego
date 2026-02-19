@@ -51,6 +51,7 @@ type FrontmatterLineRange = {
 
 type SidebarMetadataEntry = {
   key: string;
+  isBibleCategory: boolean;
   isArray: boolean;
   valueText: string;
   references: SidebarIdentifierLink[];
@@ -555,8 +556,12 @@ class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       : undefined;
 
     const categoryByKey = new Map<string, ProjectBibleCategory>();
+    const categoryOrderByKey = new Map<string, number>();
+    let categoryOrder = 0;
     for (const category of projectContext?.categories ?? []) {
       categoryByKey.set(category.key, category);
+      categoryOrderByKey.set(category.key, categoryOrder);
+      categoryOrder += 1;
     }
 
     let bibleCategoryForFile: ProjectBibleCategory | undefined;
@@ -603,7 +608,24 @@ class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       const statusControl = await buildStatusControl(parsed.frontmatter, document);
       const metadataEntries = Object.entries(parsed.frontmatter)
         .filter(([key]) => key !== 'status')
-        .sort(([a], [b]) => a.localeCompare(b))
+        .sort(([a], [b]) => {
+          const aIsBibleCategory = categoryByKey.has(a);
+          const bIsBibleCategory = categoryByKey.has(b);
+
+          if (aIsBibleCategory !== bIsBibleCategory) {
+            return aIsBibleCategory ? -1 : 1;
+          }
+
+          if (aIsBibleCategory && bIsBibleCategory) {
+            const aOrder = categoryOrderByKey.get(a) ?? Number.MAX_SAFE_INTEGER;
+            const bOrder = categoryOrderByKey.get(b) ?? Number.MAX_SAFE_INTEGER;
+            if (aOrder !== bOrder) {
+              return aOrder - bOrder;
+            }
+          }
+
+          return a.localeCompare(b);
+        })
         .map(([key, value]) => buildMetadataEntry(key, value, categoryByKey.get(key), index, document, pattern));
 
       return {
@@ -769,6 +791,14 @@ class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       case 'toggleExplorerCollapse': {
         shouldRefreshDiagnostics = false;
         this.explorerCollapsed = !this.explorerCollapsed;
+        break;
+      }
+      case 'reloadIdentifierIndex': {
+        shouldRefreshDiagnostics = false;
+        this.indexService.clear();
+        this.referenceUsageService.clear();
+        await refreshVisibleMarkdownDocuments(this.indexService, this.diagnostics);
+        void vscode.window.showInformationMessage('Stego Bible index rebuilt.');
         break;
       }
       case 'openTocHeading': {
@@ -1036,7 +1066,7 @@ export function activate(context: vscode.ExtensionContext): void {
           md.appendMarkdown(`\\n\\n${escapeMarkdown(record.description)}`);
         }
 
-        md.appendMarkdown(`\\n\\n[Open in Bible Explorer](${createExploreIdentifierCommandUri(match.id).toString()})`);
+        md.appendMarkdown(`\\n\\n[Open in Bible Browser](${createExploreIdentifierCommandUri(match.id).toString()})`);
 
         return new vscode.Hover(md, match.range);
       }
@@ -1056,7 +1086,7 @@ export function activate(context: vscode.ExtensionContext): void {
       referenceUsageService.clear();
       await refreshVisibleMarkdownDocuments(indexService, diagnostics);
       await sidebarProvider.refresh();
-      void vscode.window.showInformationMessage('Stego Bible index reloaded.');
+      void vscode.window.showInformationMessage('Stego Bible index rebuilt.');
     }),
     vscode.commands.registerCommand('stegoBible.toggleFrontmatter', async () => {
       await toggleFrontmatterFold();
@@ -1308,6 +1338,7 @@ function buildMetadataEntry(
 
     return {
       key,
+      isBibleCategory: !!category,
       isArray: true,
       valueText: '',
       references: [],
@@ -1317,6 +1348,7 @@ function buildMetadataEntry(
 
   return {
     key,
+    isBibleCategory: !!category,
     isArray: false,
     valueText: formatMetadataValue(value),
     references: buildIdentifierLinksForValue(value, category, index, document, pattern),
@@ -2732,6 +2764,11 @@ async function removeMetadataField(key: string): Promise<void> {
     return;
   }
 
+  if (Array.isArray(parsed.frontmatter[key])) {
+    void vscode.window.showWarningMessage(`Delete array items in '${key}' to remove this field.`);
+    return;
+  }
+
   delete parsed.frontmatter[key];
   await writeParsedDocument(document, parsed);
 }
@@ -2988,12 +3025,11 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
 
         return `<article class="item metadata-item metadata-array-field">`
           + `<div class="item-main">`
-          + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code><span class="badge">${entry.arrayItems.length} items</span></div>`
+          + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isBibleCategory ? '<span class="badge bible">Story Bible</span>' : ''}<span class="badge">${entry.arrayItems.length} items</span></div>`
           + `${arrayItems}`
           + `${showMetadataEditingControls
             ? `<div class="array-field-actions">`
               + `<button class="btn subtle" data-action="addMetadataArrayItem" data-key="${escapeAttribute(entry.key)}">Add Item</button>`
-              + `<button class="btn danger" data-action="removeMetadataField" data-key="${escapeAttribute(entry.key)}">Remove Field</button>`
               + `</div>`
             : ''}`
           + `</div>`
@@ -3002,7 +3038,7 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
 
       return `<article class="item metadata-item">`
         + `<div class="item-main">`
-        + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code></div>`
+        + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isBibleCategory ? '<span class="badge bible">Story Bible</span>' : ''}</div>`
         + `<div class="item-subtext metadata-value">${escapeHtml(entry.valueText)}</div>`
         + `${renderReferenceCards(entry.references)}`
         + `</div>`
@@ -3151,7 +3187,7 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
 
   const explorerHtml = `<section class="panel explorer-panel${state.explorerCollapsed ? ' collapsed' : ''}">`
     + `<div class="panel-heading">`
-    + `<h2>Bible Explorer</h2>`
+    + `<h2>Bible Browser</h2>`
     + `${explorerNav}`
     + `</div>`
     + `${explorerBreadcrumbs}`
@@ -3530,7 +3566,7 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
       border-radius: 6px;
       background: var(--vscode-textCodeBlock-background);
       color: var(--vscode-foreground);
-      white-space: pre-wrap;
+      white-space: normal;
       word-break: break-word;
       font: inherit;
       line-height: 1.4;
@@ -3571,6 +3607,20 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
     .md-rendered ul,
     .md-rendered ol {
       padding-left: 18px;
+      margin-top: 0;
+      margin-bottom: 4px;
+    }
+    .md-rendered li {
+      margin: 0 !important;
+      padding: 1px 0;
+      line-height: 1.35;
+    }
+    .md-rendered li + li {
+      margin-top: 4px !important;
+    }
+    .md-rendered li > p {
+      margin: 0 !important;
+      display: inline;
     }
     .md-rendered blockquote {
       margin-left: 0;
@@ -3665,6 +3715,14 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
       font-size: 10px;
       letter-spacing: 0.02em;
       border: 1px solid var(--vscode-panel-border);
+    }
+    .badge.bible {
+      background: var(--vscode-button-background);
+      border-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
     }
     .badge.warn { color: var(--vscode-editorWarning-foreground); }
     .btn {

@@ -70,7 +70,7 @@ If the JSON index is missing or incomplete, the extension also infers entries fr
 
 ## Commands
 
-- `Stego Bible: Reload Identifier Index`
+- `Stego Bible: Rebuild Index`
 - `Stego Bible: Toggle Frontmatter Fold`
 
 ## Development
