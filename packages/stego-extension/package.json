@@ -117,7 +117,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "test:pure": "npm run compile && node --test out/test/pure/*.js"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

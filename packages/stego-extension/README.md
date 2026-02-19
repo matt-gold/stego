@@ -78,6 +78,22 @@ If the JSON index is missing or incomplete, the extension also infers entries fr
 ```bash
 npm install
 npm run compile
+npm run test:pure
 ```
 
 Press `F5` in VS Code to run the Extension Development Host.
+
+### Source Layout
+
+- `/Users/mattgold/Code/stego-extension/src/extension.ts`: composition root only (activation, registrations, wiring)
+- `/Users/mattgold/Code/stego-extension/src/shared/*`: shared constants, types, and pure helpers
+- `/Users/mattgold/Code/stego-extension/src/features/*`: feature modules (project, indexing, metadata, navigation, sidebar, commands)
+- `/Users/mattgold/Code/stego-extension/src/test/pure/*`: pure unit tests (no VS Code host dependency)
+- `/Users/mattgold/Code/stego-extension/media/sidebar/*`: external webview assets (`sidebar.css`, `sidebar.js`)
+
+### Contribution Rules
+
+- Keep `shared -> features -> extension.ts` dependency direction.
+- Keep command IDs, view IDs, and config keys backward-compatible.
+- Keep VS Code API usage at the module edges (providers, commands, activation).
+- Put webview styles/scripts in `/Users/mattgold/Code/stego-extension/media/sidebar/`, not inline template strings.
