@@ -1,5 +1,5 @@
 {
-  "name": "writing-project-mirror-demo",
+  "name": "writing-project-docs-demo",
   "private": true,
   "scripts": {
     "validate": "node --experimental-strip-types ../../tools/writing-cli.ts validate",

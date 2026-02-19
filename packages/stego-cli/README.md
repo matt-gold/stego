@@ -25,7 +25,7 @@ npm run check-stage -- --project plague-demo --stage revise
 npm run export -- --project plague-demo --format md
 ```
 
-`npm run new-project` scaffolds `manuscript/`, `notes/`, and `dist/`, and seeds `project.json` with a default `characters` category plus `notes/characters.md`.
+`npm run new-project` scaffolds `manuscript/`, `story-bible/`, `notes/`, and `dist/`, and seeds `project.json` with a default `characters` category plus `story-bible/characters.md`.
 It also creates `projects/<project-id>/.vscode/settings.json` so markdown font settings apply when opening the project folder directly.
 It also creates a project-local `package.json` so you can run `npm run validate`, `npm run build`, etc. from inside that project directory without `--project`.
 
@@ -66,7 +66,8 @@ npm run export -- --project plague-demo --format pdf
 ## Project layout
 
 - `projects/<project-id>/manuscript/` source manuscript files
-- `projects/<project-id>/notes/` story bible and planning docs
+- `projects/<project-id>/story-bible/` canonical story bible category files (`bibleCategories[*].notesFile`)
+- `projects/<project-id>/notes/` regular notes and planning docs
 - `projects/<project-id>/dist/` generated outputs only
 - `docs/` workflow and conventions
 - `tools/` build, checks, export CLI
@@ -89,6 +90,7 @@ Example:
 ```
 
 Use those keys as metadata arrays in manuscript files (for example `cast`, `places`, `incidents`, `ordinances`).
+Each `notesFile` is a filename resolved in `story-bible/` (for example `story-bible/characters.md`).
 
 If `bibleCategories` is omitted or empty, category-based continuity validation is disabled.
 
@@ -110,7 +112,7 @@ Files may omit metadata entirely.
 ## Included examples
 
 - `plague-demo`: full configuration — rich metadata (`pov`, `timeline`), three bible categories (`characters`, `locations`, `sources`), cross-linked story bible with Wikipedia reference links
-- `mirror-demo`: minimal configuration — no bible categories, freeform notes only, just `status` and `chapter` metadata
+- `docs-demo`: nonfiction documentation configuration — no bible categories, freeform notes only, primarily `status` metadata
 
 ## Placeholder edit workflow (`{{...}}` + Cmd+I)
 

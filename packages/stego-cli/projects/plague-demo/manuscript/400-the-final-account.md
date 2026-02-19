@@ -1,11 +1,21 @@
 ---
+status: final
 chapter: 2
-status: draft
 pov: Matthaeus
-timeline: 1348-10-03
-characters: ["CHAR-MATTHAEUS", "CHAR-ETIENNE", "CHAR-AGNES", "CHAR-RAOUL"]
-locations: ["LOC-COLLEGE", "LOC-HOTELDIEU", "LOC-CHARNEL"]
-sources: ["SRC-CONJUNCTION", "SRC-GALEN", "SRC-WARD-DATA"]
+timeline: '1348-10-03'
+characters:
+  - CHAR-MATTHAEUS
+  - CHAR-ETIENNE
+  - CHAR-AGNES
+  - CHAR-RAOUL
+locations:
+  - LOC-COLLEGE
+  - LOC-HOTELDIEU
+  - LOC-CHARNEL
+sources:
+  - SRC-CONJUNCTION
+  - SRC-GALEN
+  - SRC-WARD-DATA
 ---
 
 The fever found Matthaeus before the memorandum was finished. He continued dictation from bed, his voice steady and his argument tightening as his body failed. Etienne checked each figure against the conjunction tables. Everything held.

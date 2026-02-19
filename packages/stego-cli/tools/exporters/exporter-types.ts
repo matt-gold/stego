@@ -1,4 +1,4 @@
-export type ExportFormat = "md" | "docx" | "pdf";
+export type ExportFormat = "md" | "docx" | "pdf" | "epub";
 
 export interface ExportRunArgs {
   inputPath: string;

@@ -1,11 +1,19 @@
 ---
+status: revise
 chapter: 1
-status: draft
 pov: Matthaeus
-timeline: 1348-09-21
-characters: ["CHAR-MATTHAEUS", "CHAR-ETIENNE", "CHAR-AGNES"]
-locations: ["LOC-HOTELDIEU", "LOC-QUAY"]
-sources: ["SRC-WARD-DATA", "SRC-CONJUNCTION", "SRC-GALEN"]
+timeline: '1348-09-21'
+characters:
+  - CHAR-MATTHAEUS
+  - CHAR-ETIENNE
+  - CHAR-AGNES
+locations:
+  - LOC-HOTELDIEU
+  - LOC-QUAY
+sources:
+  - SRC-WARD-DATA
+  - SRC-CONJUNCTION
+  - SRC-GALEN
 ---
 
 At Hôtel-Dieu, prayer and treatment proceeded in one rhythm. Priests read offices while surgeons opened buboes. Women washed linen in vinegar while clerks recited names for the burial lists. Nobody in that room believed they were choosing between faith and medicine. The distinction did not apply.

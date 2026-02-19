@@ -4,7 +4,10 @@
   "words": [
     "worldbuilding",
     "lineedit",
-    "storybible"
+    "storybible",
+    "hôtel",
+    "dieu",
+    "hôtel-dieu"
   ],
   "ignorePaths": [
     "projects/*/dist/**"

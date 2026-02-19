@@ -1,0 +1,9 @@
+{
+  "id": "docs-demo",
+  "title": "Stego Documentation Demo",
+  "subtitle": "A business and nonfiction style project without Story Bible categories",
+  "author": "Matt Gold",
+  "requiredMetadata": [
+    "status"
+  ]
+}

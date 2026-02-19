@@ -4,6 +4,7 @@ A full-configuration demo with rich metadata, three bible categories, cross-link
 
 - four manuscript files with full metadata (`status`, `chapter`, `pov`, `timeline`, plus category arrays)
 - three bible categories: `characters`, `locations`, `sources`
+- bible category files now live in `story-bible/` (regular notes stay in `notes/`)
 - story bible entries cross-link between files (characters reference sources they use, locations reference the characters and sources tied to them)
 - `sources` category tracks intellectual traditions rather than physical objects, with Wikipedia links to historical references
 - demonstrates the full range of stego's continuity tracking and metadata validation

@@ -1,12 +1,18 @@
 ---
+status: revise
 chapter: 1
 chapter_title: The Framework
-status: draft
 pov: Matthaeus
-timeline: 1348-09-18
-characters: ["CHAR-MATTHAEUS", "CHAR-ETIENNE", "CHAR-RAOUL"]
-locations: ["LOC-COLLEGE"]
-sources: ["SRC-CONJUNCTION", "SRC-GALEN", "SRC-PICATRIX"]
+timeline: '1348-09-18'
+characters:
+  - CHAR-MATTHAEUS
+  - CHAR-ETIENNE
+  - CHAR-RAOUL
+locations:
+  - LOC-COLLEGE
+sources:
+  - SRC-CONJUNCTION
+  - SRC-GALEN
 ---
 
 Canon Raoul arrived before vespers with sealed instructions from men who did not sign their names. The commission was simple in expression and impossible in execution: produce an account of the pestilence that would sustain public discipline, satisfy the faculty, and be true. Raoul did not rank these requirements. Matthaeus understood that the ranking was the actual task.

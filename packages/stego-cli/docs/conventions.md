@@ -71,14 +71,14 @@ Category rules:
 
 - `key`: lowercase metadata field name used in manuscript files
 - `prefix`: uppercase ID prefix used in references (example: `STATUTE`)
-- `notesFile`: markdown file in `notes/` containing canonical entries
+- `notesFile`: markdown filename resolved in `story-bible/` containing canonical entries
 - `bibleCategories` may be omitted or empty for projects that do not need continuity entity tracking
 
 ## 3) Story bible governance
 
 Every project keeps canonical story facts in:
 
-`/Users/mattgold/Code/writing/projects/<project-id>/notes/`
+`/Users/mattgold/Code/writing/projects/<project-id>/story-bible/`
 
 Required bible files are determined by `bibleCategories[*].notesFile`.
 
@@ -176,4 +176,3 @@ Recovery principle:
 
 - source of truth is `manuscript/` and `notes/`
 - `dist/` is reproducible output and may be regenerated any time
-

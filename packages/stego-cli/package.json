@@ -14,6 +14,8 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
+    "cspell": "^9.6.4",
+    "markdownlint-cli": "^0.47.0",
     "pandoc": "^0.2.0",
     "typescript": "^5.9.3"
   }

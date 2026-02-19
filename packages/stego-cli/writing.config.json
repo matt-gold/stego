@@ -1,6 +1,7 @@
 {
   "projectsDir": "projects",
   "chapterDir": "manuscript",
+  "storyBibleDir": "story-bible",
   "notesDir": "notes",
   "distDir": "dist",
   "requiredMetadata": [

@@ -45,7 +45,7 @@ npm run export -- --format md
 - Configure `bibleCategories` in each project's `project.json`.
 - Choose category names and ID prefixes that match your domain.
 - Keep IDs out of prose; use metadata arrays for references.
-- Keep each category's canonical entries in its configured `notesFile`.
+- Keep each category's canonical entries in `story-bible/<notesFile>`.
 - Omit `bibleCategories` if a project does not need continuity entity tracking.
 
 ## Stage progression model

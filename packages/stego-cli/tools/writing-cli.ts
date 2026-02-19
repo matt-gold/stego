@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -42,6 +43,7 @@ interface StagePolicy {
 interface WritingConfig {
   projectsDir: string;
   chapterDir: string;
+  storyBibleDir: string;
   notesDir: string;
   distDir: string;
   requiredMetadata: string[];
@@ -70,6 +72,7 @@ interface ProjectContext {
   id: string;
   root: string;
   manuscriptDir: string;
+  storyBibleDir: string;
   notesDir: string;
   distDir: string;
   meta: ProjectMeta;
@@ -100,6 +103,10 @@ interface ProjectInspection {
   chapters: ChapterEntry[];
   issues: Issue[];
   bibleState: StoryBibleState;
+}
+
+interface InspectProjectOptions {
+  onlyFile?: string;
 }
 
 interface ParseMetadataResult {
@@ -151,10 +158,14 @@ function main(): void {
         return;
       case "validate": {
         const project = resolveProject(readStringOption(options, "project"));
-        const report = inspectProject(project, config);
+        const report = inspectProject(project, config, { onlyFile: readStringOption(options, "file") });
         printReport(report.issues);
         exitIfErrors(report.issues);
-        logLine(`Validation passed for '${project.id}'.`);
+        if (report.chapters.length === 1) {
+          logLine(`Validation passed for '${report.chapters[0].relativePath}'.`);
+        } else {
+          logLine(`Validation passed for '${project.id}'.`);
+        }
         return;
       }
       case "build": {
@@ -169,10 +180,15 @@ function main(): void {
       case "check-stage": {
         const project = resolveProject(readStringOption(options, "project"));
         const stage = readStringOption(options, "stage") || "draft";
-        const report = runStageCheck(project, config, stage);
+        const requestedFile = readStringOption(options, "file");
+        const report = runStageCheck(project, config, stage, requestedFile);
         printReport(report.issues);
         exitIfErrors(report.issues);
-        logLine(`Stage check passed for '${project.id}' at stage '${stage}'.`);
+        if (requestedFile && report.chapters.length === 1) {
+          logLine(`Stage check passed for '${report.chapters[0].relativePath}' at stage '${stage}'.`);
+        } else {
+          logLine(`Stage check passed for '${project.id}' at stage '${stage}'.`);
+        }
         return;
       }
       case "export": {
@@ -209,7 +225,7 @@ function isStageName(value: string): value is StageName {
 }
 
 function isExportFormat(value: string): value is ExportFormat {
-  return value === "md" || value === "docx" || value === "pdf";
+  return value === "md" || value === "docx" || value === "pdf" || value === "epub";
 }
 
 function resolveBibleSchema(project: ProjectContext): { schema: BibleSchema; issues: Issue[] } {
@@ -284,7 +300,7 @@ function resolveBibleSchema(project: ProjectContext): { schema: BibleSchema; iss
         makeIssue(
           "error",
           "metadata",
-          `Invalid notesFile '${notesFile || "<empty>"}'. Use markdown filenames like 'characters.md'.`,
+          `Invalid notesFile '${notesFile || "<empty>"}'. Use markdown filenames like 'characters.md' (resolved in story-bible/).`,
           projectFile
         )
       );
@@ -431,7 +447,7 @@ function parseArgs(argv: string[]): ParseArgsResult {
 }
 
 function printUsage() {
-  console.log(`Writing CLI\n\nCommands:\n  list-projects\n  new-project --project <project-id> [--title <title>]\n  validate --project <project-id>\n  build --project <project-id>\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final>\n  export --project <project-id> --format <md|docx|pdf> [--output <path>]\n`);
+  console.log(`Writing CLI\n\nCommands:\n  list-projects\n  new-project --project <project-id> [--title <title>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>]\n  build --project <project-id>\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>]\n`);
 }
 
 function listProjects(): void {
@@ -463,6 +479,8 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
   }
 
   fs.mkdirSync(path.join(projectRoot, config.chapterDir), { recursive: true });
+  const storyBibleDir = path.join(projectRoot, config.storyBibleDir);
+  fs.mkdirSync(storyBibleDir, { recursive: true });
   const notesDir = path.join(projectRoot, config.notesDir);
   fs.mkdirSync(notesDir, { recursive: true });
   fs.mkdirSync(path.join(projectRoot, config.distDir), { recursive: true });
@@ -496,7 +514,7 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
   const projectPackagePath = path.join(projectRoot, "package.json");
   fs.writeFileSync(projectPackagePath, `${JSON.stringify(projectPackage, null, 2)}\n`, "utf8");
 
-  const charactersNotesPath = path.join(notesDir, "characters.md");
+  const charactersNotesPath = path.join(storyBibleDir, "characters.md");
   fs.writeFileSync(charactersNotesPath, "# Characters\n\n", "utf8");
   logLine(`Created project: ${path.relative(repoRoot, projectRoot)}`);
   logLine(`- ${path.relative(repoRoot, projectJsonPath)}`);
@@ -539,6 +557,7 @@ function resolveProject(explicitProjectId?: string): ProjectContext {
     id: projectId,
     root: projectRoot,
     manuscriptDir: path.join(projectRoot, config.chapterDir),
+    storyBibleDir: path.join(projectRoot, config.storyBibleDir),
     notesDir: path.join(projectRoot, config.notesDir),
     distDir: path.join(projectRoot, config.distDir),
     meta: readJson<ProjectMeta>(path.join(projectRoot, "project.json"))
@@ -565,7 +584,11 @@ function inferProjectIdFromCwd(cwd: string): string | null {
   return projectId;
 }
 
-function inspectProject(project: ProjectContext, runtimeConfig: WritingConfig): ProjectInspection {
+function inspectProject(
+  project: ProjectContext,
+  runtimeConfig: WritingConfig,
+  options: InspectProjectOptions = {}
+): ProjectInspection {
   const issues: Issue[] = [];
   const emptyBibleState: StoryBibleState = { ids: new Set<string>(), issues: [] };
   const bibleSchema = resolveBibleSchema(project);
@@ -573,20 +596,58 @@ function inspectProject(project: ProjectContext, runtimeConfig: WritingConfig): 
   issues.push(...bibleSchema.issues);
   issues.push(...requiredMetadataState.issues);
 
-  if (!fs.existsSync(project.manuscriptDir)) {
-    issues.push(makeIssue("error", "structure", `Missing manuscript directory: ${project.manuscriptDir}`));
-    return { chapters: [], issues, bibleState: emptyBibleState };
-  }
+  let chapterFiles: string[] = [];
+  const onlyFile = options.onlyFile?.trim();
+  if (onlyFile) {
+    const resolvedPath = path.resolve(project.root, onlyFile);
+    const relativeToProject = path.relative(project.root, resolvedPath);
+    if (!relativeToProject || relativeToProject.startsWith("..") || path.isAbsolute(relativeToProject)) {
+      issues.push(
+        makeIssue("error", "structure", `Requested file is outside the project: ${onlyFile}`, null)
+      );
+      return { chapters: [], issues, bibleState: emptyBibleState };
+    }
 
-  const chapterFiles = fs
-    .readdirSync(project.manuscriptDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-    .map((entry) => path.join(project.manuscriptDir, entry.name))
-    .sort();
+    if (!fs.existsSync(resolvedPath)) {
+      issues.push(makeIssue("error", "structure", `Requested file does not exist: ${onlyFile}`, null));
+      return { chapters: [], issues, bibleState: emptyBibleState };
+    }
 
-  if (chapterFiles.length === 0) {
-    issues.push(makeIssue("error", "structure", `No manuscript files found in ${project.manuscriptDir}`));
-    return { chapters: [], issues, bibleState: emptyBibleState };
+    if (!fs.statSync(resolvedPath).isFile() || !resolvedPath.endsWith(".md")) {
+      issues.push(makeIssue("error", "structure", `Requested file must be a markdown file: ${onlyFile}`, null));
+      return { chapters: [], issues, bibleState: emptyBibleState };
+    }
+
+    const relativeToManuscript = path.relative(project.manuscriptDir, resolvedPath);
+    if (relativeToManuscript.startsWith("..") || path.isAbsolute(relativeToManuscript)) {
+      issues.push(
+        makeIssue(
+          "error",
+          "structure",
+          `Requested file must be inside manuscript directory: ${project.manuscriptDir}`,
+          null
+        )
+      );
+      return { chapters: [], issues, bibleState: emptyBibleState };
+    }
+
+    chapterFiles = [resolvedPath];
+  } else {
+    if (!fs.existsSync(project.manuscriptDir)) {
+      issues.push(makeIssue("error", "structure", `Missing manuscript directory: ${project.manuscriptDir}`));
+      return { chapters: [], issues, bibleState: emptyBibleState };
+    }
+
+    chapterFiles = fs
+      .readdirSync(project.manuscriptDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+      .map((entry) => path.join(project.manuscriptDir, entry.name))
+      .sort();
+
+    if (chapterFiles.length === 0) {
+      issues.push(makeIssue("error", "structure", `No manuscript files found in ${project.manuscriptDir}`));
+      return { chapters: [], issues, bibleState: emptyBibleState };
+    }
   }
 
   const chapters = chapterFiles.map((chapterPath) =>
@@ -637,7 +698,7 @@ function inspectProject(project: ProjectContext, runtimeConfig: WritingConfig): 
   });
   issues.push(...validateChapterProgression(chapters));
 
-  const bibleState = readStoryBible(project.notesDir, bibleSchema.schema.categories, bibleSchema.schema.inlineIdRegex);
+  const bibleState = readStoryBible(project.storyBibleDir, bibleSchema.schema.categories, bibleSchema.schema.inlineIdRegex);
   issues.push(...bibleState.issues);
 
   for (const chapter of chapters) {
@@ -924,6 +985,66 @@ function parseMetadata(raw: string, chapterPath: string, required: boolean): Par
 
     const key = line.slice(0, separatorIndex).trim();
     const value = line.slice(separatorIndex + 1).trim();
+
+    if (!value) {
+      let lookahead = i + 1;
+      while (lookahead < lines.length) {
+        const nextTrimmed = lines[lookahead].trim();
+        if (!nextTrimmed || nextTrimmed.startsWith("#")) {
+          lookahead += 1;
+          continue;
+        }
+        break;
+      }
+
+      if (lookahead < lines.length) {
+        const firstValueLine = lines[lookahead];
+        const firstValueTrimmed = firstValueLine.trim();
+        const firstValueIndent = firstValueLine.length - firstValueLine.trimStart().length;
+
+        if (firstValueIndent > 0 && firstValueTrimmed.startsWith("- ")) {
+          const items: string[] = [];
+          let j = lookahead;
+
+          while (j < lines.length) {
+            const candidateRaw = lines[j];
+            const candidateTrimmed = candidateRaw.trim();
+            if (!candidateTrimmed || candidateTrimmed.startsWith("#")) {
+              j += 1;
+              continue;
+            }
+
+            const indent = candidateRaw.length - candidateRaw.trimStart().length;
+            if (indent === 0) {
+              break;
+            }
+
+            if (!candidateTrimmed.startsWith("- ")) {
+              issues.push(
+                makeIssue(
+                  "error",
+                  "metadata",
+                  `Unsupported metadata list line '${candidateTrimmed}'. Expected '- value'.`,
+                  relativePath,
+                  j + 1
+                )
+              );
+              j += 1;
+              continue;
+            }
+
+            const itemValue = candidateTrimmed.slice(2).trim().replace(/^['"]|['"]$/g, "");
+            items.push(itemValue);
+            j += 1;
+          }
+
+          metadata[key] = items;
+          i = j - 1;
+          continue;
+        }
+      }
+    }
+
     metadata[key] = coerceMetadataValue(value);
   }
 
@@ -1160,7 +1281,7 @@ function validateChapterProgression(chapters: ChapterEntry[]): Issue[] {
 }
 
 function readStoryBible(
-  notesDir: string,
+  storyBibleDir: string,
   bibleCategories: BibleCategory[],
   inlineIdRegex: RegExp | null
 ): StoryBibleState {
@@ -1171,13 +1292,13 @@ function readStoryBible(
     return { ids, issues };
   }
 
-  if (!fs.existsSync(notesDir)) {
-    issues.push(makeIssue("warning", "continuity", `Missing notes directory: ${notesDir}`));
+  if (!fs.existsSync(storyBibleDir)) {
+    issues.push(makeIssue("warning", "continuity", `Missing story-bible directory: ${storyBibleDir}`));
     return { ids, issues };
   }
 
   for (const category of bibleCategories) {
-    const fullPath = path.join(notesDir, category.notesFile);
+    const fullPath = path.join(storyBibleDir, category.notesFile);
     const relativePath = path.relative(repoRoot, fullPath);
 
     if (!fs.existsSync(fullPath)) {
@@ -1222,14 +1343,15 @@ function findUnknownBibleIds(referenceIds: string[], knownIds: Set<string>, rela
 function runStageCheck(
   project: ProjectContext,
   runtimeConfig: WritingConfig,
-  stage: string
+  stage: string,
+  onlyFile?: string
 ): { chapters: ChapterEntry[]; issues: Issue[] } {
   if (!isStageName(stage)) {
     throw new Error(`Unknown stage '${stage}'. Allowed: ${Object.keys(runtimeConfig.stagePolicies).join(", ")}.`);
   }
   const policy = runtimeConfig.stagePolicies[stage];
 
-  const report = inspectProject(project, runtimeConfig);
+  const report = inspectProject(project, runtimeConfig, { onlyFile });
   const issues = [...report.issues];
 
   const minimumRank = STATUS_RANK[policy.minimumChapterStatus];
@@ -1276,6 +1398,7 @@ function runStageCheck(
   }
 
   const chapterPaths = report.chapters.map((chapter) => chapter.path);
+  const storyBibleWords = collectStoryBibleWordsForSpellcheck(report.bibleState.ids);
 
   if (policy.enforceMarkdownlint) {
     issues.push(...runMarkdownlint(chapterPaths, true));
@@ -1284,22 +1407,23 @@ function runStageCheck(
   }
 
   if (policy.enforceCSpell) {
-    issues.push(...runCSpell(chapterPaths, true));
+    issues.push(...runCSpell(chapterPaths, true, storyBibleWords));
   } else {
-    issues.push(...runCSpell(chapterPaths, false));
+    issues.push(...runCSpell(chapterPaths, false, storyBibleWords));
   }
 
   return { chapters: report.chapters, issues };
 }
 
 function runMarkdownlint(files: string[], required: boolean): Issue[] {
-  if (!isCommandAvailable("markdownlint")) {
+  const markdownlintCommand = resolveCommand("markdownlint");
+  if (!markdownlintCommand) {
     if (required) {
       return [
         makeIssue(
           "error",
           "tooling",
-          "markdownlint is required for this stage but not installed. Install it with 'npm i -g markdownlint-cli'."
+          "markdownlint is required for this stage but not installed. Run 'npm i' in the repo root."
         )
       ];
     }
@@ -1307,7 +1431,7 @@ function runMarkdownlint(files: string[], required: boolean): Issue[] {
   }
 
   const result = spawnSync(
-    "markdownlint",
+    markdownlintCommand,
     ["--config", path.join(repoRoot, ".markdownlint.json"), ...files],
     {
       cwd: repoRoot,
@@ -1323,40 +1447,97 @@ function runMarkdownlint(files: string[], required: boolean): Issue[] {
   return [makeIssue(required ? "error" : "warning", "lint", `markdownlint reported issues. ${details}`)];
 }
 
-function runCSpell(files: string[], required: boolean): Issue[] {
-  if (!isCommandAvailable("cspell")) {
+function collectStoryBibleWordsForSpellcheck(ids: Set<string>): string[] {
+  const words = new Set<string>();
+
+  for (const id of ids) {
+    const parts = id
+      .split("-")
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    for (const part of parts.slice(1)) {
+      if (!/[A-Za-z]/.test(part)) {
+        continue;
+      }
+      words.add(part.toLowerCase());
+    }
+  }
+
+  return Array.from(words).sort();
+}
+
+function runCSpell(files: string[], required: boolean, extraWords: string[] = []): Issue[] {
+  const cspellCommand = resolveCommand("cspell");
+  if (!cspellCommand) {
     if (required) {
       return [
         makeIssue(
           "error",
           "tooling",
-          "cspell is required for this stage but not installed. Install it with 'npm i -g cspell'."
+          "cspell is required for this stage but not installed. Run 'npm i' in the repo root."
         )
       ];
     }
     return [];
   }
 
+  let tempConfigDir: string | null = null;
+  let cspellConfigPath = path.join(repoRoot, ".cspell.json");
+
+  if (extraWords.length > 0) {
+    const baseConfig = readJson<Record<string, unknown>>(cspellConfigPath);
+    const existingWords = Array.isArray(baseConfig.words) ? baseConfig.words.filter((word) => typeof word === "string") : [];
+    const mergedWords = new Set<string>([...existingWords, ...extraWords]);
+
+    tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-cspell-"));
+    cspellConfigPath = path.join(tempConfigDir, "cspell.generated.json");
+    fs.writeFileSync(
+      cspellConfigPath,
+      `${JSON.stringify({ ...baseConfig, words: Array.from(mergedWords).sort() }, null, 2)}\n`,
+      "utf8"
+    );
+  }
+
   const result = spawnSync(
-    "cspell",
-    ["--no-progress", "--no-summary", "--config", path.join(repoRoot, ".cspell.json"), ...files],
+    cspellCommand,
+    ["--no-progress", "--no-summary", "--config", cspellConfigPath, ...files],
     {
       cwd: repoRoot,
       encoding: "utf8"
     }
   );
 
+  if (tempConfigDir) {
+    fs.rmSync(tempConfigDir, { recursive: true, force: true });
+  }
+
   if (result.status === 0) {
     return [];
   }
 
   const details = compactToolOutput(result.stdout, result.stderr);
-  return [makeIssue(required ? "error" : "warning", "spell", `cspell reported issues. ${details}`)];
+  return [
+    makeIssue(
+      required ? "error" : "warning",
+      "spell",
+      `cspell reported issues. ${details} Words from story-bible identifiers are auto-whitelisted. For additional terms, add them to '.cspell.json' under the 'words' array.`
+    )
+  ];
 }
 
-function isCommandAvailable(command: string): boolean {
-  const result = spawnSync("which", [command], { encoding: "utf8" });
-  return result.status === 0;
+function resolveCommand(command: string): string | null {
+  const localCommandPath = path.join(
+    repoRoot,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? `${command}.cmd` : command
+  );
+  if (fs.existsSync(localCommandPath)) {
+    return localCommandPath;
+  }
+
+  return null;
 }
 
 function compactToolOutput(stdout: string | null, stderr: string | null): string {
@@ -1506,13 +1687,14 @@ function slugify(value: string): string {
 
 function runExport(project: ProjectContext, format: string, inputPath: string, explicitOutputPath?: string): string {
   if (!isExportFormat(format)) {
-    throw new Error(`Unsupported export format '${format}'. Use md, docx, or pdf.`);
+    throw new Error(`Unsupported export format '${format}'. Use md, docx, pdf, or epub.`);
   }
 
   const exporters: Record<ExportFormat, Exporter> = {
     md: markdownExporter,
     docx: createPandocExporter("docx"),
-    pdf: createPandocExporter("pdf")
+    pdf: createPandocExporter("pdf"),
+    epub: createPandocExporter("epub")
   };
 
   const exporter = exporters[format];

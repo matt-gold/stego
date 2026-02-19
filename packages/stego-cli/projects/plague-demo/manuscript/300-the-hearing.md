@@ -1,12 +1,18 @@
 ---
+status: revise
 chapter: 2
 chapter_title: The Accounting
-status: draft
 pov: Etienne
-timeline: 1348-09-26
-characters: ["CHAR-MATTHAEUS", "CHAR-ETIENNE", "CHAR-RAOUL"]
-locations: ["LOC-COLLEGE"]
-sources: ["SRC-PICATRIX", "SRC-CONJUNCTION"]
+timeline: '1348-09-26'
+characters:
+  - CHAR-MATTHAEUS
+  - CHAR-ETIENNE
+  - CHAR-RAOUL
+locations:
+  - LOC-COLLEGE
+sources:
+  - SRC-CONJUNCTION
+  - SRC-GALEN
 ---
 
 The faculty hearing began as a technical disputation and ended as an inquiry into method. Three masters objected to Matthaeus from different directions: one said he conceded too much to natural causes, another said he conceded too much to celestial judgment, a third said he imported suspect languages from Arabic traditions into Christian medicine. The objections were mutually exclusive, which should have cancelled them out but instead compounded them, because the real charge was not error but imprudence.
