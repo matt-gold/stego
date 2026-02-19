@@ -14,6 +14,8 @@
   "activationEvents": [
     "onLanguage:markdown",
     "onCommand:stegoBible.reloadIndex",
+    "onCommand:stegoBible.runBuild",
+    "onCommand:stegoBible.runGateStage",
     "onCommand:stegoBible.toggleFrontmatter",
     "onView:stegoBible.metadataView"
   ],
@@ -43,10 +45,34 @@
         "title": "Stego Bible: Rebuild Index"
       },
       {
+        "command": "stegoBible.runBuild",
+        "title": "Build Manuscript",
+        "icon": "$(file)"
+      },
+      {
+        "command": "stegoBible.runGateStage",
+        "title": "Run Stage Checks",
+        "icon": "$(check)"
+      },
+      {
         "command": "stegoBible.toggleFrontmatter",
         "title": "Stego Bible: Toggle Frontmatter Fold"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "stegoBible.runBuild",
+          "when": "view == stegoBible.metadataView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "stegoBible.runGateStage",
+          "when": "view == stegoBible.metadataView",
+          "group": "navigation@2"
+        }
+      ]
+    },
     "configuration": {
       "title": "Stego Bible",
       "properties": {

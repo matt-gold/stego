@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { promises as fs, type Dirent } from 'fs';
+import { spawn } from 'child_process';
 import * as vscode from 'vscode';
 import * as yaml from 'js-yaml';
 import MarkdownIt from 'markdown-it';
@@ -29,6 +30,7 @@ type SidebarState = {
   documentPath: string;
   mode?: 'manuscript' | 'nonManuscript';
   parseError?: string;
+  showExplorer: boolean;
   metadataEditing: boolean;
   statusControl?: SidebarStatusControl;
   metadataEntries: SidebarMetadataEntry[];
@@ -531,6 +533,7 @@ class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: false,
         documentPath: '',
+        showExplorer: false,
         metadataEditing: false,
         statusControl: undefined,
         metadataEntries: [],
@@ -572,7 +575,10 @@ class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     const index = await this.indexService.loadForDocument(document);
     const config = getConfig(document.uri);
     const pattern = config.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
-    const explorer = await this.buildExplorerState(document, index, projectContext, pattern);
+    const showExplorer = (projectContext?.categories.length ?? 0) > 0;
+    const explorer = showExplorer
+      ? await this.buildExplorerState(document, index, projectContext, pattern)
+      : undefined;
     const tocWithBacklinks = await this.buildTocWithBacklinks(
       tocEntries,
       bibleCategoryForFile,
@@ -587,6 +593,7 @@ class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
         mode: 'nonManuscript',
+        showExplorer,
         metadataEditing: false,
         statusControl: undefined,
         metadataEntries: [],
@@ -632,6 +639,7 @@ class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
         mode: 'manuscript',
+        showExplorer,
         metadataEditing: this.metadataEditing,
         statusControl,
         metadataEntries,
@@ -652,6 +660,7 @@ class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         documentPath: document.uri.fsPath,
         mode: 'manuscript',
         parseError: errorToMessage(error),
+        showExplorer,
         metadataEditing: this.metadataEditing,
         statusControl: undefined,
         metadataEntries: [],
@@ -735,6 +744,16 @@ class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       case 'toggleMetadataEditing': {
         shouldRefreshDiagnostics = false;
         this.metadataEditing = !this.metadataEditing;
+        break;
+      }
+      case 'runLocalValidate': {
+        shouldRefreshDiagnostics = false;
+        await runLocalValidateWorkflow();
+        break;
+      }
+      case 'openMarkdownPreview': {
+        shouldRefreshDiagnostics = false;
+        await openMarkdownPreviewForActiveDocument();
         break;
       }
       case 'toggleFrontmatter': {
@@ -1087,6 +1106,12 @@ export function activate(context: vscode.ExtensionContext): void {
       await refreshVisibleMarkdownDocuments(indexService, diagnostics);
       await sidebarProvider.refresh();
       void vscode.window.showInformationMessage('Stego Bible index rebuilt.');
+    }),
+    vscode.commands.registerCommand('stegoBible.runBuild', async () => {
+      await runProjectBuildWorkflow();
+    }),
+    vscode.commands.registerCommand('stegoBible.runGateStage', async () => {
+      await runProjectGateStageWorkflow();
     }),
     vscode.commands.registerCommand('stegoBible.toggleFrontmatter', async () => {
       await toggleFrontmatterFold();
@@ -2316,7 +2341,7 @@ async function refreshDiagnosticsForDocument(
 
     const diagnostic = new vscode.Diagnostic(
       match.range,
-      `Unknown Bible identifier '${match.id}'. Add it to ${getConfig(document.uri).get<string>('indexFile', '.stego/bible-index.json')}.`,
+      `Unknown Bible identifier '${match.id}'. Add the category in project.json (bibleCategories) and define the identifier in story-bible/<notesFile>.md.`,
       vscode.DiagnosticSeverity.Warning
     );
     diagnostic.source = 'stegoBible';
@@ -2376,6 +2401,23 @@ async function openLineInActiveDocument(line: number): Promise<void> {
   const position = new vscode.Position(safeLine - 1, 0);
   editor.selection = new vscode.Selection(position, position);
   editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.AtTop);
+}
+
+async function openMarkdownPreviewForActiveDocument(): Promise<void> {
+  const document = getActiveMarkdownDocument(true);
+  if (!document) {
+    return;
+  }
+
+  try {
+    await vscode.commands.executeCommand('markdown.showPreviewToSide', document.uri);
+  } catch {
+    try {
+      await vscode.commands.executeCommand('markdown.showPreview', document.uri);
+    } catch (error) {
+      void vscode.window.showErrorMessage(`Could not open Markdown preview: ${errorToMessage(error)}`);
+    }
+  }
 }
 
 async function openBacklinkFile(filePath: string, line: number): Promise<void> {
@@ -2477,6 +2519,454 @@ function asNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+type ScriptRunResult = {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+};
+
+type ProjectScriptContext = {
+  document: vscode.TextDocument;
+  projectDir: string;
+  packagePath: string;
+};
+
+async function runCommand(
+  command: string,
+  args: string[],
+  cwd: string
+): Promise<ScriptRunResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      resolve({
+        exitCode: code ?? 1,
+        stdout,
+        stderr
+      });
+    });
+  });
+}
+
+function pickToastDetails(result: ScriptRunResult): string {
+  const text = `${result.stderr}\n${result.stdout}`.trim();
+  if (!text) {
+    return '';
+  }
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) {
+    return '';
+  }
+
+  return lines[lines.length - 1];
+}
+
+async function resolveProjectScriptContext(requiredScripts: string[]): Promise<ProjectScriptContext | undefined> {
+  const document = getActiveMarkdownDocument(true);
+  if (!document) {
+    return undefined;
+  }
+
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+  if (!workspaceFolder) {
+    void vscode.window.showWarningMessage('Open this file inside a workspace to run project scripts.');
+    return undefined;
+  }
+
+  const project = await findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath);
+  if (!project) {
+    void vscode.window.showWarningMessage('Could not find a project.json for this file.');
+    return undefined;
+  }
+
+  const packagePath = path.join(project.projectDir, 'package.json');
+  let packageRaw: string;
+  try {
+    packageRaw = await fs.readFile(packagePath, 'utf8');
+  } catch {
+    void vscode.window.showWarningMessage(`No package.json found in ${project.projectDir}.`);
+    return undefined;
+  }
+
+  let scripts: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(packageRaw) as unknown;
+    const candidateScripts = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>).scripts
+      : undefined;
+    if (candidateScripts && typeof candidateScripts === 'object' && !Array.isArray(candidateScripts)) {
+      scripts = candidateScripts as Record<string, unknown>;
+    }
+  } catch {
+    scripts = {};
+  }
+
+  for (const requiredScript of requiredScripts) {
+    if (typeof scripts[requiredScript] !== 'string') {
+      void vscode.window.showWarningMessage(`Script '${requiredScript}' is not defined in ${packagePath}.`);
+      return undefined;
+    }
+  }
+
+  return {
+    document,
+    projectDir: project.projectDir,
+    packagePath
+  };
+}
+
+function extractOutputPath(result: ScriptRunResult): string | undefined {
+  const text = `${result.stdout}\n${result.stderr}`.trim();
+  if (!text) {
+    return undefined;
+  }
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+    const match = line.match(/(?:Build output|Export output):\s*(.+)$/i);
+    if (!match) {
+      continue;
+    }
+
+    const outputPath = match[1].trim();
+    if (outputPath) {
+      return outputPath;
+    }
+  }
+
+  return undefined;
+}
+
+async function showBuildSuccessToast(result: ScriptRunResult, formatLabel: string): Promise<void> {
+  const outputPath = extractOutputPath(result);
+  if (!outputPath) {
+    void vscode.window.showInformationMessage(`Build succeeded (${formatLabel}).`);
+    return;
+  }
+
+  const action = await vscode.window.showInformationMessage(
+    ['Build succeeded.', `Format: ${formatLabel}`, `Output: ${outputPath}`].join('\n'),
+    'Open'
+  );
+
+  if (action !== 'Open') {
+    return;
+  }
+
+  try {
+    await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(outputPath));
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Could not open output file: ${errorToMessage(error)}`);
+  }
+}
+
+async function runProjectBuildWorkflow(): Promise<void> {
+  const context = await resolveProjectScriptContext(['build', 'export']);
+  if (!context) {
+    return;
+  }
+
+  const pickedFormat = await vscode.window.showQuickPick(
+    [
+      {
+        label: 'Markdown (.md)',
+        description: 'Build manuscript markdown',
+        format: 'md' as const
+      },
+      {
+        label: 'Word (.docx)',
+        description: 'Export Word document',
+        format: 'docx' as const
+      },
+      {
+        label: 'PDF (.pdf)',
+        description: 'Export printable PDF (requires PDF engine)',
+        format: 'pdf' as const
+      },
+      {
+        label: 'EPUB (.epub)',
+        description: 'Export EPUB ebook',
+        format: 'epub' as const
+      }
+    ],
+    {
+      title: 'Build',
+      placeHolder: 'Select document type'
+    }
+  );
+
+  if (!pickedFormat) {
+    return;
+  }
+
+  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const formatLabel = pickedFormat.label;
+  const runArgs = pickedFormat.format === 'md'
+    ? ['run', 'build']
+    : ['run', 'export', '--', '--format', pickedFormat.format];
+  let result: ScriptRunResult;
+  try {
+    result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Build (${formatLabel})`,
+        cancellable: false
+      },
+      async () => runCommand(npmCommand, runArgs, context.projectDir)
+    );
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Build failed: ${errorToMessage(error)}`);
+    return;
+  }
+
+  if (result.exitCode === 0) {
+    await showBuildSuccessToast(result, formatLabel);
+    return;
+  }
+
+  const details = pickToastDetails(result);
+  void vscode.window.showErrorMessage(details
+    ? `Build failed: ${details}`
+    : `Build failed with exit code ${result.exitCode}.`);
+}
+
+function toProjectRelativePath(projectDir: string, filePath: string): string | undefined {
+  const normalizedProject = path.resolve(projectDir);
+  const normalizedFile = path.resolve(filePath);
+  const relative = path.relative(normalizedProject, normalizedFile);
+
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return undefined;
+  }
+
+  return relative.split(path.sep).join('/');
+}
+
+function getStageCheckDetails(stage: string, scope: 'file' | 'project'): string[] {
+  const normalizedStage = stage.trim().toLowerCase();
+  const target = scope === 'file' ? 'current file' : 'project';
+  const details = [
+    `Ran stage gate for ${target} (${normalizedStage}).`,
+    `Checked minimum status requirement (${normalizedStage}).`
+  ];
+
+  switch (normalizedStage) {
+    case 'revise':
+      details.push('Checked story-bible continuity.');
+      break;
+    case 'line-edit':
+      details.push('Checked story-bible continuity.');
+      details.push('Ran spell check.');
+      break;
+    case 'proof':
+    case 'final':
+      details.push('Checked story-bible continuity.');
+      details.push('Ran markdown lint.');
+      details.push('Ran spell check.');
+      details.push('Enforced strict local link checks.');
+      break;
+    case 'draft':
+    default:
+      break;
+  }
+
+  return details;
+}
+
+function getLocalValidateDetails(relativeFile: string, stage: string): string[] {
+  return [
+    `Ran manuscript validation (${relativeFile}).`,
+    'Checked metadata and frontmatter.',
+    'Checked markdown structure and links.',
+    ...getStageCheckDetails(stage, 'file')
+  ];
+}
+
+async function runLocalValidateWorkflow(): Promise<void> {
+  const context = await resolveProjectScriptContext(['validate', 'check-stage']);
+  if (!context) {
+    return;
+  }
+
+  const relativeFile = toProjectRelativePath(context.projectDir, context.document.uri.fsPath);
+  if (!relativeFile) {
+    void vscode.window.showWarningMessage('Validate requires an active file inside the current project.');
+    return;
+  }
+
+  let stage: string | undefined;
+  try {
+    const parsed = parseMarkdownDocument(context.document.getText());
+    stage = asString(parsed.frontmatter.status)?.toLowerCase();
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Validate failed: could not parse frontmatter status (${errorToMessage(error)}).`);
+    return;
+  }
+
+  if (!stage) {
+    void vscode.window.showWarningMessage('Validate requires manuscript metadata status to run stage checks.');
+    return;
+  }
+
+  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  let validateResult: ScriptRunResult;
+  let checkStageResult: ScriptRunResult;
+
+  try {
+    const workflowResult = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Validate',
+        cancellable: false
+      },
+      async () => {
+        const validate = await runCommand(
+          npmCommand,
+          ['run', 'validate', '--', '--file', relativeFile],
+          context.projectDir
+        );
+        if (validate.exitCode !== 0) {
+          return { validate, checkStage: undefined as ScriptRunResult | undefined };
+        }
+        const checkStage = await runCommand(
+          npmCommand,
+          ['run', 'check-stage', '--', '--stage', stage as string, '--file', relativeFile],
+          context.projectDir
+        );
+        return { validate, checkStage };
+      }
+    );
+    validateResult = workflowResult.validate;
+    checkStageResult = workflowResult.checkStage ?? {
+      exitCode: 1,
+      stdout: '',
+      stderr: ''
+    };
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Validate failed: ${errorToMessage(error)}`);
+    return;
+  }
+
+  if (validateResult.exitCode !== 0) {
+    const details = pickToastDetails(validateResult);
+    void vscode.window.showErrorMessage(details
+      ? `Validate failed: ${details}`
+      : `Validate failed with exit code ${validateResult.exitCode}.`);
+    return;
+  }
+
+  if (checkStageResult.exitCode !== 0) {
+    const details = pickToastDetails(checkStageResult);
+    void vscode.window.showErrorMessage(details
+      ? `Validate failed at stage gate (${stage}): ${details}`
+      : `Validate failed at stage gate (${stage}) with exit code ${checkStageResult.exitCode}.`);
+    return;
+  }
+
+  void vscode.window.showInformationMessage([
+    'Checks passed.',
+    ...getLocalValidateDetails(relativeFile, stage)
+  ].join('\n'));
+}
+
+async function runProjectGateStageWorkflow(): Promise<void> {
+  const context = await resolveProjectScriptContext(['check-stage']);
+  if (!context) {
+    return;
+  }
+
+  const allowedStatuses = await resolveAllowedStatuses(context.document);
+  if (allowedStatuses.length === 0) {
+    void vscode.window.showWarningMessage('No allowed statuses configured for stage gating.');
+    return;
+  }
+
+  let currentStatus: string | undefined;
+  try {
+    const parsed = parseMarkdownDocument(context.document.getText());
+    currentStatus = asString(parsed.frontmatter.status)?.toLowerCase();
+  } catch {
+    currentStatus = undefined;
+  }
+
+  const pickedStage = await vscode.window.showQuickPick(
+    allowedStatuses.map((status) => ({
+      label: status,
+      description: currentStatus === status ? 'Current file status' : undefined
+    })),
+    {
+      title: 'Run Stage Checks',
+      placeHolder: 'Select stage to enforce across the project'
+    }
+  );
+
+  if (!pickedStage) {
+    return;
+  }
+
+  const stage = pickedStage.label;
+  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  let result: ScriptRunResult;
+  try {
+    result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Run Stage Checks (${stage})`,
+        cancellable: false
+      },
+      async () => runCommand(
+        npmCommand,
+        ['run', 'check-stage', '--', '--stage', stage],
+        context.projectDir
+      )
+    );
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Run Stage Checks failed: ${errorToMessage(error)}`);
+    return;
+  }
+
+  if (result.exitCode === 0) {
+    void vscode.window.showInformationMessage([
+      'Checks passed.',
+      ...getStageCheckDetails(stage, 'project')
+    ].join('\n'));
+    return;
+  }
+
+  const details = pickToastDetails(result);
+  void vscode.window.showErrorMessage(details
+    ? `Run Stage Checks failed (${stage}): ${details}`
+    : `Run Stage Checks failed (${stage}) with exit code ${result.exitCode}.`);
+}
+
 function getActiveMarkdownDocument(showMessage: boolean): vscode.TextDocument | undefined {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== 'markdown') {
@@ -2568,7 +3058,18 @@ function serializeMarkdownDocument(parsed: ParsedMarkdownDocument): string {
 
 async function writeParsedDocument(document: vscode.TextDocument, parsed: ParsedMarkdownDocument): Promise<boolean> {
   const nextText = serializeMarkdownDocument(parsed);
-  return replaceDocumentText(document, nextText);
+  const changed = await replaceDocumentText(document, nextText);
+  if (!changed) {
+    return false;
+  }
+
+  try {
+    await document.save();
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Could not auto-save metadata changes: ${errorToMessage(error)}`);
+  }
+
+  return true;
 }
 
 async function replaceDocumentText(document: vscode.TextDocument, nextText: string): Promise<boolean> {
@@ -3052,6 +3553,11 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
     }).join('')
     : '<div class="empty">No metadata fields yet.</div>';
 
+  const activeStageLabel = state.statusControl?.value ?? state.statusControl?.invalidValue;
+  const runLocalChecksLabel = activeStageLabel
+    ? `Run ${activeStageLabel} checks.`
+    : 'Run stage checks.';
+
   const statusControlHtml = state.mode === 'manuscript' && state.statusControl
     ? `<div class="status-editor">`
       + `<div class="status-options">`
@@ -3063,6 +3569,7 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
           + `</label>`;
       }).join('')
       + `</div>`
+      + `<div class="status-actions"><button class="btn subtle inline-toggle" data-action="runLocalValidate">${escapeHtml(runLocalChecksLabel)}</button></div>`
       + `${state.statusControl.invalidValue
         ? `<div class="status-note warn">Unknown current status: <code>${escapeHtml(state.statusControl.invalidValue)}</code></div>`
         : !state.statusControl.value
@@ -3085,6 +3592,7 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
   const backIcon = navIcon('M9.5 3L4.5 8l5 5 1.1-1.1L6.7 8l3.9-3.9z');
   const forwardIcon = navIcon('M6.5 3L5.4 4.1 9.3 8l-3.9 3.9L6.5 13l5-5z');
   const homeIcon = navIcon('M8 2l6 5v7h-4V9H6v5H2V7z');
+  const previewIcon = navIcon('M13.5 1H4.5C3.122 1 2 2.122 2 3.5V6.276C2.319 6.162 2.653 6.089 3 6.05V3.499C3 2.672 3.673 1.999 4.5 1.999H8.5V13.385L9.557 14.442C9.714 14.591 9.831 14.786 9.907 14.999H13.5C14.878 14.999 16 13.877 16 12.499V3.5C16 2.122 14.878 1 13.5 1ZM15 12.5C15 13.327 14.327 14 13.5 14H9.5V2H13.5C14.327 2 15 2.673 15 3.5V12.5ZM6.29 12.59C6.74 12.01 7 11.28 7 10.5C7 8.57 5.43 7 3.5 7C1.57 7 0 8.57 0 10.5C0 12.43 1.57 14 3.5 14C4.28 14 5.01 13.74 5.59 13.29L8.15 15.85C8.24 15.95 8.37 16 8.5 16C8.63 16 8.76 15.95 8.85 15.85C9.05 15.66 9.05 15.34 8.85 15.15L6.29 12.59ZM5.5 12C5.36 12.19 5.19 12.36 5 12.5C4.59 12.81 4.06 13 3.5 13C2.12 13 1 11.88 1 10.5C1 9.12 2.12 8 3.5 8C4.88 8 6 9.12 6 10.5C6 11.06 5.81 11.59 5.5 12Z');
   const collapsePanelIcon = navIcon('M3.4 5.4L8 10l4.6-4.6 1 1L8 12 2.4 6.4z');
   const expandPanelIcon = navIcon('M10.6 3.4L6 8l4.6 4.6-1 1L4 8l5.6-5.6z');
 
@@ -3233,7 +3741,7 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
         : ''}`
       + `</div>`
       + `${state.isBibleCategoryFile && (!state.explorer || state.explorer.kind !== 'identifier' || state.explorerCollapsed)
-        ? `<div class="filter-row"><input id="backlink-filter" class="filter-input" type="text" value="${escapeAttribute(state.backlinkFilter)}" placeholder="Filter backlinks by filename" /></div>`
+        ? `<div class="filter-row"><input id="backlink-filter" class="filter-input" type="text" value="${escapeAttribute(state.backlinkFilter)}" placeholder="Filter references by filename" /></div>`
         : ''}`
       + `<div class="toc-list">${tocHtml}</div>`
       + `</section>`
@@ -3260,10 +3768,13 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
   const content = !state.hasActiveMarkdown
     ? '<div class="empty-panel">Open a Markdown document to use the Stego sidebar.</div>'
     : `
-      <div class="file-title" title="${escapeAttribute(fileTitle.filename)}">${escapeHtml(fileTitle.title)}</div>
+      <div class="file-title-row">
+        <div class="file-title" title="${escapeAttribute(fileTitle.filename)}">${escapeHtml(fileTitle.title)}</div>
+        <button class="btn subtle btn-icon file-preview-btn" data-action="openMarkdownPreview" aria-label="Open Markdown Preview" title="Open Markdown Preview">${previewIcon}</button>
+      </div>
       ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
       ${statusPanel}
-      ${explorerHtml}
+      ${state.showExplorer ? explorerHtml : ''}
       ${state.mode === 'manuscript' ? metadataPanel : tocPanel}
       ${state.mode === 'manuscript' ? tocPanel : ''}
       ${utilityPanel}
@@ -3393,13 +3904,23 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
       opacity: 0.5;
       cursor: default;
     }
-    .file-title {
+    .file-title-row {
       margin-bottom: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .file-title {
+      margin: 0;
+      flex: 1;
       font-size: 16px;
       font-weight: 700;
       line-height: 1.25;
       color: var(--vscode-foreground);
       word-break: break-word;
+    }
+    .file-preview-btn {
+      flex: 0 0 auto;
     }
     .list,
     .toc-list {
@@ -3515,6 +4036,11 @@ function renderSidebarHtml(webview: vscode.Webview, state: SidebarState): string
     }
     .status-radio {
       margin: 0;
+    }
+    .status-actions {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
     }
     .status-note {
       margin-top: 6px;
