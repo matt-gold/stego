@@ -89,10 +89,13 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     }).join('')
     : '<div class="empty">No metadata fields yet.</div>';
 
-  const activeStageLabel = state.statusControl?.value ?? state.statusControl?.invalidValue;
-  const runLocalChecksLabel = activeStageLabel
-    ? `Run ${activeStageLabel} checks`
-    : 'Run stage checks';
+  const currentStageLabel = state.mode === 'manuscript'
+    ? state.statusControl?.value?.trim() || state.statusControl?.invalidValue?.trim() || 'stage'
+    : 'stage';
+  const runLocalChecksLabel = `Run ${currentStageLabel} check`;
+  const runLocalChecksIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.78 3.97a.75.75 0 0 1 0 1.06L6.75 12.06a.75.75 0 0 1-1.06 0L2.22 8.59a.75.75 0 1 1 1.06-1.06l2.94 2.94 6.5-6.5a.75.75 0 0 1 1.06 0z"></path></svg>';
+  const copyCleanManuscriptLabel = 'Copy Without Metadata';
+  const copyCleanManuscriptIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2.75A1.75 1.75 0 0 1 6.75 1h6.5A1.75 1.75 0 0 1 15 2.75v8.5A1.75 1.75 0 0 1 13.25 13h-6.5A1.75 1.75 0 0 1 5 11.25zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25z"></path><path d="M1 4.75A1.75 1.75 0 0 1 2.75 3h.5a.75.75 0 0 1 0 1.5h-.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-.5a.75.75 0 0 1 1.5 0v.5A1.75 1.75 0 0 1 9.25 15h-6.5A1.75 1.75 0 0 1 1 13.25z"></path></svg>';
 
   const statusControlHtml = state.mode === 'manuscript' && state.statusControl
     ? `<div class="status-editor">`
@@ -105,7 +108,6 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
           + `</label>`;
       }).join('')
       + `</div>`
-      + `<div class="status-actions"><button class="btn subtle inline-toggle" data-action="runLocalValidate">${escapeHtml(runLocalChecksLabel)}</button></div>`
       + `${state.statusControl.invalidValue
         ? `<div class="status-note warn">Unknown current status: <code>${escapeHtml(state.statusControl.invalidValue)}</code></div>`
         : !state.statusControl.value
@@ -114,8 +116,14 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `</div>`
     : '';
   const statusPanel = state.mode === 'manuscript' && statusControlHtml
-    ? `<section class="panel">`
-      + `<h2>Status</h2>`
+    ? `<section class="panel title-panel">`
+      + `<div class="panel-heading">`
+      + `<h2>${escapeHtml(fileTitle.title)}</h2>`
+      + `<div class="actions">`
+      + `<button class="btn subtle btn-icon" data-action="copyCleanManuscript" aria-label="${escapeAttribute(copyCleanManuscriptLabel)}" title="${escapeAttribute(copyCleanManuscriptLabel)}">${copyCleanManuscriptIcon}</button>`
+      + `<button class="btn subtle btn-icon" data-action="runLocalValidate" aria-label="${escapeAttribute(runLocalChecksLabel)}" title="${escapeAttribute(runLocalChecksLabel)}">${runLocalChecksIcon}</button>`
+      + `</div>`
+      + `</div>`
       + `${statusControlHtml}`
       + `</section>`
     : '';
@@ -128,7 +136,6 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const backIcon = navIcon('M9.5 3L4.5 8l5 5 1.1-1.1L6.7 8l3.9-3.9z');
   const forwardIcon = navIcon('M6.5 3L5.4 4.1 9.3 8l-3.9 3.9L6.5 13l5-5z');
   const homeIcon = navIcon('M8 2l6 5v7h-4V9H6v5H2V7z');
-  const previewIcon = navIcon('M13.5 1H4.5C3.122 1 2 2.122 2 3.5V6.276C2.319 6.162 2.653 6.089 3 6.05V3.499C3 2.672 3.673 1.999 4.5 1.999H8.5V13.385L9.557 14.442C9.714 14.591 9.831 14.786 9.907 14.999H13.5C14.878 14.999 16 13.877 16 12.499V3.5C16 2.122 14.878 1 13.5 1ZM15 12.5C15 13.327 14.327 14 13.5 14H9.5V2H13.5C14.327 2 15 2.673 15 3.5V12.5ZM6.29 12.59C6.74 12.01 7 11.28 7 10.5C7 8.57 5.43 7 3.5 7C1.57 7 0 8.57 0 10.5C0 12.43 1.57 14 3.5 14C4.28 14 5.01 13.74 5.59 13.29L8.15 15.85C8.24 15.95 8.37 16 8.5 16C8.63 16 8.76 15.95 8.85 15.85C9.05 15.66 9.05 15.34 8.85 15.15L6.29 12.59ZM5.5 12C5.36 12.19 5.19 12.36 5 12.5C4.59 12.81 4.06 13 3.5 13C2.12 13 1 11.88 1 10.5C1 9.12 2.12 8 3.5 8C4.88 8 6 9.12 6 10.5C6 11.06 5.81 11.59 5.5 12Z');
   const collapsePanelIcon = navIcon('M3.4 5.4L8 10l4.6-4.6 1 1L8 12 2.4 6.4z');
   const expandPanelIcon = navIcon('M10.6 3.4L6 8l4.6 4.6-1 1L4 8l5.6-5.6z');
 
@@ -294,14 +301,6 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `</section>`
     : '';
 
-  const utilityPanel = `<section class="panel">`
-    + `<h2>Actions</h2>`
-    + `<div class="actions">`
-    + `<button class="btn subtle" data-action="copyCleanManuscript">Copy Without Metadata</button>`
-    + `${state.mode !== 'manuscript' ? '<button class="btn subtle" data-action="refresh">Refresh</button>' : ''}`
-    + `</div>`
-    + `</section>`;
-
   const commentErrors = state.comments.parseErrors.length > 0
     ? `<div class="error-panel">${state.comments.parseErrors.map((error) => escapeHtml(error)).join('<br/>')}</div>`
     : '';
@@ -356,21 +355,16 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     + `</div>`;
 
   const documentContent = `
-      ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
       ${statusPanel}
+      ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
       ${state.showExplorer ? explorerHtml : ''}
       ${state.mode === 'manuscript' ? metadataPanel : tocPanel}
       ${state.mode === 'manuscript' ? tocPanel : ''}
-      ${utilityPanel}
     `;
 
   const content = !state.hasActiveMarkdown
     ? '<div class="empty-panel">Open a Markdown document to use the Stego sidebar.</div>'
     : `
-      <div class="file-title-row">
-        <div class="file-title" title="${escapeAttribute(fileTitle.filename)}">${escapeHtml(fileTitle.title)}</div>
-        <button class="btn subtle btn-icon file-preview-btn" data-action="openMarkdownPreview" aria-label="Open Markdown Preview" title="Open Markdown Preview">${previewIcon}</button>
-      </div>
       ${tabRow}
       ${state.activeTab === 'comments' && state.enableComments ? commentsPanel : documentContent}
     `;

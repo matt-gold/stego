@@ -31,6 +31,14 @@ h2 {
 .panel-heading h2 {
   margin: 0;
 }
+.title-panel .panel-heading h2 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.25;
+  color: var(--vscode-foreground);
+}
 .panel-heading .actions {
   margin-bottom: 0;
 }

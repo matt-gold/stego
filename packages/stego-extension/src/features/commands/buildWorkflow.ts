@@ -41,7 +41,7 @@ export async function runProjectBuildWorkflow(): Promise<void> {
     [
       {
         label: 'Markdown (.md)',
-        description: 'Build manuscript markdown',
+        description: 'Compile manuscript markdown',
         format: 'md' as const
       },
       {

@@ -47,7 +47,7 @@
       },
       {
         "command": "stegoBible.runBuild",
-        "title": "Build Manuscript",
+        "title": "Compile Full Manuscript",
         "icon": "$(file)"
       },
       {
