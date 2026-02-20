@@ -16,6 +16,7 @@
     "onCommand:stegoBible.reloadIndex",
     "onCommand:stegoBible.runBuild",
     "onCommand:stegoBible.runGateStage",
+    "onCommand:stegoBible.addComment",
     "onCommand:stegoBible.toggleFrontmatter",
     "onView:stegoBible.metadataView"
   ],
@@ -57,6 +58,18 @@
       {
         "command": "stegoBible.toggleFrontmatter",
         "title": "Stego Bible: Toggle Frontmatter Fold"
+      },
+      {
+        "command": "stegoBible.addComment",
+        "title": "Stego: Add Comment"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "stegoBible.addComment",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "editorTextFocus"
       }
     ],
     "menus": {
@@ -74,42 +87,52 @@
       ]
     },
     "configuration": {
-      "title": "Stego Bible",
+      "title": "Stego",
       "properties": {
-        "stegoBible.identifierPattern": {
+        "stego.bible.identifierPattern": {
           "type": "string",
           "default": "\\b[A-Z][A-Z0-9]*-[A-Z0-9]+(?:-[A-Z0-9]+)*\\b",
           "description": "Regex used to find Bible identifiers in Markdown text (for example LOC-ASDF or CHAR-JANE)."
         },
-        "stegoBible.indexFile": {
+        "stego.bible.indexFile": {
           "type": "string",
           "default": ".stego/bible-index.json",
           "description": "Path to the workspace JSON file containing identifier definitions. If missing or partial, Stego also infers entries from project.json bible category prefixes and markdown headings."
         },
-        "stegoBible.definitionBaseUrl": {
+        "stego.bible.definitionBaseUrl": {
           "type": "string",
           "default": "",
           "description": "Optional fallback base URL used when an identifier has no explicit URL or path in the index."
         },
-        "stegoBible.enableHover": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show identifier details on hover."
-        },
-        "stegoBible.reportUnknownIdentifiers": {
+        "stego.bible.reportUnknownIdentifiers": {
           "type": "boolean",
           "default": true,
           "description": "Warn when identifiers are found in text but missing from the index file."
         },
-        "stegoBible.linkInCodeFences": {
+        "stego.editor.enableHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show identifier details on hover."
+        },
+        "stego.editor.linkInCodeFences": {
           "type": "boolean",
           "default": false,
           "description": "Create links inside fenced code blocks."
         },
-        "stegoBible.autoFoldFrontmatter": {
+        "stego.editor.autoFoldFrontmatter": {
           "type": "boolean",
           "default": true,
           "description": "Automatically fold YAML frontmatter in Markdown files."
+        },
+        "stego.comments.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the comments feature. When disabled, no comment parsing, gutter decorations, or comments tab will appear."
+        },
+        "stego.comments.author": {
+          "type": "string",
+          "default": "",
+          "description": "Default author name used when adding sidebar comments. Leave blank to use your system/git username."
         }
       }
     }
@@ -117,7 +140,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "test:pure": "npm run compile && node --test out/test/pure/*.js"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
@@ -127,6 +151,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
+    "dayjs": "^1.11.19",
     "js-yaml": "^4.1.0",
     "markdown-it": "^14.1.1"
   }

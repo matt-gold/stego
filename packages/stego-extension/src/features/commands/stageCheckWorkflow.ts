@@ -1,0 +1,108 @@
+import * as vscode from 'vscode';
+import { errorToMessage } from '../../shared/errors';
+import { asString } from '../../shared/value';
+import type { ScriptRunResult } from '../../shared/types';
+import { parseMarkdownDocument } from '../metadata/frontmatterParse';
+import { resolveAllowedStatuses } from '../metadata/statusControl';
+import { pickToastDetails, resolveProjectScriptContext, runCommand } from './workflowUtils';
+
+export function getStageCheckDetails(stage: string, scope: 'file' | 'project'): string[] {
+  const normalizedStage = stage.trim().toLowerCase();
+  const target = scope === 'file' ? 'current file' : 'project';
+  const details = [
+    `Ran stage gate for ${target} (${normalizedStage}).`,
+    `Checked minimum status requirement (${normalizedStage}).`
+  ];
+
+  switch (normalizedStage) {
+    case 'revise':
+      details.push('Checked story-bible continuity.');
+      break;
+    case 'line-edit':
+      details.push('Checked story-bible continuity.');
+      details.push('Ran spell check.');
+      break;
+    case 'proof':
+    case 'final':
+      details.push('Checked story-bible continuity.');
+      details.push('Ran markdown lint.');
+      details.push('Ran spell check.');
+      details.push('Enforced strict local link checks.');
+      break;
+    case 'draft':
+    default:
+      break;
+  }
+
+  return details;
+}
+
+export async function runProjectGateStageWorkflow(): Promise<void> {
+  const context = await resolveProjectScriptContext(['check-stage']);
+  if (!context) {
+    return;
+  }
+
+  const allowedStatuses = await resolveAllowedStatuses(context.document);
+  if (allowedStatuses.length === 0) {
+    void vscode.window.showWarningMessage('No allowed statuses configured for stage gating.');
+    return;
+  }
+
+  let currentStatus: string | undefined;
+  try {
+    const parsed = parseMarkdownDocument(context.document.getText());
+    currentStatus = asString(parsed.frontmatter.status)?.toLowerCase();
+  } catch {
+    currentStatus = undefined;
+  }
+
+  const pickedStage = await vscode.window.showQuickPick(
+    allowedStatuses.map((status) => ({
+      label: status,
+      description: currentStatus === status ? 'Current file status' : undefined
+    })),
+    {
+      title: 'Run Stage Checks',
+      placeHolder: 'Select stage to enforce across the project'
+    }
+  );
+
+  if (!pickedStage) {
+    return;
+  }
+
+  const stage = pickedStage.label;
+  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  let result: ScriptRunResult;
+  try {
+    result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Run Stage Checks (${stage})`,
+        cancellable: false
+      },
+      async () => runCommand(
+        npmCommand,
+        ['run', 'check-stage', '--', '--stage', stage],
+        context.projectDir
+      )
+    );
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Run Stage Checks failed: ${errorToMessage(error)}`);
+    return;
+  }
+
+  if (result.exitCode === 0) {
+    void vscode.window.showInformationMessage([
+      'Checks passed.',
+      ...getStageCheckDetails(stage, 'project')
+    ].join('\n'));
+    return;
+  }
+
+  const details = pickToastDetails(result);
+  void vscode.window.showErrorMessage(details
+    ? `Run Stage Checks failed (${stage}): ${details}`
+    : `Run Stage Checks failed (${stage}) with exit code ${result.exitCode}.`);
+}
