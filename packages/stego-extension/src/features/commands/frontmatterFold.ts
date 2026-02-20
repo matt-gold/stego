@@ -8,7 +8,7 @@ export async function maybeAutoFoldFrontmatter(editor: vscode.TextEditor | undef
     return;
   }
 
-  if (!getConfig(editor.document.uri).get<boolean>('autoFoldFrontmatter', true)) {
+  if (!getConfig('editor', editor.document.uri).get<boolean>('autoFoldFrontmatter', true)) {
     return;
   }
 

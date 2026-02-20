@@ -10,13 +10,12 @@ import { isCommentIdentifier, normalizeCommentIdentifier } from '../comments/com
 export function createHoverProvider(indexService: BibleIndexService): vscode.HoverProvider {
   return {
     async provideHover(document, position): Promise<vscode.Hover | undefined> {
-      const config = getConfig(document.uri);
-      if (!config.get<boolean>('enableHover', true)) {
+      if (!getConfig('editor', document.uri).get<boolean>('enableHover', true)) {
         return undefined;
       }
 
-      const pattern = config.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
-      const includeFences = config.get<boolean>('linkInCodeFences', false);
+      const pattern = getConfig('bible', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+      const includeFences = getConfig('editor', document.uri).get<boolean>('linkInCodeFences', false);
       const matches = collectIdentifiers(document, pattern, includeFences);
       const match = matches.find((candidate) => candidate.range.contains(position));
       if (!match) {

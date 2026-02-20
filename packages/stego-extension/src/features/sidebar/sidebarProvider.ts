@@ -5,6 +5,7 @@ import { asNumber, asRecord } from '../../shared/value';
 import type {
   ExplorerRoute,
   ProjectBibleCategory,
+  SidebarCommentsState,
   SidebarState
 } from '../../shared/types';
 import { runLocalValidateWorkflow } from '../commands/localValidateWorkflow';
@@ -32,6 +33,7 @@ import { buildExplorerState, buildMetadataEntry, buildTocWithBacklinks } from '.
 import { normalizeExplorerRoute, isSameExplorerRoute } from './sidebarRoutes';
 import { collectTocEntries, isManuscriptPath } from './sidebarToc';
 import { renderSidebarHtml } from './render/renderSidebarHtml';
+import { parseCommentAppendix } from '../comments/commentParser';
 import {
   addCommentAtSelection,
   buildSidebarCommentsState,
@@ -179,6 +181,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         activeTab: this.activeTab,
         showExplorer: false,
         metadataEditing: false,
+        enableComments: true,
         statusControl: undefined,
         metadataEntries: [],
         explorer: undefined,
@@ -201,8 +204,22 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       };
     }
 
-    const comments = buildSidebarCommentsState(document.getText(), this.selectedCommentId);
-    comments.currentAuthor = normalizeAuthor(getConfig(document.uri).get<string>('commentAuthor', '') ?? '');
+    const enableComments = getConfig('comments', document.uri).get<boolean>('enable', true) !== false;
+    const effectiveTab = !enableComments && this.activeTab === 'comments' ? 'document' : this.activeTab;
+
+    const emptyComments: SidebarCommentsState = {
+      selectedId: undefined,
+      currentAuthor: undefined,
+      items: [],
+      parseErrors: [],
+      totalCount: 0,
+      unresolvedCount: 0
+    };
+
+    const comments = enableComments
+      ? buildSidebarCommentsState(document.getText(), this.selectedCommentId)
+      : emptyComments;
+    comments.currentAuthor = normalizeAuthor(getConfig('comments', document.uri).get<string>('author', '') ?? '');
     this.selectedCommentId = comments.selectedId;
 
     const tocEntries = collectTocEntries(document);
@@ -228,8 +245,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     const index = await this.indexService.loadForDocument(document);
-    const config = getConfig(document.uri);
-    const pattern = config.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+    const pattern = getConfig('bible', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
     const showExplorer = (projectContext?.categories.length ?? 0) > 0;
     const explorer = showExplorer
       ? await buildExplorerState(
@@ -259,10 +275,11 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
-        activeTab: this.activeTab,
+        activeTab: effectiveTab,
         mode: 'nonManuscript',
         showExplorer,
         metadataEditing: false,
+        enableComments,
         statusControl: undefined,
         metadataEntries: [],
         explorer,
@@ -307,10 +324,11 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
-        activeTab: this.activeTab,
+        activeTab: effectiveTab,
         mode: 'manuscript',
         showExplorer,
         metadataEditing: this.metadataEditing,
+        enableComments,
         statusControl,
         metadataEntries,
         explorer,
@@ -329,11 +347,12 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
-        activeTab: this.activeTab,
+        activeTab: effectiveTab,
         mode: 'manuscript',
         parseError: errorToMessage(error),
         showExplorer,
         metadataEditing: this.metadataEditing,
+        enableComments,
         statusControl: undefined,
         metadataEntries: [],
         explorer,
@@ -364,6 +383,12 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         shouldRefreshDiagnostics = false;
         const value = typeof payload.value === 'string' ? payload.value.trim().toLowerCase() : '';
         if (value === 'document' || value === 'comments') {
+          if (value === 'comments') {
+            const doc = getActiveMarkdownDocument(false);
+            if (doc && !getConfig('comments', doc.uri).get<boolean>('enable', true)) {
+              break;
+            }
+          }
           this.activeTab = value;
         }
         break;
@@ -548,7 +573,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       case 'addComment': {
         shouldRefreshDiagnostics = false;
         const document = getActiveMarkdownDocument(true);
-        if (!document) {
+        if (!document || !getConfig('comments', document.uri).get<boolean>('enable', true)) {
           break;
         }
         const message = await vscode.window.showInputBox({
@@ -558,7 +583,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         if (message === undefined) {
           break;
         }
-        const author = getConfig(document.uri).get<string>('commentAuthor', '') ?? '';
+        const author = getConfig('comments', document.uri).get<string>('author', '') ?? '';
         const result = await addCommentAtSelection(document, message, author);
         if (result.warning) {
           void vscode.window.showWarningMessage(result.warning);
@@ -592,7 +617,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         if (message === undefined) {
           break;
         }
-        const author = getConfig(document.uri).get<string>('commentAuthor', '') ?? '';
+        const author = getConfig('comments', document.uri).get<string>('author', '') ?? '';
         const result = await replyToComment(document, payload.id.trim(), message, author);
         if (result.warning) {
           void vscode.window.showWarningMessage(result.warning);
@@ -679,6 +704,20 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         } else {
           void vscode.window.showInformationMessage('No resolved comments to clear.');
         }
+        break;
+      }
+      case 'copyCleanManuscript': {
+        shouldRefreshDiagnostics = false;
+        const document = getActiveMarkdownDocument(false);
+        if (!document) {
+          break;
+        }
+        const parsed = parseCommentAppendix(document.getText());
+        const withoutComments = parsed.contentWithoutComments;
+        const withoutFrontmatter = withoutComments.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
+        const clean = withoutFrontmatter.trim();
+        await vscode.env.clipboard.writeText(clean);
+        void vscode.window.showInformationMessage('Copied manuscript text to clipboard (without metadata or comments).');
         break;
       }
       default:

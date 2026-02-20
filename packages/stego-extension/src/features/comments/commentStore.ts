@@ -13,7 +13,9 @@ import {
   type ResolvedCommentAnchor
 } from './commentAnchors';
 import { parseCommentAppendix, upsertCommentAppendix } from './commentParser';
+import { getCommentThreadKey } from './commentThreadKey';
 import type { StegoCommentThread } from './commentTypes';
+import type { CommentExcerptTracker } from './commentExcerptTracker';
 
 export type LoadedCommentDocumentState = {
   lineEnding: string;
@@ -71,9 +73,9 @@ export function buildSidebarCommentsState(markdownText: string, selectedId?: str
   type ItemWithKey = SidebarCommentListItem & { _threadKey?: string };
 
   const items: ItemWithKey[] = sortedComments.map((comment) => {
-    const anchor = loaded.anchorsById.get(comment.id) ?? { anchorType: comment.anchor, line: 1, degraded: true };
+    const anchor = loaded.anchorsById.get(comment.id) ?? { anchorType: comment.paragraphIndex !== undefined ? 'paragraph' : 'file' as const, line: 1, degraded: true };
     const firstMessage = parseThreadEntry(comment.thread[0] ?? '');
-    const created = firstMessage.timestamp;
+    const created = comment.createdAt || firstMessage.timestamp;
     const author = firstMessage.author;
     const message = firstMessage.message || '(No message)';
 
@@ -209,6 +211,7 @@ export async function addCommentAtSelection(
   let excerptStartCol: number | undefined;
   let excerptEndLine: number | undefined;
   let excerptEndCol: number | undefined;
+  let hasExplicitSelectionRange = false;
 
   if (activeEditor && activeEditor.document.uri.toString() === document.uri.toString()) {
     const selection = activeEditor.selection;
@@ -219,10 +222,13 @@ export async function addCommentAtSelection(
       excerptStartCol = selection.start.character;
       excerptEndLine = selection.end.line + 1;
       excerptEndCol = selection.end.character;
+      hasExplicitSelectionRange = true;
     }
   }
 
   const now = new Date().toISOString();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  const timezoneOffsetMinutes = -new Date().getTimezoneOffset();
   const commentId = createNextCommentId(loaded.comments);
   const normalizedAuthor = normalizeAuthor(author);
 
@@ -230,20 +236,27 @@ export async function addCommentAtSelection(
     ? {
       id: commentId,
       status: 'open',
-      anchor: 'paragraph',
+      createdAt: now,
+      timezone,
+      timezoneOffsetMinutes,
       paragraphIndex: paragraph.index,
-      signature: paragraph.signature,
-      excerpt: selectionExcerpt,
-      excerptStartLine,
-      excerptStartCol,
-      excerptEndLine,
-      excerptEndCol,
+      excerpt: selectionExcerpt ?? compactExcerpt(paragraph.text),
+      ...(hasExplicitSelectionRange
+        ? {
+          excerptStartLine,
+          excerptStartCol,
+          excerptEndLine,
+          excerptEndCol
+        }
+        : {}),
       thread: [formatThreadEntry(now, normalizedAuthor, normalizedMessage)]
     }
     : {
       id: commentId,
       status: 'open',
-      anchor: 'file',
+      createdAt: now,
+      timezone,
+      timezoneOffsetMinutes,
       excerpt: '(File-level comment)',
       thread: [formatThreadEntry(now, normalizedAuthor, normalizedMessage)]
     };
@@ -276,15 +289,18 @@ export async function replyToComment(
   }
 
   const now = new Date().toISOString();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  const timezoneOffsetMinutes = -new Date().getTimezoneOffset();
   const normalizedAuthor = normalizeAuthor(author);
   const nextId = createNextCommentId(loaded.comments);
 
   const reply: StegoCommentThread = {
     id: nextId,
     status: 'open',
-    anchor: target.anchor,
-    paragraphIndex: target.anchor === 'paragraph' ? target.paragraphIndex : undefined,
-    signature: target.anchor === 'paragraph' ? target.signature : undefined,
+    createdAt: now,
+    timezone,
+    timezoneOffsetMinutes,
+    paragraphIndex: target.paragraphIndex,
     excerpt: target.excerpt,
     excerptStartLine: target.excerptStartLine,
     excerptStartCol: target.excerptStartCol,
@@ -371,7 +387,7 @@ export async function jumpToComment(document: vscode.TextDocument, commentId: st
   }
 
   const resolved = loaded.anchorsById.get(comment.id)
-    ?? { anchorType: comment.anchor, line: 1, degraded: true as const };
+    ?? { anchorType: comment.paragraphIndex !== undefined ? 'paragraph' : 'file' as const, line: 1, degraded: true as const };
   const line = Math.max(1, resolved.line);
 
   const editor = await vscode.window.showTextDocument(document, { preview: false, preserveFocus: false });
@@ -380,6 +396,100 @@ export async function jumpToComment(document: vscode.TextDocument, commentId: st
   editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
 
   return {};
+}
+
+export async function persistExcerptUpdates(
+  document: vscode.TextDocument,
+  tracker: CommentExcerptTracker
+): Promise<void> {
+  const uri = document.uri.toString();
+  if (!tracker.hasPendingChanges(uri)) {
+    return;
+  }
+
+  const loaded = loadCommentDocumentState(document.getText());
+  if (loaded.errors.length > 0) {
+    return;
+  }
+
+  const trackedEntries = tracker.getTracked(uri);
+  if (!trackedEntries) {
+    return;
+  }
+
+  const trackedById = new Map(trackedEntries.map((t) => [t.id, t]));
+  let changed = false;
+
+  for (const comment of loaded.comments) {
+    const tracked = trackedById.get(comment.id);
+    if (!tracked || !tracked.dirty || tracked.deleted) {
+      continue;
+    }
+
+    // Convert from 0-based lines back to 1-based
+    const newStartLine = tracked.start.line + 1;
+    const newStartCol = tracked.start.character;
+    const newEndLine = tracked.end.line + 1;
+    const newEndCol = tracked.end.character;
+
+    comment.excerptStartLine = newStartLine;
+    comment.excerptStartCol = newStartCol;
+    comment.excerptEndLine = newEndLine;
+    comment.excerptEndCol = newEndCol;
+
+    // Recompute excerpt text from document at new coordinates
+    try {
+      const startPos = new vscode.Position(tracked.start.line, tracked.start.character);
+      const endPos = new vscode.Position(tracked.end.line, tracked.end.character);
+      const range = new vscode.Range(startPos, endPos);
+      const text = document.getText(range);
+      comment.excerpt = compactExcerpt(text);
+    } catch {
+      // If range is out of bounds, keep old excerpt
+    }
+
+    // Recompute paragraph anchor based on new position
+    const paragraphs = loaded.paragraphs;
+    const paragraph = findParagraphForLine(paragraphs, newStartLine)
+      ?? findPreviousParagraphForLine(paragraphs, newStartLine);
+    if (paragraph) {
+      comment.paragraphIndex = paragraph.index;
+    }
+
+    changed = true;
+  }
+
+  if (changed) {
+    await persistComments(document, loaded, loaded.comments);
+    tracker.load(uri, loaded.comments);
+  }
+}
+
+export async function deleteCommentsByIds(
+  document: vscode.TextDocument,
+  ids: string[],
+  tracker: CommentExcerptTracker
+): Promise<number> {
+  if (ids.length === 0) {
+    return 0;
+  }
+
+  const loaded = loadCommentDocumentState(document.getText());
+  if (loaded.errors.length > 0) {
+    return 0;
+  }
+
+  const idsToDelete = new Set(ids.map((id) => id.toUpperCase()));
+  const next = loaded.comments.filter((comment) => !idsToDelete.has(comment.id.toUpperCase()));
+  const removed = loaded.comments.length - next.length;
+
+  if (removed === 0) {
+    return 0;
+  }
+
+  await persistComments(document, loaded, next);
+  tracker.load(document.uri.toString(), next);
+  return removed;
 }
 
 function parseThreadEntry(entry: string): { timestamp: string; author: string; message: string } {
@@ -409,9 +519,7 @@ function parseThreadEntry(entry: string): { timestamp: string; author: string; m
 }
 
 function getThreadKey(comment: StegoCommentThread): string {
-  return comment.anchor === 'paragraph' && comment.signature
-    ? comment.signature
-    : 'file:' + (comment.excerpt?.trim() || '');
+  return getCommentThreadKey(comment);
 }
 
 function getThreadSiblings(target: StegoCommentThread, comments: StegoCommentThread[]): StegoCommentThread[] {
@@ -420,12 +528,21 @@ function getThreadSiblings(target: StegoCommentThread, comments: StegoCommentThr
 }
 
 function getSortTimestamp(comment: StegoCommentThread): string {
+  if (comment.createdAt) {
+    const createdDate = new Date(comment.createdAt);
+    if (!isNaN(createdDate.getTime())) {
+      return createdDate.toISOString();
+    }
+  }
+
   const firstMessage = comment.thread[0];
   if (!firstMessage) {
     return '';
   }
 
-  return parseThreadEntry(firstMessage).timestamp;
+  const raw = parseThreadEntry(firstMessage).timestamp;
+  const date = new Date(raw);
+  return isNaN(date.getTime()) ? raw : date.toISOString();
 }
 
 function createNextCommentId(comments: StegoCommentThread[]): string {

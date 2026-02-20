@@ -16,21 +16,19 @@ test('comment parser accepts strict blockquote format with sparse metadata', () 
     '<!-- comment: CMT-0001 -->',
     `<!-- meta64: ${encodeMeta({
       status: 'open',
-      anchor: 'paragraph',
-      paragraph_index: 12,
-      signature: 'fnv1a:7f2d13aa',
-      excerpt: 'At Hotel-Dieu, prayer and treatment proceeded in one rhythm.'
+      paragraph_index: 12
     })} -->`,
-    '> _2026-02-19T22:17:00Z | Matt Gold_',
+    '> _Feb 19, 2026, 10:17 PM — Matt Gold_',
+    '>',
+    '> > \u201cAt Hotel-Dieu, prayer and treatment proceeded in one rhythm.\u201d',
     '>',
     '> Is this chronology right?',
     '',
     '<!-- comment: CMT-0002 -->',
     `<!-- meta64: ${encodeMeta({
-      status: 'resolved',
-      anchor: 'file'
+      status: 'resolved'
     })} -->`,
-    '> _2026-02-19T23:01:00Z | Matt Gold_',
+    '> _Feb 19, 2026, 11:01 PM — Matt Gold_',
     '>',
     '> Verify this source.',
     '',
@@ -42,7 +40,8 @@ test('comment parser accepts strict blockquote format with sparse metadata', () 
   assert.equal(parsed.errors.length, 0);
   assert.equal(parsed.comments.length, 2);
   assert.equal(parsed.comments[0].id, 'CMT-0001');
-  assert.equal(parsed.comments[0].anchor, 'paragraph');
+  assert.equal(parsed.comments[0].paragraphIndex, 12);
+  assert.equal(parsed.comments[0].excerpt, 'At Hotel-Dieu, prayer and treatment proceeded in one rhythm.');
   assert.equal(parsed.comments[1].status, 'resolved');
   assert.equal(parsed.contentWithoutComments, 'Body paragraph.');
 });
@@ -53,7 +52,7 @@ test('comment parser rejects malformed quote lines and malformed thread rows', (
     '<!-- stego-comments:start -->',
     '<!-- comment: CMT-0001 -->',
     '- bad row',
-    `<!-- meta64: ${encodeMeta({ status: 'open', anchor: 'paragraph' })} -->`,
+    `<!-- meta64: ${encodeMeta({ status: 'open', paragraph_index: 0 })} -->`,
     '> malformed header',
     '>',
     '> missing separators',
@@ -70,12 +69,12 @@ test('comment parser rejects multiple messages under one comment id', () => {
     'Body',
     '<!-- stego-comments:start -->',
     '<!-- comment: CMT-0001 -->',
-    `<!-- meta64: ${encodeMeta({ status: 'open', anchor: 'paragraph', paragraph_index: 0, signature: 'fnv1a:abc' })} -->`,
-    '> _2026-02-19T22:17:00Z | Matt Gold_',
+    `<!-- meta64: ${encodeMeta({ status: 'open', paragraph_index: 0 })} -->`,
+    '> _Feb 19, 2026, 10:17 PM — Matt Gold_',
     '>',
     '> first message',
     '',
-    '> _2026-02-19T22:19:03Z | Reviewer_',
+    '> _Feb 19, 2026, 10:19 PM — Reviewer_',
     '>',
     '> second message',
     '<!-- stego-comments:end -->'
@@ -92,7 +91,7 @@ test('comment parser rejects legacy metadata rows', () => {
     '<!-- comment: CMT-0001 -->',
     '> - [ ] status: open',
     '> - anchor: paragraph',
-    '> _2026-02-19T22:17:00Z | Matt Gold_',
+    '> _Feb 19, 2026, 10:17 PM — Matt Gold_',
     '>',
     '> legacy row',
     '<!-- stego-comments:end -->'
@@ -107,10 +106,8 @@ test('comment serializer roundtrips parse->serialize->parse', () => {
     {
       id: 'CMT-0001',
       status: 'open',
-      anchor: 'paragraph',
       paragraphIndex: 2,
-      signature: 'fnv1a:abcd1234',
-      excerpt: 'Paragraph text',
+      excerpt: 'Paragraph text that is short enough to not be truncated',
       thread: ['2026-02-19T22:17:00Z | Matt Gold | Test comment']
     }
   ];
@@ -121,13 +118,79 @@ test('comment serializer roundtrips parse->serialize->parse', () => {
 
   assert.equal(parsed.errors.length, 0);
   assert.equal(appendix.includes('<!-- meta64:'), true);
-  assert.equal(appendix.includes('> _2026-02-19T22:17:00Z | Matt Gold_'), true);
+  assert.equal(appendix.includes('> _Feb 19, 2026, 10:17 PM — Matt Gold_'), true);
+  assert.ok(appendix.includes('> > \u201cParagraph text that is short enough to not be truncated\u201d'));
   assert.equal(parsed.comments.length, 1);
   assert.equal(parsed.comments[0].id, comments[0].id);
   assert.equal(parsed.comments[0].status, comments[0].status);
-  assert.equal(parsed.comments[0].anchor, comments[0].anchor);
   assert.equal(parsed.comments[0].paragraphIndex, comments[0].paragraphIndex);
-  assert.equal(parsed.comments[0].signature, comments[0].signature);
   assert.equal(parsed.comments[0].excerpt, comments[0].excerpt);
-  assert.deepEqual(parsed.comments[0].thread, comments[0].thread);
+  // Thread entry timestamp gets formatted on first roundtrip
+  assert.deepEqual(parsed.comments[0].thread, ['Feb 19, 2026, 10:17 PM | Matt Gold | Test comment']);
+
+  // Second roundtrip is stable
+  const appendix2 = serializeCommentAppendix(parsed.comments);
+  const withAppendix2 = upsertCommentAppendix('Body text.', parsed.comments);
+  const parsed2 = parseCommentAppendix(withAppendix2);
+  assert.equal(parsed2.errors.length, 0);
+  assert.deepEqual(parsed2.comments[0].thread, parsed.comments[0].thread);
+  assert.equal(parsed2.comments[0].excerpt, parsed.comments[0].excerpt);
+});
+
+test('comment serializer truncates long excerpts to 100 chars', () => {
+  const longExcerpt = 'At Hotel-Dieu, prayer and treatment proceeded in one rhythm with the sick. And lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.';
+  const comments: StegoCommentThread[] = [
+    {
+      id: 'CMT-0001',
+      status: 'open',
+      paragraphIndex: 2,
+      excerpt: longExcerpt,
+      thread: ['2026-02-19T22:17:00Z | Matt Gold | Test comment']
+    }
+  ];
+
+  const appendix = serializeCommentAppendix(comments);
+  const expectedTruncated = longExcerpt.slice(0, 100).trimEnd() + '\u2026';
+  assert.ok(appendix.includes(`> > \u201c${expectedTruncated}\u201d`));
+
+  const withAppendix = upsertCommentAppendix('Body text.', comments);
+  const parsed = parseCommentAppendix(withAppendix);
+  assert.equal(parsed.errors.length, 0);
+  assert.equal(parsed.comments[0].excerpt, expectedTruncated);
+});
+
+test('file-level comments omit excerpt line', () => {
+  const comments: StegoCommentThread[] = [
+    {
+      id: 'CMT-0001',
+      status: 'open',
+      excerpt: 'Should not appear',
+      thread: ['2026-02-19T22:17:00Z | Matt Gold | File-level comment']
+    }
+  ];
+
+  const appendix = serializeCommentAppendix(comments);
+  assert.ok(!appendix.includes('> >'));
+});
+
+test('comment parser roundtrips createdAt and timezone metadata', () => {
+  const comments: StegoCommentThread[] = [
+    {
+      id: 'CMT-0001',
+      status: 'open',
+      createdAt: '2026-02-20T12:00:00.000Z',
+      timezone: 'America/New_York',
+      timezoneOffsetMinutes: -300,
+      paragraphIndex: 0,
+      thread: ['2026-02-20T12:00:00.000Z | Matt Gold | Test comment']
+    }
+  ];
+
+  const withAppendix = upsertCommentAppendix('Body text.', comments);
+  const parsed = parseCommentAppendix(withAppendix);
+  assert.equal(parsed.errors.length, 0);
+  assert.equal(parsed.comments[0].createdAt, '2026-02-20T12:00:00.000Z');
+  assert.equal(parsed.comments[0].timezone, 'America/New_York');
+  assert.equal(parsed.comments[0].timezoneOffsetMinutes, -300);
+  assert.equal(parsed.comments[0].thread[0], '2026-02-20T12:00:00.000Z | Matt Gold | Test comment');
 });

@@ -16,14 +16,14 @@ export async function refreshDiagnosticsForDocument(
     return;
   }
 
-  const config = getConfig(document.uri);
-  if (!config.get<boolean>('reportUnknownIdentifiers', true)) {
+  const bibleConfig = getConfig('bible', document.uri);
+  if (!bibleConfig.get<boolean>('reportUnknownIdentifiers', true)) {
     diagnostics.delete(document.uri);
     return;
   }
 
-  const pattern = config.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
-  const includeFences = config.get<boolean>('linkInCodeFences', false);
+  const pattern = bibleConfig.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+  const includeFences = getConfig('editor', document.uri).get<boolean>('linkInCodeFences', false);
   const matches = collectIdentifiers(document, pattern, includeFences);
   if (matches.length === 0) {
     diagnostics.set(document.uri, []);

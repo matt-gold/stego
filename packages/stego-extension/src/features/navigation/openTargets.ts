@@ -5,7 +5,7 @@ import type { BibleRecord } from '../../shared/types';
 import { getConfig } from '../project/projectConfig';
 
 export function resolveTarget(id: string, record: BibleRecord | undefined, document: vscode.TextDocument): vscode.Uri | undefined {
-  const config = getConfig(document.uri);
+  const config = getConfig('bible', document.uri);
 
   if (record?.url) {
     const urlUri = vscode.Uri.parse(record.url);

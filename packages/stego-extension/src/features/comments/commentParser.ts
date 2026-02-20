@@ -1,4 +1,4 @@
-import type { ParsedCommentAppendix, StegoCommentAnchorType, StegoCommentStatus, StegoCommentThread } from './commentTypes';
+import type { ParsedCommentAppendix, StegoCommentStatus, StegoCommentThread } from './commentTypes';
 
 const START_SENTINEL = '<!-- stego-comments:start -->';
 const END_SENTINEL = '<!-- stego-comments:end -->';
@@ -78,10 +78,18 @@ export function serializeCommentAppendix(comments: StegoCommentThread[], lineEnd
     lines.push(`<!-- meta64: ${encodeCommentMeta64(comment)} -->`);
     const entry = comment.thread[0] ?? '';
     const parsed = parseThreadEntry(entry);
-    const headerTimestamp = escapeThreadHeaderPart(parsed.timestamp || 'Unknown time');
+    const displayTimestamp = formatHumanTimestamp(parsed.timestamp || 'Unknown time');
+    const headerTimestamp = escapeThreadHeaderPart(displayTimestamp);
     const headerAuthor = escapeThreadHeaderPart(parsed.author || 'Unknown');
-    lines.push(`> _${headerTimestamp} | ${headerAuthor}_`);
+    lines.push(`> _${headerTimestamp} — ${headerAuthor}_`);
     lines.push('>');
+    if (comment.paragraphIndex !== undefined && comment.excerpt) {
+      const truncated = comment.excerpt.length > 100
+        ? comment.excerpt.slice(0, 100).trimEnd() + '\u2026'
+        : comment.excerpt;
+      lines.push(`> > \u201c${truncated}\u201d`);
+      lines.push('>');
+    }
     const messageLines = parsed.message ? parsed.message.split(/\r?\n/) : ['(No message)'];
     for (const messageLine of messageLines) {
       lines.push(`> ${messageLine}`);
@@ -147,11 +155,12 @@ function parseCommentThreads(lines: string[], baseLineNumber: number): { comment
 
 function parseSingleThread(id: string, rows: string[], rowLineNumbers: number[]): { comment: StegoCommentThread; errors: string[] } {
   let status: StegoCommentStatus = 'open';
-  let anchor: StegoCommentAnchorType = 'file';
   const thread: string[] = [];
   const errors: string[] = [];
   let paragraphIndex: number | undefined;
-  let signature: string | undefined;
+  let createdAt: string | undefined;
+  let timezone: string | undefined;
+  let timezoneOffsetMinutes: number | undefined;
   let excerpt: string | undefined;
   let excerptStartLine: number | undefined;
   let excerptStartCol: number | undefined;
@@ -185,10 +194,10 @@ function parseSingleThread(id: string, rows: string[], rowLineNumbers: number[])
       const decoded = decodeCommentMeta64(metaMatch[1], id, lineNumber, errors);
       if (decoded) {
         status = decoded.status;
-        anchor = decoded.anchor;
+        createdAt = decoded.createdAt;
+        timezone = decoded.timezone;
+        timezoneOffsetMinutes = decoded.timezoneOffsetMinutes;
         paragraphIndex = decoded.paragraphIndex;
-        signature = decoded.signature;
-        excerpt = decoded.excerpt;
         excerptStartLine = decoded.excerptStartLine;
         excerptStartCol = decoded.excerptStartCol;
         excerptEndLine = decoded.excerptEndLine;
@@ -226,6 +235,32 @@ function parseSingleThread(id: string, rows: string[], rowLineNumbers: number[])
         rowIndex += 1;
       }
       break;
+    }
+
+    // Detect nested blockquote excerpt: > > "..."
+    if (rowIndex < rows.length) {
+      const nestedMatch = rows[rowIndex].match(/^\s*>\s*>\s*(.*)$/);
+      if (nestedMatch) {
+        let excerptContent = nestedMatch[1].trim();
+        // Strip surrounding \u201c...\u201d or "..."
+        excerptContent = excerptContent.replace(/^[\u201c"]\s*/, '').replace(/\s*[\u201d"]$/, '');
+        excerpt = excerptContent;
+        rowIndex += 1;
+        // Skip the following `>` separator
+        while (rowIndex < rows.length) {
+          const sepRaw = rows[rowIndex];
+          const sepTrimmed = sepRaw.trim();
+          if (!sepTrimmed) {
+            rowIndex += 1;
+            continue;
+          }
+          const sepQuote = extractQuotedLine(sepRaw);
+          if (sepQuote !== undefined && sepQuote.trim().length === 0) {
+            rowIndex += 1;
+          }
+          break;
+        }
+      }
     }
 
     const messageLines: string[] = [];
@@ -269,7 +304,7 @@ function parseSingleThread(id: string, rows: string[], rowLineNumbers: number[])
     }
 
     const message = messageLines.join('\n').trim();
-    thread.push(`${header.timestamp} | ${header.author} | ${message}`);
+    thread.push(`${createdAt || header.timestamp} | ${header.author} | ${message}`);
   }
 
   if (!sawMeta64) {
@@ -283,9 +318,10 @@ function parseSingleThread(id: string, rows: string[], rowLineNumbers: number[])
   const comment: StegoCommentThread = {
     id,
     status,
-    anchor,
+    createdAt,
+    timezone,
+    timezoneOffsetMinutes,
     paragraphIndex,
-    signature,
     excerpt,
     excerptStartLine,
     excerptStartCol,
@@ -316,23 +352,41 @@ function parseOptionalInteger(value: unknown): number | undefined {
   return Number(value.trim());
 }
 
-function encodeCommentMeta64(comment: StegoCommentThread): string {
-  const payload: Record<string, string | number> = {
-    status: comment.status,
-    anchor: comment.anchor
-  };
-
-  if (comment.anchor === 'paragraph') {
-    if (comment.paragraphIndex !== undefined) {
-      payload.paragraph_index = comment.paragraphIndex;
-    }
-    if (comment.signature) {
-      payload.signature = comment.signature;
-    }
+function parseOptionalSignedInteger(value: unknown): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
   }
 
-  if (comment.excerpt) {
-    payload.excerpt = comment.excerpt;
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? value : undefined;
+  }
+
+  if (typeof value !== 'string' || !/^-?\d+$/.test(value.trim())) {
+    return undefined;
+  }
+
+  return Number(value.trim());
+}
+
+function encodeCommentMeta64(comment: StegoCommentThread): string {
+  const payload: Record<string, string | number> = {
+    status: comment.status
+  };
+
+  if (comment.createdAt) {
+    payload.created_at = comment.createdAt;
+  }
+
+  if (comment.timezone) {
+    payload.timezone = comment.timezone;
+  }
+
+  if (comment.timezoneOffsetMinutes !== undefined) {
+    payload.timezone_offset_minutes = comment.timezoneOffsetMinutes;
+  }
+
+  if (comment.paragraphIndex !== undefined) {
+    payload.paragraph_index = comment.paragraphIndex;
   }
 
   if (comment.excerptStartLine !== undefined) {
@@ -358,10 +412,10 @@ function decodeCommentMeta64(
   errors: string[]
 ): {
   status: StegoCommentStatus;
-  anchor: StegoCommentAnchorType;
+  createdAt?: string;
+  timezone?: string;
+  timezoneOffsetMinutes?: number;
   paragraphIndex?: number;
-  signature?: string;
-  excerpt?: string;
   excerptStartLine?: number;
   excerptStartCol?: number;
   excerptEndLine?: number;
@@ -389,13 +443,6 @@ function decodeCommentMeta64(
   }
 
   const record = parsed as Record<string, unknown>;
-  const allowedKeys = new Set(['status', 'anchor', 'paragraph_index', 'signature', 'excerpt', 'excerpt_start_line', 'excerpt_start_col', 'excerpt_end_line', 'excerpt_end_col']);
-  for (const key of Object.keys(record)) {
-    if (!allowedKeys.has(key)) {
-      errors.push(`Line ${lineNumber}: meta64 for ${commentId} contains unsupported key '${key}'.`);
-      return undefined;
-    }
-  }
 
   const status = record.status === 'open' || record.status === 'resolved'
     ? record.status
@@ -405,20 +452,12 @@ function decodeCommentMeta64(
     return undefined;
   }
 
-  const anchor = record.anchor === 'paragraph' || record.anchor === 'file'
-    ? record.anchor
-    : undefined;
-  if (!anchor) {
-    errors.push(`Line ${lineNumber}: meta64 for ${commentId} is missing valid 'anchor' ('paragraph' or 'file').`);
-    return undefined;
-  }
-
   return {
     status,
-    anchor,
+    createdAt: typeof record.created_at === 'string' ? record.created_at : undefined,
+    timezone: typeof record.timezone === 'string' ? record.timezone : undefined,
+    timezoneOffsetMinutes: parseOptionalSignedInteger(record.timezone_offset_minutes),
     paragraphIndex: parseOptionalInteger(record.paragraph_index),
-    signature: typeof record.signature === 'string' ? record.signature : undefined,
-    excerpt: typeof record.excerpt === 'string' ? record.excerpt : undefined,
     excerptStartLine: parseOptionalInteger(record.excerpt_start_line),
     excerptStartCol: parseOptionalInteger(record.excerpt_start_col),
     excerptEndLine: parseOptionalInteger(record.excerpt_end_line),
@@ -467,8 +506,30 @@ function extractQuotedLine(raw: string): string | undefined {
   return quoteMatch[1];
 }
 
+function formatHumanTimestamp(raw: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    return raw;
+  }
+
+  const date = new Date(raw);
+  if (isNaN(date.getTime())) {
+    return raw;
+  }
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getUTCMonth()];
+  const day = date.getUTCDate();
+  const year = date.getUTCFullYear();
+  const hours24 = date.getUTCHours();
+  const hours = hours24 % 12 || 12;
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+  const ampm = hours24 < 12 ? 'AM' : 'PM';
+  return `${month} ${day}, ${year}, ${hours}:${minutes} ${ampm}`;
+}
+
 function parseThreadHeader(value: string): { timestamp: string; author: string } | undefined {
-  const match = value.trim().match(/^_(.+?)\s*\|\s*(.+?)_\s*$/);
+  const match = value.trim().match(/^_(.+?)\s*—\s*(.+?)_\s*$/);
+
   if (!match) {
     return undefined;
   }

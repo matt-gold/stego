@@ -9,9 +9,8 @@ import { isCommentIdentifier, normalizeCommentIdentifier } from '../comments/com
 export function createDocumentLinkProvider(indexService: BibleIndexService): vscode.DocumentLinkProvider {
   return {
     async provideDocumentLinks(document): Promise<vscode.DocumentLink[]> {
-      const config = getConfig(document.uri);
-      const pattern = config.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
-      const includeFences = config.get<boolean>('linkInCodeFences', false);
+      const pattern = getConfig('bible', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+      const includeFences = getConfig('editor', document.uri).get<boolean>('linkInCodeFences', false);
       const matches = collectIdentifiers(document, pattern, includeFences);
       if (matches.length === 0) {
         return [];

@@ -4,10 +4,10 @@ Stego Bible Links turns inline identifiers like `LOC-ASDF` into clickable links 
 
 ## Features
 
-- Detect identifiers with a configurable regex (`stegoBible.identifierPattern`)
+- Detect identifiers with a configurable regex (`stego.bible.identifierPattern`)
 - Render identifiers as hyperlinks with `DocumentLinkProvider`
 - Show definition previews on hover
-- Warn when identifiers are missing from your index (`stegoBible.reportUnknownIdentifiers`)
+- Warn when identifiers are missing from your index (`stego.bible.reportUnknownIdentifiers`)
 - Ignore fenced code blocks by default
 - Auto-build index entries from `project.json` bible category prefixes by scanning `#`/`##`/`###` headings like `CHAR-...`, `LOC-...`, `SRC-...`
 - Mode-driven sidebar:
@@ -19,7 +19,7 @@ Stego Bible Links turns inline identifiers like `LOC-ASDF` into clickable links 
 
 ## Index Format
 
-Create an index file at `.stego/bible-index.json` (or set `stegoBible.indexFile`).
+Create an index file at `.stego/bible-index.json` (or set `stego.bible.indexFile`).
 
 ```json
 {
@@ -52,13 +52,15 @@ If the JSON index is missing or incomplete, the extension also infers entries fr
 
 ## Settings
 
-- `stegoBible.identifierPattern`
-- `stegoBible.indexFile`
-- `stegoBible.definitionBaseUrl`
-- `stegoBible.enableHover`
-- `stegoBible.reportUnknownIdentifiers`
-- `stegoBible.linkInCodeFences`
-- `stegoBible.autoFoldFrontmatter`
+- `stego.bible.identifierPattern`
+- `stego.bible.indexFile`
+- `stego.bible.definitionBaseUrl`
+- `stego.bible.reportUnknownIdentifiers`
+- `stego.editor.enableHover`
+- `stego.editor.linkInCodeFences`
+- `stego.editor.autoFoldFrontmatter`
+- `stego.comments.enable`
+- `stego.comments.author`
 
 ## Sidebar Workflow
 

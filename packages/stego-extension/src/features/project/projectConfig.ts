@@ -103,12 +103,12 @@ export function extractProjectCategories(parsed: unknown): ProjectBibleCategory[
   return categories;
 }
 
-export function getConfig(scopeUri?: vscode.Uri): vscode.WorkspaceConfiguration {
-  return vscode.workspace.getConfiguration('stegoBible', scopeUri);
+export function getConfig(section: 'bible' | 'editor' | 'comments', scopeUri?: vscode.Uri): vscode.WorkspaceConfiguration {
+  return vscode.workspace.getConfiguration(`stego.${section}`, scopeUri);
 }
 
 export function getResolvedIndexPath(folder: vscode.WorkspaceFolder): string | undefined {
-  const config = getConfig(folder.uri);
+  const config = getConfig('bible', folder.uri);
   const configuredPath = config.get<string>('indexFile', '.stego/bible-index.json').trim();
   if (!configuredPath) {
     return undefined;

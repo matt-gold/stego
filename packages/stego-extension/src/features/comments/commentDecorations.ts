@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { loadCommentDocumentState } from './commentStore';
+import { getConfig } from '../project/projectConfig';
+import type { CommentExcerptTracker } from './commentExcerptTracker';
 
 dayjs.extend(relativeTime);
 
@@ -10,7 +12,10 @@ export class CommentDecorationsService implements vscode.Disposable {
   private readonly resolvedDecoration: vscode.TextEditorDecorationType;
   private readonly lineUnderlineDecoration: vscode.TextEditorDecorationType;
 
-  constructor(private readonly extensionUri: vscode.Uri) {
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly excerptTracker: CommentExcerptTracker
+  ) {
     this.unresolvedDecoration = vscode.window.createTextEditorDecorationType({
       gutterIconPath: vscode.Uri.joinPath(extensionUri, 'assets', 'comment-open.svg'),
       gutterIconSize: 'contain'
@@ -53,6 +58,13 @@ export class CommentDecorationsService implements vscode.Disposable {
       return;
     }
 
+    if (!getConfig('comments', editor.document.uri).get<boolean>('enable', true)) {
+      editor.setDecorations(this.unresolvedDecoration, []);
+      editor.setDecorations(this.resolvedDecoration, []);
+      editor.setDecorations(this.lineUnderlineDecoration, []);
+      return;
+    }
+
     const state = loadCommentDocumentState(editor.document.getText());
     if (state.errors.length > 0 || state.comments.length === 0) {
       editor.setDecorations(this.unresolvedDecoration, []);
@@ -65,27 +77,96 @@ export class CommentDecorationsService implements vscode.Disposable {
       id: string;
       status: 'open' | 'resolved';
       thread: string[];
+      createdAt?: string;
+      line: number;
+      range: vscode.Range;
+    };
+
+    type AnchorEntry = {
+      id: string;
+      status: 'open' | 'resolved';
+      thread: string[];
+      createdAt?: string;
       underlineStartLine?: number;
       underlineStartCol?: number;
       underlineEndLine?: number;
       underlineEndCol?: number;
+      paragraphEndLine?: number;
     };
 
-    const byLine = new Map<number, CommentEntry[]>();
+    const trackedEntries = this.excerptTracker.getTracked(editor.document.uri.toString());
+    const trackedById = new Map<string, { startLine: number; startCol: number; endLine: number; endCol: number; deleted: boolean }>();
+    if (trackedEntries) {
+      for (const t of trackedEntries) {
+        trackedById.set(t.id, {
+          startLine: t.start.line + 1,
+          startCol: t.start.character,
+          endLine: t.end.line + 1,
+          endCol: t.end.character,
+          deleted: t.deleted
+        });
+      }
+    }
+
+    const byLine = new Map<number, AnchorEntry[]>();
+    const commentEntries: CommentEntry[] = [];
     for (const comment of state.comments) {
+      const tracked = trackedById.get(comment.id);
+      if (tracked?.deleted) {
+        continue;
+      }
+
       const resolvedAnchor = state.anchorsById.get(comment.id);
       const line = clampLine(resolvedAnchor?.line ?? 1, editor.document.lineCount);
-      const bucket = byLine.get(line) ?? [];
-      bucket.push({
+      const anchorEntry: AnchorEntry = {
         id: comment.id,
         status: comment.status,
         thread: [...comment.thread],
-        underlineStartLine: resolvedAnchor?.underlineStartLine,
-        underlineStartCol: resolvedAnchor?.underlineStartCol,
-        underlineEndLine: resolvedAnchor?.underlineEndLine,
-        underlineEndCol: resolvedAnchor?.underlineEndCol
-      });
+        createdAt: comment.createdAt,
+        underlineStartLine: tracked?.startLine ?? resolvedAnchor?.underlineStartLine,
+        underlineStartCol: tracked?.startCol ?? resolvedAnchor?.underlineStartCol,
+        underlineEndLine: tracked?.endLine ?? resolvedAnchor?.underlineEndLine,
+        underlineEndCol: tracked?.endCol ?? resolvedAnchor?.underlineEndCol,
+        paragraphEndLine: resolvedAnchor?.paragraphEndLine
+      };
+
+      let textRange: vscode.Range;
+      if (
+        anchorEntry.underlineStartLine !== undefined &&
+        anchorEntry.underlineStartCol !== undefined &&
+        anchorEntry.underlineEndLine !== undefined &&
+        anchorEntry.underlineEndCol !== undefined
+      ) {
+        const startLine = clampLine(anchorEntry.underlineStartLine, editor.document.lineCount) - 1;
+        const endLine = clampLine(anchorEntry.underlineEndLine, editor.document.lineCount) - 1;
+        textRange = new vscode.Range(
+          new vscode.Position(startLine, anchorEntry.underlineStartCol),
+          new vscode.Position(endLine, anchorEntry.underlineEndCol)
+        );
+      } else {
+        const startLine = line - 1;
+        const endLine = anchorEntry.paragraphEndLine
+          ? clampLine(anchorEntry.paragraphEndLine, editor.document.lineCount) - 1
+          : startLine;
+        const endLineLength = editor.document.lineAt(endLine).text.length;
+        textRange = new vscode.Range(
+          new vscode.Position(startLine, 0),
+          new vscode.Position(endLine, endLineLength)
+        );
+      }
+
+      const bucket = byLine.get(line) ?? [];
+      bucket.push(anchorEntry);
       byLine.set(line, bucket);
+
+      commentEntries.push({
+        id: comment.id,
+        status: comment.status,
+        thread: [...comment.thread],
+        createdAt: comment.createdAt,
+        line,
+        range: textRange
+      });
     }
 
     const unresolvedOptions: vscode.DecorationOptions[] = [];
@@ -94,7 +175,6 @@ export class CommentDecorationsService implements vscode.Disposable {
 
     for (const [line, comments] of byLine.entries()) {
       const hasUnresolved = comments.some((entry) => entry.status === 'open');
-      const hover = buildHoverMarkdown(comments);
       const iconRange = new vscode.Range(
         new vscode.Position(line - 1, 0),
         new vscode.Position(line - 1, 0)
@@ -106,32 +186,14 @@ export class CommentDecorationsService implements vscode.Disposable {
       } else {
         resolvedOptions.push(option);
       }
+    }
 
-      // Build individual underline ranges per comment
-      for (const entry of comments) {
-        let textRange: vscode.Range;
-        if (
-          entry.underlineStartLine !== undefined &&
-          entry.underlineStartCol !== undefined &&
-          entry.underlineEndLine !== undefined &&
-          entry.underlineEndCol !== undefined
-        ) {
-          const startLine = clampLine(entry.underlineStartLine, editor.document.lineCount) - 1;
-          const endLine = clampLine(entry.underlineEndLine, editor.document.lineCount) - 1;
-          textRange = new vscode.Range(
-            new vscode.Position(startLine, entry.underlineStartCol),
-            new vscode.Position(endLine, entry.underlineEndCol)
-          );
-        } else {
-          const lineTextLength = editor.document.lineAt(line - 1).text.length;
-          textRange = new vscode.Range(
-            new vscode.Position(line - 1, 0),
-            new vscode.Position(line - 1, lineTextLength)
-          );
-        }
-
+    const overlapGroups = buildOverlapGroups(commentEntries);
+    for (const group of overlapGroups) {
+      const hover = buildHoverMarkdown(group);
+      for (const entry of group) {
         underlineOptions.push({
-          range: textRange,
+          range: entry.range,
           hoverMessage: hover
         });
       }
@@ -156,7 +218,7 @@ function clampLine(line: number, lineCount: number): number {
 }
 
 function buildHoverMarkdown(
-  comments: { id: string; status: 'open' | 'resolved'; thread: string[] }[]
+  comments: { id: string; status: 'open' | 'resolved'; thread: string[]; createdAt?: string }[]
 ): vscode.MarkdownString {
   const markdown = new vscode.MarkdownString();
   markdown.isTrusted = {
@@ -164,36 +226,77 @@ function buildHoverMarkdown(
   };
 
   const unresolvedCount = comments.filter((entry) => entry.status === 'open').length;
-  markdown.appendMarkdown(`**${comments.length} comment${comments.length === 1 ? '' : 's'} on this line**`);
-  markdown.appendMarkdown(`  \n${unresolvedCount} unresolved, ${comments.length - unresolvedCount} resolved\n\n`);
+  markdown.appendMarkdown(`**${comments.length} comment${comments.length === 1 ? '' : 's'} in this section**`);
+  markdown.appendMarkdown(`  \n${unresolvedCount} unresolved, ${comments.length - unresolvedCount} resolved`);
 
-  for (const comment of comments) {
+  comments.forEach((comment, index) => {
     const encoded = encodeURIComponent(JSON.stringify([comment.id]));
     const commandUri = vscode.Uri.parse(`command:stegoBible.openCommentThread?${encoded}`);
-    const status = comment.status === 'open' ? 'unresolved' : 'resolved';
-    markdown.appendMarkdown(`- [${escapeMarkdown(comment.id)}](${commandUri.toString()}) (${status})\n`);
+    const latest = parseThreadEntry(comment.thread[comment.thread.length - 1] ?? '');
+    const status = comment.status === 'open' ? 'Unresolved' : 'Resolved';
+    const timestampSource = comment.createdAt || latest.timestamp;
+    const timestamp = timestampSource
+      ? escapeMarkdown(dayjs(timestampSource).fromNow())
+      : 'Unknown time';
+    const author = escapeMarkdown(latest.author || 'Unknown');
 
-    if (comment.thread.length === 0) {
-      markdown.appendMarkdown(`\n> _(No thread messages yet)_\n`);
+    markdown.appendMarkdown(`\n\n**${author}** · ${status} · _${timestamp}_  \n`);
+
+    const message = latest.message?.trim() || '(No message)';
+    for (const messageLine of message.split(/\r?\n/)) {
+      markdown.appendMarkdown(`${escapeMarkdown(messageLine)}  \n`);
+    }
+
+    markdown.appendMarkdown(`[Open in sidebar](${commandUri.toString()})`);
+
+    if (index < comments.length - 1) {
+      markdown.appendMarkdown('\n\n---');
+    }
+  });
+
+  return markdown;
+}
+
+function buildOverlapGroups<T extends { range: vscode.Range }>(entries: T[]): T[][] {
+  const groups: T[][] = [];
+  const visited = new Set<number>();
+
+  for (let i = 0; i < entries.length; i += 1) {
+    if (visited.has(i)) {
       continue;
     }
 
-    for (const threadEntry of comment.thread) {
-      const parsed = parseThreadEntry(threadEntry);
-      const timestamp = parsed.timestamp
-        ? escapeMarkdown(dayjs(parsed.timestamp).fromNow())
-        : 'Unknown time';
-      const author = escapeMarkdown(parsed.author || 'Unknown');
-      markdown.appendMarkdown(`\n> _${timestamp} | ${author}_\n>\n`);
-      const messageLines = (parsed.message || '(No message)').split(/\r?\n/);
-      for (const messageLine of messageLines) {
-        markdown.appendMarkdown(`> ${escapeMarkdown(messageLine)}\n`);
+    const group: T[] = [];
+    const stack: number[] = [i];
+    visited.add(i);
+
+    while (stack.length > 0) {
+      const currentIndex = stack.pop();
+      if (currentIndex === undefined) {
+        continue;
       }
-      markdown.appendMarkdown('>\n');
+
+      const current = entries[currentIndex];
+      group.push(current);
+
+      for (let nextIndex = 0; nextIndex < entries.length; nextIndex += 1) {
+        if (visited.has(nextIndex)) {
+          continue;
+        }
+
+        const next = entries[nextIndex];
+        if (current.range.intersection(next.range)) {
+          visited.add(nextIndex);
+          stack.push(nextIndex);
+        }
+      }
     }
+
+    group.sort((a, b) => a.range.start.compareTo(b.range.start));
+    groups.push(group);
   }
 
-  return markdown;
+  return groups;
 }
 
 function parseThreadEntry(entry: string): { timestamp: string; author: string; message: string } {

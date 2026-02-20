@@ -294,12 +294,13 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `</section>`
     : '';
 
-  const utilityPanel = state.mode === 'manuscript'
-    ? ''
-    : `<section class="panel">`
-      + `<h2>Actions</h2>`
-      + `<div class="actions"><button class="btn subtle" data-action="refresh">Refresh</button></div>`
-      + `</section>`;
+  const utilityPanel = `<section class="panel">`
+    + `<h2>Actions</h2>`
+    + `<div class="actions">`
+    + `<button class="btn subtle" data-action="copyCleanManuscript">Copy Without Metadata</button>`
+    + `${state.mode !== 'manuscript' ? '<button class="btn subtle" data-action="refresh">Refresh</button>' : ''}`
+    + `</div>`
+    + `</section>`;
 
   const commentErrors = state.comments.parseErrors.length > 0
     ? `<div class="error-panel">${state.comments.parseErrors.map((error) => escapeHtml(error)).join('<br/>')}</div>`
@@ -314,7 +315,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `<span class="badge${item.status === 'resolved' ? '' : ' warn'}">${item.status === 'resolved' ? 'Resolved' : 'Unresolved'}</span>`
       + `${item.degraded ? '<span class="badge warn">Moved</span>' : ''}`
       + `</div>`
-      + `${item.threadPosition && item.threadPosition !== 'first' ? '' : `<div class="item-subtext">${escapeHtml(item.excerpt.length > 60 ? item.excerpt.slice(0, 60) + '…' : item.excerpt)}</div>`}`
+      + `${item.threadPosition && item.threadPosition !== 'first' ? '' : `<div class="item-subtext">${escapeHtml(item.excerpt.length > 100 ? item.excerpt.slice(0, 100) + '…' : item.excerpt)}</div>`}`
       + `<div class="item-subtext tiny">`
       + `${item.author ? `${escapeHtml(item.author)}` : ''}`
       + `${item.created ? ` • ${escapeHtml(dayjs(item.created).fromNow())}` : ''}`
@@ -333,13 +334,12 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `</div>`
       + `</article>`
     )).join('')
-    : '<div class="empty">No comments yet. Add one from the current cursor location.</div>';
+    : '<div class="empty">No comments yet. To add one at the cursor location, run "Stego: Add Comment" from the Command Palette.</div>';
 
   const commentsPanel = `<section class="panel comments-panel">`
     + `<div class="panel-heading">`
     + `<h2>Comments</h2>`
     + `<div class="actions">`
-    + `<button class="btn subtle inline-toggle" data-action="addComment">Add Comment</button>`
     + `<button class="btn subtle inline-toggle" data-action="clearResolvedComments">Clear Resolved</button>`
     + `</div>`
     + `</div>`
@@ -350,7 +350,9 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
   const tabRow = `<div class="sidebar-tabs">`
     + `<button class="sidebar-tab${state.activeTab === 'document' ? ' active' : ''}" data-action="setSidebarTab" data-value="document">Document</button>`
-    + `<button class="sidebar-tab${state.activeTab === 'comments' ? ' active' : ''}" data-action="setSidebarTab" data-value="comments">Comments <span class="badge">${state.comments.totalCount}</span></button>`
+    + `${state.enableComments
+      ? `<button class="sidebar-tab${state.activeTab === 'comments' ? ' active' : ''}" data-action="setSidebarTab" data-value="comments">Comments <span class="badge">${state.comments.totalCount}</span></button>`
+      : ''}`
     + `</div>`;
 
   const documentContent = `
@@ -370,7 +372,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         <button class="btn subtle btn-icon file-preview-btn" data-action="openMarkdownPreview" aria-label="Open Markdown Preview" title="Open Markdown Preview">${previewIcon}</button>
       </div>
       ${tabRow}
-      ${state.activeTab === 'comments' ? commentsPanel : documentContent}
+      ${state.activeTab === 'comments' && state.enableComments ? commentsPanel : documentContent}
     `;
 
   const assets = getSidebarAssetUris(webview, extensionUri);

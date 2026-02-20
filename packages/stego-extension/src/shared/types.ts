@@ -28,6 +28,7 @@ export type SidebarState = {
   parseError?: string;
   showExplorer: boolean;
   metadataEditing: boolean;
+  enableComments: boolean;
   statusControl?: SidebarStatusControl;
   metadataEntries: SidebarMetadataEntry[];
   explorer?: SidebarExplorerPage;
@@ -264,7 +265,8 @@ export type SidebarMessage =
   | { type: 'toggleCommentResolved'; id: string; resolveThread?: boolean }
   | { type: 'deleteComment'; id: string }
   | { type: 'jumpToComment'; id: string }
-  | { type: 'clearResolvedComments' };
+  | { type: 'clearResolvedComments' }
+  | { type: 'copyCleanManuscript' };
 
 export type CommandContext = {
   indexService: {

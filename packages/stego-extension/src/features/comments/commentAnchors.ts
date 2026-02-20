@@ -5,7 +5,6 @@ export type ParagraphInfo = {
   startLine: number;
   endLine: number;
   text: string;
-  signature: string;
 };
 
 export type ResolvedCommentAnchor = {
@@ -16,6 +15,7 @@ export type ResolvedCommentAnchor = {
   underlineStartCol?: number;
   underlineEndLine?: number;
   underlineEndCol?: number;
+  paragraphEndLine?: number;
 };
 
 export function extractParagraphs(markdownText: string): ParagraphInfo[] {
@@ -36,8 +36,7 @@ export function extractParagraphs(markdownText: string): ParagraphInfo[] {
         index: paragraphs.length,
         startLine: currentStart + 1,
         endLine: endIndex + 1,
-        text: joined,
-        signature: `fnv1a:${hashFnv1a(joined.toLowerCase())}`
+        text: joined
       });
     }
 
@@ -63,7 +62,7 @@ export function extractParagraphs(markdownText: string): ParagraphInfo[] {
 }
 
 export function resolveCommentAnchor(comment: StegoCommentThread, paragraphs: ParagraphInfo[]): ResolvedCommentAnchor {
-  if (comment.anchor === 'file') {
+  if (comment.paragraphIndex === undefined) {
     return {
       anchorType: 'file',
       line: 1,
@@ -71,14 +70,7 @@ export function resolveCommentAnchor(comment: StegoCommentThread, paragraphs: Pa
     };
   }
 
-  let matched: ParagraphInfo | undefined;
-  if (comment.signature) {
-    matched = paragraphs.find((paragraph) => paragraph.signature === comment.signature);
-  }
-
-  if (!matched && comment.paragraphIndex !== undefined) {
-    matched = paragraphs.find((paragraph) => paragraph.index === comment.paragraphIndex);
-  }
+  const matched = paragraphs.find((paragraph) => paragraph.index === comment.paragraphIndex);
 
   if (matched) {
     const anchor: ResolvedCommentAnchor = {
@@ -87,16 +79,13 @@ export function resolveCommentAnchor(comment: StegoCommentThread, paragraphs: Pa
       degraded: false
     };
 
-    if (
-      comment.excerptStartLine !== undefined &&
-      comment.excerptStartCol !== undefined &&
-      comment.excerptEndLine !== undefined &&
-      comment.excerptEndCol !== undefined
-    ) {
+    if (hasValidExcerptRange(comment)) {
       anchor.underlineStartLine = comment.excerptStartLine;
       anchor.underlineStartCol = comment.excerptStartCol;
       anchor.underlineEndLine = comment.excerptEndLine;
       anchor.underlineEndCol = comment.excerptEndCol;
+    } else {
+      anchor.paragraphEndLine = matched.endLine;
     }
 
     return anchor;
@@ -122,6 +111,23 @@ export function resolveCommentAnchor(comment: StegoCommentThread, paragraphs: Pa
   };
 }
 
+function hasValidExcerptRange(comment: StegoCommentThread): boolean {
+  if (
+    comment.excerptStartLine === undefined ||
+    comment.excerptStartCol === undefined ||
+    comment.excerptEndLine === undefined ||
+    comment.excerptEndCol === undefined
+  ) {
+    return false;
+  }
+
+  const startsBeforeEnd =
+    comment.excerptStartLine < comment.excerptEndLine
+    || (comment.excerptStartLine === comment.excerptEndLine && comment.excerptStartCol < comment.excerptEndCol);
+
+  return startsBeforeEnd;
+}
+
 export function findParagraphForLine(paragraphs: ParagraphInfo[], lineNumber: number): ParagraphInfo | undefined {
   return paragraphs.find((paragraph) => lineNumber >= paragraph.startLine && lineNumber <= paragraph.endLine);
 }
@@ -136,12 +142,3 @@ export function findPreviousParagraphForLine(paragraphs: ParagraphInfo[], lineNu
   return undefined;
 }
 
-function hashFnv1a(value: string): string {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = (hash * 0x01000193) >>> 0;
-  }
-
-  return hash.toString(16).padStart(8, '0');
-}
