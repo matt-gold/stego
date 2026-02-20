@@ -119,3 +119,43 @@ export function getFrontmatterLineRange(document: vscode.TextDocument): Frontmat
 
   return undefined;
 }
+
+export function getStegoCommentsLineRange(document: vscode.TextDocument): FrontmatterLineRange | undefined {
+  const startSentinel = '<!-- stego-comments:start -->';
+  const endSentinel = '<!-- stego-comments:end -->';
+
+  let startLine = -1;
+  let endLine = -1;
+
+  for (let line = 0; line < document.lineCount; line += 1) {
+    const text = document.lineAt(line).text.trim();
+    if (text === startSentinel) {
+      if (startLine !== -1) {
+        return undefined;
+      }
+      startLine = line;
+      continue;
+    }
+
+    if (text === endSentinel) {
+      if (endLine !== -1) {
+        return undefined;
+      }
+      endLine = line;
+    }
+  }
+
+  if (startLine < 0 && endLine < 0) {
+    return undefined;
+  }
+
+  if (startLine < 0 || endLine < 0 || endLine <= startLine) {
+    return undefined;
+  }
+
+  let foldStart = startLine;
+  return {
+    start: foldStart,
+    end: endLine
+  };
+}

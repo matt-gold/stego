@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { STRINGS } from '../../shared/strings';
 import { getConfig } from '../project/projectConfig';
-import { getFrontmatterLineRange } from '../metadata/frontmatterParse';
+import { getFrontmatterLineRange, getStegoCommentsLineRange } from '../metadata/frontmatterParse';
 
 export async function maybeAutoFoldFrontmatter(editor: vscode.TextEditor | undefined): Promise<void> {
   if (!editor || editor.document.languageId !== 'markdown') {
@@ -13,12 +13,21 @@ export async function maybeAutoFoldFrontmatter(editor: vscode.TextEditor | undef
   }
 
   const range = getFrontmatterLineRange(editor.document);
-  if (!range || vscode.window.activeTextEditor !== editor) {
+  const commentsRange = getStegoCommentsLineRange(editor.document);
+  if ((!range && !commentsRange) || vscode.window.activeTextEditor !== editor) {
     return;
   }
 
+  const selectionLines: number[] = [];
+  if (range) {
+    selectionLines.push(range.start);
+  }
+  if (commentsRange) {
+    selectionLines.push(commentsRange.start);
+  }
+
   await vscode.commands.executeCommand('editor.fold', {
-    selectionLines: [range.start]
+    selectionLines
   });
 }
 

@@ -4,6 +4,7 @@ import { normalizeFsPath } from '../../shared/path';
 import { collectIdentifiers } from '../identifiers/collectIdentifiers';
 import { getConfig, getResolvedIndexPath } from '../project/projectConfig';
 import { BibleIndexService } from '../indexing/bibleIndexService';
+import { isCommentIdentifier } from '../comments/commentIds';
 
 export async function refreshDiagnosticsForDocument(
   document: vscode.TextDocument,
@@ -33,6 +34,10 @@ export async function refreshDiagnosticsForDocument(
   const documentDiagnostics: vscode.Diagnostic[] = [];
 
   for (const match of matches) {
+    if (isCommentIdentifier(match.id)) {
+      continue;
+    }
+
     if (index.has(match.id)) {
       continue;
     }

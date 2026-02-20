@@ -5,6 +5,8 @@ import { normalizeFsPath } from '../../shared/path';
 import { asString } from '../../shared/value';
 import type { ProjectBibleCategory, ProjectScanContext } from '../../shared/types';
 
+const RESERVED_COMMENT_PREFIX = 'CMT';
+
 export async function findNearestProjectConfig(
   documentPath: string,
   workspaceRoot: string
@@ -79,6 +81,10 @@ export function extractProjectCategories(parsed: unknown): ProjectBibleCategory[
 
     const prefix = asString(category.prefix)?.toUpperCase();
     if (!prefix || !/^[A-Z][A-Z0-9]*$/.test(prefix)) {
+      continue;
+    }
+
+    if (prefix === RESERVED_COMMENT_PREFIX) {
       continue;
     }
 

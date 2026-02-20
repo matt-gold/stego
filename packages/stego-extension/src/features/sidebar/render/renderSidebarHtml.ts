@@ -87,8 +87,8 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
   const activeStageLabel = state.statusControl?.value ?? state.statusControl?.invalidValue;
   const runLocalChecksLabel = activeStageLabel
-    ? `Run ${activeStageLabel} checks.`
-    : 'Run stage checks.';
+    ? `Run ${activeStageLabel} checks`
+    : 'Run stage checks';
 
   const statusControlHtml = state.mode === 'manuscript' && state.statusControl
     ? `<div class="status-editor">`
@@ -297,6 +297,63 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `<div class="actions"><button class="btn subtle" data-action="refresh">Refresh</button></div>`
       + `</section>`;
 
+  const commentErrors = state.comments.parseErrors.length > 0
+    ? `<div class="error-panel">${state.comments.parseErrors.map((error) => escapeHtml(error)).join('<br/>')}</div>`
+    : '';
+
+  const commentsList = state.comments.items.length > 0
+    ? state.comments.items.map((item) => (
+      `<article class="item metadata-item comment-list-item${item.status === 'resolved' ? ' resolved' : ''}${item.isSelected ? ' selected' : ''}">`
+      + `<div class="item-main">`
+      + `<div class="item-title-row">`
+      + `<button class="id-link" data-action="openCommentThread" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.id)}</button>`
+      + `<span class="badge${item.status === 'resolved' ? '' : ' warn'}">${item.status === 'resolved' ? 'Resolved' : 'Open'}</span>`
+      + `${item.degraded ? '<span class="badge warn">Moved</span>' : ''}`
+      + `</div>`
+      + `<div class="item-subtext">${escapeHtml(item.excerpt)}</div>`
+      + `<div class="item-subtext">${escapeHtml(item.message)}</div>`
+      + `<div class="item-subtext tiny">`
+      + `line ${item.line}`
+      + `${item.author ? ` • ${escapeHtml(item.author)}` : ''}`
+      + `${item.created ? ` • ${escapeHtml(item.created)}` : ''}`
+      + `</div>`
+      + `</div>`
+      + `<div class="item-actions">`
+      + `<button class="btn subtle inline-toggle" data-action="jumpToComment" data-id="${escapeAttribute(item.id)}">Jump</button>`
+      + `<button class="btn subtle inline-toggle" data-action="replyComment" data-id="${escapeAttribute(item.id)}">Reply</button>`
+      + `<button class="btn subtle inline-toggle" data-action="toggleCommentResolved" data-id="${escapeAttribute(item.id)}">${item.status === 'resolved' ? 'Reopen' : 'Resolve'}</button>`
+      + `</div>`
+      + `</article>`
+    )).join('')
+    : '<div class="empty">No comments yet. Add one from the current cursor location.</div>';
+
+  const commentsPanel = `<section class="panel comments-panel">`
+    + `<div class="panel-heading">`
+    + `<h2>Comments</h2>`
+    + `<div class="actions">`
+    + `<button class="btn subtle inline-toggle" data-action="addComment">Add Comment</button>`
+    + `<button class="btn subtle inline-toggle" data-action="clearResolvedComments">Clear Resolved</button>`
+    + `</div>`
+    + `</div>`
+    + `<div class="item-subtext comments-summary">${state.comments.totalCount} total • ${state.comments.openCount} open</div>`
+    + `${commentErrors}`
+    + `${commentsList}`
+    + `</section>`;
+
+  const tabRow = `<div class="sidebar-tabs">`
+    + `<button class="sidebar-tab${state.activeTab === 'document' ? ' active' : ''}" data-action="setSidebarTab" data-value="document">Document</button>`
+    + `<button class="sidebar-tab${state.activeTab === 'comments' ? ' active' : ''}" data-action="setSidebarTab" data-value="comments">Comments <span class="badge">${state.comments.totalCount}</span></button>`
+    + `</div>`;
+
+  const documentContent = `
+      ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
+      ${statusPanel}
+      ${state.showExplorer ? explorerHtml : ''}
+      ${state.mode === 'manuscript' ? metadataPanel : tocPanel}
+      ${state.mode === 'manuscript' ? tocPanel : ''}
+      ${utilityPanel}
+    `;
+
   const content = !state.hasActiveMarkdown
     ? '<div class="empty-panel">Open a Markdown document to use the Stego sidebar.</div>'
     : `
@@ -304,12 +361,8 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         <div class="file-title" title="${escapeAttribute(fileTitle.filename)}">${escapeHtml(fileTitle.title)}</div>
         <button class="btn subtle btn-icon file-preview-btn" data-action="openMarkdownPreview" aria-label="Open Markdown Preview" title="Open Markdown Preview">${previewIcon}</button>
       </div>
-      ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
-      ${statusPanel}
-      ${state.showExplorer ? explorerHtml : ''}
-      ${state.mode === 'manuscript' ? metadataPanel : tocPanel}
-      ${state.mode === 'manuscript' ? tocPanel : ''}
-      ${utilityPanel}
+      ${tabRow}
+      ${state.activeTab === 'comments' ? commentsPanel : documentContent}
     `;
 
   const assets = getSidebarAssetUris(webview, extensionUri);

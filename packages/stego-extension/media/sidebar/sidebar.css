@@ -31,6 +31,30 @@ h2 {
 .panel-heading h2 {
   margin: 0;
 }
+.panel-heading .actions {
+  margin-bottom: 0;
+}
+.sidebar-tabs {
+  margin-bottom: 12px;
+  display: flex;
+  gap: 6px;
+}
+.sidebar-tab {
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar-tab.active {
+  border-color: var(--vscode-focusBorder);
+  background: color-mix(in srgb, var(--vscode-button-background) 28%, var(--vscode-input-background));
+}
 .panel-kind-badge {
   display: inline-flex;
   align-items: center;
@@ -174,6 +198,9 @@ h2 {
   line-height: 1.35;
   white-space: pre-wrap;
 }
+.item-subtext.tiny {
+  font-size: 11px;
+}
 .metadata-value {
   font-size: 13px;
   line-height: 1.45;
@@ -232,8 +259,12 @@ h2 {
   padding: 8px;
   margin-bottom: 10px;
   background: var(--vscode-input-background);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .status-options {
+  order: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 6px 10px;
@@ -249,12 +280,13 @@ h2 {
   margin: 0;
 }
 .status-actions {
-  margin-top: 8px;
+  order: 1;
+  align-self: flex-end;
   display: flex;
   justify-content: flex-end;
 }
 .status-note {
-  margin-top: 6px;
+  order: 3;
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
 }
@@ -462,6 +494,16 @@ code {
   text-transform: uppercase;
 }
 .badge.warn { color: var(--vscode-editorWarning-foreground); }
+.comments-summary {
+  margin-bottom: 8px;
+}
+.comment-list-item.resolved {
+  opacity: 0.88;
+}
+.comment-list-item.selected {
+  border-color: var(--vscode-focusBorder);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 55%, transparent);
+}
 .btn {
   border: 1px solid var(--vscode-button-border, transparent);
   border-radius: 6px;
@@ -495,6 +537,7 @@ code {
   background: color-mix(in srgb, var(--vscode-editorError-foreground) 18%, transparent);
 }
 .btn:focus-visible,
+.sidebar-tab:focus-visible,
 .id-link:focus-visible,
 .explorer-crumb-link:focus-visible,
 .toc-link:focus-visible,

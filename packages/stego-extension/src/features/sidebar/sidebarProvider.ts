@@ -32,11 +32,21 @@ import { buildExplorerState, buildMetadataEntry, buildTocWithBacklinks } from '.
 import { normalizeExplorerRoute, isSameExplorerRoute } from './sidebarRoutes';
 import { collectTocEntries, isManuscriptPath } from './sidebarToc';
 import { renderSidebarHtml } from './render/renderSidebarHtml';
+import {
+  addCommentAtSelection,
+  buildSidebarCommentsState,
+  clearResolvedComments,
+  jumpToComment,
+  replyToComment,
+  toggleCommentResolved
+} from '../comments/commentStore';
 
 export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private backlinkFilter = '';
   private metadataEditing = false;
+  private activeTab: 'document' | 'comments' = 'document';
+  private selectedCommentId?: string;
   private explorerRoute: ExplorerRoute = { kind: 'home' };
   private explorerCollapsed = false;
   private readonly explorerBackStack: ExplorerRoute[] = [];
@@ -59,6 +69,17 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     this.navigateExplorerToRoute({ kind: 'identifier', id: normalized }, { trackHistory: true });
+    await this.refresh();
+  }
+
+  public async focusComment(id: string): Promise<void> {
+    const normalized = id.trim().toUpperCase();
+    if (!normalized) {
+      return;
+    }
+
+    this.activeTab = 'comments';
+    this.selectedCommentId = normalized;
     await this.refresh();
   }
 
@@ -153,6 +174,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: false,
         documentPath: '',
+        activeTab: this.activeTab,
         showExplorer: false,
         metadataEditing: false,
         statusControl: undefined,
@@ -166,9 +188,19 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         tocEntries: [],
         showToc: false,
         isBibleCategoryFile: false,
-        backlinkFilter: this.backlinkFilter
+        backlinkFilter: this.backlinkFilter,
+        comments: {
+          selectedId: undefined,
+          items: [],
+          parseErrors: [],
+          totalCount: 0,
+          openCount: 0
+        }
       };
     }
+
+    const comments = buildSidebarCommentsState(document.getText(), this.selectedCommentId);
+    this.selectedCommentId = comments.selectedId;
 
     const tocEntries = collectTocEntries(document);
     const manuscriptMode = isManuscriptPath(document.uri.fsPath);
@@ -224,6 +256,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
+        activeTab: this.activeTab,
         mode: 'nonManuscript',
         showExplorer,
         metadataEditing: false,
@@ -238,7 +271,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         tocEntries: tocWithBacklinks,
         showToc: true,
         isBibleCategoryFile: !!bibleCategoryForFile,
-        backlinkFilter: this.backlinkFilter
+        backlinkFilter: this.backlinkFilter,
+        comments
       };
     }
 
@@ -270,6 +304,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
+        activeTab: this.activeTab,
         mode: 'manuscript',
         showExplorer,
         metadataEditing: this.metadataEditing,
@@ -284,12 +319,14 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         tocEntries: tocWithBacklinks,
         showToc: tocEntries.length > 1,
         isBibleCategoryFile: false,
-        backlinkFilter: this.backlinkFilter
+        backlinkFilter: this.backlinkFilter,
+        comments
       };
     } catch (error) {
       return {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
+        activeTab: this.activeTab,
         mode: 'manuscript',
         parseError: errorToMessage(error),
         showExplorer,
@@ -305,7 +342,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         tocEntries: tocWithBacklinks,
         showToc: tocEntries.length > 1,
         isBibleCategoryFile: false,
-        backlinkFilter: this.backlinkFilter
+        backlinkFilter: this.backlinkFilter,
+        comments
       };
     }
   }
@@ -319,6 +357,14 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     let shouldRefreshDiagnostics = true;
 
     switch (payload.type) {
+      case 'setSidebarTab': {
+        shouldRefreshDiagnostics = false;
+        const value = typeof payload.value === 'string' ? payload.value.trim().toLowerCase() : '';
+        if (value === 'document' || value === 'comments') {
+          this.activeTab = value;
+        }
+        break;
+      }
       case 'addMetadataField': {
         await promptAndAddMetadataField();
         break;
@@ -493,6 +539,122 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
             ? payload.basePath.trim()
             : undefined;
           await openExternalLink(payload.url.trim(), basePath);
+        }
+        break;
+      }
+      case 'addComment': {
+        shouldRefreshDiagnostics = false;
+        const document = getActiveMarkdownDocument(true);
+        if (!document) {
+          break;
+        }
+        const message = await vscode.window.showInputBox({
+          prompt: 'New comment',
+          placeHolder: 'Write your comment'
+        });
+        if (message === undefined) {
+          break;
+        }
+        const author = getConfig(document.uri).get<string>('commentAuthor', '') ?? '';
+        const result = await addCommentAtSelection(document, message, author);
+        if (result.warning) {
+          void vscode.window.showWarningMessage(result.warning);
+          break;
+        }
+        this.activeTab = 'comments';
+        this.selectedCommentId = result.id;
+        break;
+      }
+      case 'openCommentThread': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.id === 'string' && payload.id.trim().length > 0) {
+          this.activeTab = 'comments';
+          this.selectedCommentId = payload.id.trim().toUpperCase();
+        }
+        break;
+      }
+      case 'replyComment': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.id !== 'string' || payload.id.trim().length === 0) {
+          break;
+        }
+        const document = getActiveMarkdownDocument(true);
+        if (!document) {
+          break;
+        }
+        const message = await vscode.window.showInputBox({
+          prompt: `Reply to ${payload.id.trim().toUpperCase()}`,
+          placeHolder: 'Write your reply'
+        });
+        if (message === undefined) {
+          break;
+        }
+        const author = getConfig(document.uri).get<string>('commentAuthor', '') ?? '';
+        const result = await replyToComment(document, payload.id.trim(), message, author);
+        if (result.warning) {
+          void vscode.window.showWarningMessage(result.warning);
+          break;
+        }
+        this.activeTab = 'comments';
+        this.selectedCommentId = result.id ?? payload.id.trim().toUpperCase();
+        break;
+      }
+      case 'toggleCommentResolved': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.id !== 'string' || payload.id.trim().length === 0) {
+          break;
+        }
+        const document = getActiveMarkdownDocument(true);
+        if (!document) {
+          break;
+        }
+        const result = await toggleCommentResolved(document, payload.id.trim());
+        if (result.warning) {
+          void vscode.window.showWarningMessage(result.warning);
+          break;
+        }
+        this.activeTab = 'comments';
+        this.selectedCommentId = payload.id.trim().toUpperCase();
+        break;
+      }
+      case 'jumpToComment': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.id !== 'string' || payload.id.trim().length === 0) {
+          break;
+        }
+        const document = getActiveMarkdownDocument(true);
+        if (!document) {
+          break;
+        }
+        const result = await jumpToComment(document, payload.id.trim());
+        if (result.warning) {
+          void vscode.window.showWarningMessage(result.warning);
+        }
+        break;
+      }
+      case 'clearResolvedComments': {
+        shouldRefreshDiagnostics = false;
+        const document = getActiveMarkdownDocument(true);
+        if (!document) {
+          break;
+        }
+        const result = await clearResolvedComments(document);
+        if (result.warning) {
+          void vscode.window.showWarningMessage(result.warning);
+          break;
+        }
+        this.activeTab = 'comments';
+        if (!this.selectedCommentId) {
+          break;
+        }
+        const afterClear = buildSidebarCommentsState(document.getText(), this.selectedCommentId);
+        if (!afterClear.selectedId) {
+          this.selectedCommentId = undefined;
+        }
+        if (result.removed > 0) {
+          void vscode.window.showInformationMessage(`Cleared ${result.removed} resolved comment${result.removed === 1 ? '' : 's'}.`);
+        } else {
+          void vscode.window.showInformationMessage('No resolved comments to clear.');
         }
         break;
       }

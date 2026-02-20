@@ -8,9 +8,12 @@ import { createDocumentLinkProvider } from './features/identifiers/documentLinks
 import { createHoverProvider } from './features/identifiers/hover';
 import { BibleIndexService } from './features/indexing/bibleIndexService';
 import { ReferenceUsageIndexService } from './features/indexing/referenceUsageIndexService';
-import { getFrontmatterLineRange } from './features/metadata/frontmatterParse';
-import { isProjectFile } from './features/project/projectConfig';
+import { getFrontmatterLineRange, getStegoCommentsLineRange } from './features/metadata/frontmatterParse';
+import { getActiveMarkdownDocument } from './features/metadata/frontmatterEdit';
+import { getConfig, isProjectFile } from './features/project/projectConfig';
 import { MetadataSidebarProvider } from './features/sidebar/sidebarProvider';
+import { CommentDecorationsService } from './features/comments/commentDecorations';
+import { addCommentAtSelection } from './features/comments/commentStore';
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection('stegoBible');
@@ -22,11 +25,13 @@ export function activate(context: vscode.ExtensionContext): void {
     referenceUsageService,
     diagnostics
   );
+  const commentDecorations = new CommentDecorationsService(context.extensionUri);
 
   const selector: vscode.DocumentSelector = [{ language: 'markdown' }];
 
   context.subscriptions.push(
     diagnostics,
+    commentDecorations,
     vscode.window.registerWebviewViewProvider(METADATA_VIEW_ID, sidebarProvider),
     vscode.commands.registerCommand('stegoBible.exploreIdentifier', async (rawId: unknown) => {
       if (typeof rawId !== 'string' || rawId.trim().length === 0) {
@@ -35,16 +40,57 @@ export function activate(context: vscode.ExtensionContext): void {
 
       await sidebarProvider.focusIdentifier(rawId);
     }),
+    vscode.commands.registerCommand('stegoBible.openCommentThread', async (rawId: unknown) => {
+      if (typeof rawId !== 'string' || rawId.trim().length === 0) {
+        return;
+      }
+
+      await sidebarProvider.focusComment(rawId);
+    }),
+    vscode.commands.registerCommand('stegoBible.addComment', async () => {
+      const document = getActiveMarkdownDocument(true);
+      if (!document) {
+        return;
+      }
+
+      const message = await vscode.window.showInputBox({
+        prompt: 'New comment',
+        placeHolder: 'Write your comment'
+      });
+      if (message === undefined) {
+        return;
+      }
+
+      const author = getConfig(document.uri).get<string>('commentAuthor', '') ?? '';
+      const result = await addCommentAtSelection(document, message, author);
+      if (result.warning) {
+        void vscode.window.showWarningMessage(result.warning);
+        return;
+      }
+
+      if (result.id) {
+        await sidebarProvider.focusComment(result.id);
+      } else {
+        await sidebarProvider.refresh();
+      }
+      commentDecorations.refreshVisibleEditors();
+    }),
     vscode.languages.registerDocumentLinkProvider(selector, createDocumentLinkProvider(indexService)),
     vscode.languages.registerHoverProvider(selector, createHoverProvider(indexService)),
     vscode.languages.registerFoldingRangeProvider(selector, {
       provideFoldingRanges(document): vscode.FoldingRange[] {
-        const range = getFrontmatterLineRange(document);
-        if (!range) {
-          return [];
+        const ranges: vscode.FoldingRange[] = [];
+        const frontmatterRange = getFrontmatterLineRange(document);
+        const commentsRange = getStegoCommentsLineRange(document);
+
+        if (frontmatterRange) {
+          ranges.push(new vscode.FoldingRange(frontmatterRange.start, frontmatterRange.end, vscode.FoldingRangeKind.Region));
+        }
+        if (commentsRange) {
+          ranges.push(new vscode.FoldingRange(commentsRange.start, commentsRange.end, vscode.FoldingRangeKind.Region));
         }
 
-        return [new vscode.FoldingRange(range.start, range.end, vscode.FoldingRangeKind.Region)];
+        return ranges;
       }
     }),
     vscode.commands.registerCommand('stegoBible.reloadIndex', async () => {
@@ -68,10 +114,12 @@ export function activate(context: vscode.ExtensionContext): void {
       if (document === vscode.window.activeTextEditor?.document) {
         void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);
       }
+      commentDecorations.refreshVisibleEditors();
       void sidebarProvider.refresh();
     }),
     vscode.workspace.onDidChangeTextDocument((event) => {
       void refreshDiagnosticsForDocument(event.document, indexService, diagnostics);
+      commentDecorations.refreshVisibleEditors();
       if (event.document === vscode.window.activeTextEditor?.document) {
         void sidebarProvider.refresh();
       }
@@ -87,10 +135,12 @@ export function activate(context: vscode.ExtensionContext): void {
       } else {
         void refreshDiagnosticsForDocument(document, indexService, diagnostics);
       }
+      commentDecorations.refreshVisibleEditors();
       void sidebarProvider.refresh();
     }),
     vscode.workspace.onDidCloseTextDocument((document) => {
       diagnostics.delete(document.uri);
+      commentDecorations.refreshVisibleEditors();
       void sidebarProvider.refresh();
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
@@ -99,16 +149,22 @@ export function activate(context: vscode.ExtensionContext): void {
         referenceUsageService.clear();
         void refreshVisibleMarkdownDocuments(indexService, diagnostics);
         void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);
+        commentDecorations.refreshVisibleEditors();
         void sidebarProvider.refresh();
       }
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       void maybeAutoFoldFrontmatter(editor);
+      commentDecorations.refreshEditor(editor);
       void sidebarProvider.refresh();
+    }),
+    vscode.window.onDidChangeVisibleTextEditors(() => {
+      commentDecorations.refreshVisibleEditors();
     })
   );
 
   void refreshVisibleMarkdownDocuments(indexService, diagnostics);
+  commentDecorations.refreshVisibleEditors();
   void sidebarProvider.refresh();
   void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);
 }

@@ -23,6 +23,7 @@ export type ParsedMarkdownDocument = {
 export type SidebarState = {
   hasActiveMarkdown: boolean;
   documentPath: string;
+  activeTab: SidebarViewTab;
   mode?: 'manuscript' | 'nonManuscript';
   parseError?: string;
   showExplorer: boolean;
@@ -39,7 +40,10 @@ export type SidebarState = {
   showToc: boolean;
   isBibleCategoryFile: boolean;
   backlinkFilter: string;
+  comments: SidebarCommentsState;
 };
+
+export type SidebarViewTab = 'document' | 'comments';
 
 export type FrontmatterLineRange = {
   start: number;
@@ -93,6 +97,29 @@ export type SidebarBacklink = {
   line: number;
   excerpt: string;
   count: number;
+};
+
+export type SidebarCommentStatus = 'open' | 'resolved';
+
+export type SidebarCommentListItem = {
+  id: string;
+  status: SidebarCommentStatus;
+  anchor: 'paragraph' | 'file';
+  line: number;
+  degraded: boolean;
+  excerpt: string;
+  author?: string;
+  created?: string;
+  message: string;
+  isSelected: boolean;
+};
+
+export type SidebarCommentsState = {
+  selectedId?: string;
+  items: SidebarCommentListItem[];
+  parseErrors: string[];
+  totalCount: number;
+  openCount: number;
 };
 
 export type SidebarExplorerEntry = {
@@ -203,6 +230,7 @@ export type SidebarRenderContext = {
 };
 
 export type SidebarMessage =
+  | { type: 'setSidebarTab'; value: SidebarViewTab }
   | { type: 'addMetadataField' }
   | { type: 'editMetadataField'; key: string }
   | { type: 'removeMetadataField'; key: string }
@@ -227,7 +255,13 @@ export type SidebarMessage =
   | { type: 'toggleTocBacklinks'; id: string }
   | { type: 'setBacklinkFilter'; value: string }
   | { type: 'openBacklink'; filePath: string; line: number }
-  | { type: 'openExternalLink'; url: string; basePath?: string };
+  | { type: 'openExternalLink'; url: string; basePath?: string }
+  | { type: 'addComment' }
+  | { type: 'openCommentThread'; id: string }
+  | { type: 'replyComment'; id: string }
+  | { type: 'toggleCommentResolved'; id: string }
+  | { type: 'jumpToComment'; id: string }
+  | { type: 'clearResolvedComments' };
 
 export type CommandContext = {
   indexService: {

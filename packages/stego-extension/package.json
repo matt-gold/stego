@@ -16,6 +16,7 @@
     "onCommand:stegoBible.reloadIndex",
     "onCommand:stegoBible.runBuild",
     "onCommand:stegoBible.runGateStage",
+    "onCommand:stegoBible.addComment",
     "onCommand:stegoBible.toggleFrontmatter",
     "onView:stegoBible.metadataView"
   ],
@@ -57,6 +58,10 @@
       {
         "command": "stegoBible.toggleFrontmatter",
         "title": "Stego Bible: Toggle Frontmatter Fold"
+      },
+      {
+        "command": "stegoBible.addComment",
+        "title": "Stego: Add Comment"
       }
     ],
     "menus": {
@@ -110,6 +115,11 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically fold YAML frontmatter in Markdown files."
+        },
+        "stegoBible.commentAuthor": {
+          "type": "string",
+          "default": "",
+          "description": "Default author name used when adding sidebar comments. Leave blank to use your system/git username."
         }
       }
     }
