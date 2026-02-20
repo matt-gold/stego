@@ -113,6 +113,25 @@ export async function collectReferenceMarkdownFiles(projectDir: string): Promise
   return uniqueResolvedPaths(files).sort((a, b) => a.localeCompare(b));
 }
 
+export async function collectManuscriptMarkdownFiles(projectDir: string): Promise<string[]> {
+  const roots = [
+    path.join(projectDir, 'manuscript'),
+    path.join(projectDir, 'manuscripts')
+  ];
+
+  const files: string[] = [];
+  for (const root of roots) {
+    if (!(await isDirectory(root))) {
+      continue;
+    }
+
+    const discovered = await collectMarkdownFiles(root);
+    files.push(...discovered);
+  }
+
+  return uniqueResolvedPaths(files);
+}
+
 export async function isDirectory(dirPath: string): Promise<boolean> {
   try {
     const stat = await fs.stat(dirPath);

@@ -62,7 +62,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
         return `<article class="item metadata-item metadata-array-field">`
           + `<div class="item-main">`
-          + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isBibleCategory ? '<span class="badge bible">Story Bible</span>' : ''}<span class="badge">${entry.arrayItems.length} items</span></div>`
+          + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isStructural ? '<span class="badge structural">Structure</span>' : ''}${entry.isBibleCategory ? '<span class="badge bible">Story Bible</span>' : ''}<span class="badge">${entry.arrayItems.length} items</span></div>`
           + `${arrayItems}`
           + `${showMetadataEditingControls
             ? `<div class="array-field-actions">`
@@ -75,7 +75,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
       return `<article class="item metadata-item">`
         + `<div class="item-main">`
-        + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isBibleCategory ? '<span class="badge bible">Story Bible</span>' : ''}</div>`
+        + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isStructural ? '<span class="badge structural">Structure</span>' : ''}${entry.isBibleCategory ? '<span class="badge bible">Story Bible</span>' : ''}</div>`
         + `<div class="item-subtext metadata-value">${escapeHtml(entry.valueText)}</div>`
         + `${renderReferenceCards(entry.references)}`
         + `</div>`
@@ -118,7 +118,10 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const statusPanel = state.mode === 'manuscript' && statusControlHtml
     ? `<section class="panel title-panel">`
       + `<div class="panel-heading">`
+      + `<div class="title-heading-block">`
       + `<h2>${escapeHtml(fileTitle.title)}</h2>`
+      + `${state.structureSummary ? `<div class="title-structure">${escapeHtml(state.structureSummary)}</div>` : ''}`
+      + `</div>`
       + `<div class="actions">`
       + `<button class="btn subtle btn-icon" data-action="copyCleanManuscript" aria-label="${escapeAttribute(copyCleanManuscriptLabel)}" title="${escapeAttribute(copyCleanManuscriptLabel)}">${copyCleanManuscriptIcon}</button>`
       + `<button class="btn subtle btn-icon" data-action="runLocalValidate" aria-label="${escapeAttribute(runLocalChecksLabel)}" title="${escapeAttribute(runLocalChecksLabel)}">${runLocalChecksIcon}</button>`

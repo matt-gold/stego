@@ -19,6 +19,7 @@ import type { SidebarTocEntry } from '../../shared/types';
 export function buildMetadataEntry(
   key: string,
   value: unknown,
+  isStructural: boolean,
   category: ProjectBibleCategory | undefined,
   index: Map<string, BibleRecord>,
   document: vscode.TextDocument,
@@ -33,6 +34,7 @@ export function buildMetadataEntry(
 
     return {
       key,
+      isStructural,
       isBibleCategory: !!category,
       isArray: true,
       valueText: '',
@@ -43,6 +45,7 @@ export function buildMetadataEntry(
 
   return {
     key,
+    isStructural,
     isBibleCategory: !!category,
     isArray: false,
     valueText: formatMetadataValue(value),

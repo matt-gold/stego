@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { normalizeFsPath } from '../../shared/path';
 import { asString } from '../../shared/value';
-import type { ProjectBibleCategory, ProjectScanContext } from '../../shared/types';
+import type { ProjectBibleCategory, ProjectScanContext, ProjectStructuralLevel } from '../../shared/types';
 
 const RESERVED_COMMENT_PREFIX = 'CMT';
 
@@ -43,16 +43,96 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
 
     const raw = await fs.readFile(projectFilePath, 'utf8');
     const parsed = JSON.parse(raw) as unknown;
+    const structuralLevels = extractProjectStructuralLevels(parsed);
+    const structuralKeys = extractProjectStructuralKeysFromLevels(structuralLevels);
     const categories = extractProjectCategories(parsed);
 
     return {
       projectDir: path.dirname(projectFilePath),
       projectMtimeMs: stat.mtimeMs,
+      structuralKeys,
+      structuralLevels,
       categories
     };
   } catch {
     return undefined;
   }
+}
+
+export function extractProjectStructuralLevels(parsed: unknown): ProjectStructuralLevel[] {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return [];
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const compileStructure = record.compileStructure;
+  if (!compileStructure || typeof compileStructure !== 'object' || Array.isArray(compileStructure)) {
+    return [];
+  }
+
+  const levels = (compileStructure as Record<string, unknown>).levels;
+  if (!Array.isArray(levels)) {
+    return [];
+  }
+
+  const parsedLevels: ProjectStructuralLevel[] = [];
+  const seen = new Set<string>();
+
+  for (const level of levels) {
+    if (!level || typeof level !== 'object' || Array.isArray(level)) {
+      continue;
+    }
+
+    const levelRecord = level as Record<string, unknown>;
+    const key = asString(levelRecord.key);
+    const label = asString(levelRecord.label);
+    if (!key || !/^[A-Za-z0-9_-]+$/.test(key) || !label) {
+      continue;
+    }
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    const titleKey = asString(levelRecord.titleKey);
+    if (titleKey && !/^[A-Za-z0-9_-]+$/.test(titleKey)) {
+      continue;
+    }
+
+    const headingTemplateRaw = asString(levelRecord.headingTemplate);
+    const headingTemplate = headingTemplateRaw && headingTemplateRaw.trim().length > 0
+      ? headingTemplateRaw.trim()
+      : '{label} {value}: {title}';
+
+    seen.add(key);
+    parsedLevels.push({
+      key,
+      label,
+      titleKey: titleKey || undefined,
+      headingTemplate
+    });
+  }
+
+  return parsedLevels;
+}
+
+export function extractProjectStructuralKeysFromLevels(levels: ProjectStructuralLevel[]): string[] {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+
+  for (const level of levels) {
+    if (!seen.has(level.key)) {
+      seen.add(level.key);
+      keys.push(level.key);
+    }
+
+    if (level.titleKey && !seen.has(level.titleKey)) {
+      seen.add(level.titleKey);
+      keys.push(level.titleKey);
+    }
+  }
+
+  return keys;
 }
 
 export function extractProjectCategories(parsed: unknown): ProjectBibleCategory[] {

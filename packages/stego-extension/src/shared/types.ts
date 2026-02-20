@@ -23,6 +23,7 @@ export type ParsedMarkdownDocument = {
 export type SidebarState = {
   hasActiveMarkdown: boolean;
   documentPath: string;
+  structureSummary?: string;
   activeTab: SidebarViewTab;
   mode?: 'manuscript' | 'nonManuscript';
   parseError?: string;
@@ -53,6 +54,7 @@ export type FrontmatterLineRange = {
 
 export type SidebarMetadataEntry = {
   key: string;
+  isStructural: boolean;
   isBibleCategory: boolean;
   isArray: boolean;
   valueText: string;
@@ -194,7 +196,16 @@ export type ProjectBibleCategory = {
 export type ProjectScanContext = {
   projectDir: string;
   projectMtimeMs: number;
+  structuralKeys: string[];
+  structuralLevels: ProjectStructuralLevel[];
   categories: ProjectBibleCategory[];
+};
+
+export type ProjectStructuralLevel = {
+  key: string;
+  label: string;
+  titleKey?: string;
+  headingTemplate: string;
 };
 
 export type FileIdentifierUsage = {

@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import { promises as fs } from 'fs';
 import { DEFAULT_IDENTIFIER_PATTERN } from '../../shared/constants';
 import { errorToMessage } from '../../shared/errors';
 import { asNumber, asRecord } from '../../shared/value';
@@ -28,7 +30,7 @@ import { parseMarkdownDocument } from '../metadata/frontmatterParse';
 import { buildStatusControl } from '../metadata/statusControl';
 import { openBacklinkFile, openExternalLink, openLineInActiveDocument } from '../navigation/openTargets';
 import { findNearestProjectConfig, getConfig } from '../project/projectConfig';
-import { resolveCurrentBibleCategoryFile } from '../project/fileScan';
+import { collectManuscriptMarkdownFiles, resolveCurrentBibleCategoryFile } from '../project/fileScan';
 import { buildExplorerState, buildMetadataEntry, buildTocWithBacklinks } from './sidebarStateBuilder';
 import { normalizeExplorerRoute, isSameExplorerRoute } from './sidebarRoutes';
 import { collectTocEntries, isManuscriptPath } from './sidebarToc';
@@ -178,6 +180,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: false,
         documentPath: '',
+        structureSummary: undefined,
         activeTab: this.activeTab,
         showExplorer: false,
         metadataEditing: false,
@@ -232,6 +235,13 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
     const categoryByKey = new Map<string, ProjectBibleCategory>();
     const categoryOrderByKey = new Map<string, number>();
+    const structuralOrderByKey = new Map<string, number>();
+    let structuralOrder = 0;
+    for (const key of projectContext?.structuralKeys ?? []) {
+      structuralOrderByKey.set(key, structuralOrder);
+      structuralOrder += 1;
+    }
+
     let categoryOrder = 0;
     for (const category of projectContext?.categories ?? []) {
       categoryByKey.set(category.key, category);
@@ -275,6 +285,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
+        structureSummary: undefined,
         activeTab: effectiveTab,
         mode: 'nonManuscript',
         showExplorer,
@@ -298,12 +309,27 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
     try {
       const parsed = parseMarkdownDocument(document.getText());
+      const structureSummary = await this.resolveStructureSummary(document, parsed.frontmatter, projectContext);
       const statusControl = await buildStatusControl(parsed.frontmatter, document);
       const metadataEntries = Object.entries(parsed.frontmatter)
         .filter(([key]) => key !== 'status')
         .sort(([a], [b]) => {
+          const aIsStructural = structuralOrderByKey.has(a);
+          const bIsStructural = structuralOrderByKey.has(b);
           const aIsBibleCategory = categoryByKey.has(a);
           const bIsBibleCategory = categoryByKey.has(b);
+
+          if (aIsStructural !== bIsStructural) {
+            return aIsStructural ? -1 : 1;
+          }
+
+          if (aIsStructural && bIsStructural) {
+            const aOrder = structuralOrderByKey.get(a) ?? Number.MAX_SAFE_INTEGER;
+            const bOrder = structuralOrderByKey.get(b) ?? Number.MAX_SAFE_INTEGER;
+            if (aOrder !== bOrder) {
+              return aOrder - bOrder;
+            }
+          }
 
           if (aIsBibleCategory !== bIsBibleCategory) {
             return aIsBibleCategory ? -1 : 1;
@@ -319,11 +345,20 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
           return a.localeCompare(b);
         })
-        .map(([key, value]) => buildMetadataEntry(key, value, categoryByKey.get(key), index, document, pattern));
+        .map(([key, value]) => buildMetadataEntry(
+          key,
+          value,
+          structuralOrderByKey.has(key),
+          categoryByKey.get(key),
+          index,
+          document,
+          pattern
+        ));
 
       return {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
+        structureSummary,
         activeTab: effectiveTab,
         mode: 'manuscript',
         showExplorer,
@@ -347,6 +382,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
+        structureSummary: undefined,
         activeTab: effectiveTab,
         mode: 'manuscript',
         parseError: errorToMessage(error),
@@ -368,6 +404,142 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         comments
       };
     }
+  }
+
+  private async resolveStructureSummary(
+    document: vscode.TextDocument,
+    frontmatter: Record<string, unknown>,
+    projectContext: { projectDir: string; structuralLevels: { key: string; label: string; titleKey?: string; headingTemplate: string }[] } | undefined
+  ): Promise<string | undefined> {
+    if (!projectContext || projectContext.structuralLevels.length === 0) {
+      return undefined;
+    }
+
+    const files = await collectManuscriptMarkdownFiles(projectContext.projectDir);
+    if (files.length === 0) {
+      return this.formatStructureSummary(projectContext.structuralLevels, frontmatter);
+    }
+
+    const normalizedCurrent = path.resolve(document.uri.fsPath);
+    const sorted = [...files].sort((a, b) => this.compareManuscriptFiles(a, b));
+    const currentIndex = sorted.findIndex((filePath) => path.resolve(filePath) === normalizedCurrent);
+    if (currentIndex < 0) {
+      return this.formatStructureSummary(projectContext.structuralLevels, frontmatter);
+    }
+
+    const effective = new Map<string, string>();
+    const effectiveTitles = new Map<string, string>();
+    for (let index = 0; index <= currentIndex; index += 1) {
+      const filePath = sorted[index];
+      const sourceFrontmatter = index === currentIndex
+        ? frontmatter
+        : await this.readFrontmatterFromDisk(filePath);
+
+      for (const level of projectContext.structuralLevels) {
+        const value = this.toScalarString(sourceFrontmatter[level.key]);
+        if (value) {
+          effective.set(level.key, value);
+        }
+
+        if (level.titleKey) {
+          const title = this.toScalarString(sourceFrontmatter[level.titleKey]);
+          if (title) {
+            effectiveTitles.set(level.key, title);
+          }
+        }
+      }
+    }
+
+    const parts = projectContext.structuralLevels
+      .map((level) => {
+        const value = effective.get(level.key);
+        if (!value) {
+          return '';
+        }
+
+        const title = effectiveTitles.get(level.key);
+        return this.formatStructureHeading(level, value, title);
+      })
+      .filter((value) => value.length > 0);
+
+    return parts.length > 0 ? parts.join(', ') : undefined;
+  }
+
+  private async readFrontmatterFromDisk(filePath: string): Promise<Record<string, unknown>> {
+    try {
+      const text = await fs.readFile(filePath, 'utf8');
+      return parseMarkdownDocument(text).frontmatter;
+    } catch {
+      return {};
+    }
+  }
+
+  private formatStructureSummary(
+    levels: { key: string; label: string; titleKey?: string; headingTemplate: string }[],
+    frontmatter: Record<string, unknown>
+  ): string | undefined {
+    const parts = levels
+      .map((level) => {
+        const value = this.toScalarString(frontmatter[level.key]);
+        if (!value) {
+          return '';
+        }
+
+        const title = level.titleKey ? this.toScalarString(frontmatter[level.titleKey]) : undefined;
+        return this.formatStructureHeading(level, value, title);
+      })
+      .filter((value) => value.length > 0);
+
+    return parts.length > 0 ? parts.join(', ') : undefined;
+  }
+
+  private compareManuscriptFiles(aPath: string, bPath: string): number {
+    const aName = path.basename(aPath, path.extname(aPath));
+    const bName = path.basename(bPath, path.extname(bPath));
+    const aMatch = aName.match(/^(\d+)[-_]/);
+    const bMatch = bName.match(/^(\d+)[-_]/);
+
+    if (aMatch && bMatch) {
+      const aOrder = Number(aMatch[1]);
+      const bOrder = Number(bMatch[1]);
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+    } else if (aMatch) {
+      return -1;
+    } else if (bMatch) {
+      return 1;
+    }
+
+    return aPath.localeCompare(bPath);
+  }
+
+  private toScalarString(value: unknown): string | undefined {
+    if (value === null || value === undefined || Array.isArray(value)) {
+      return undefined;
+    }
+
+    const normalized = String(value).trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  private formatStructureHeading(
+    level: { label: string; headingTemplate: string },
+    value: string,
+    title?: string
+  ): string {
+    const normalizedTitle = title?.trim() || '';
+    if (!normalizedTitle && level.headingTemplate === '{label} {value}: {title}') {
+      return `${level.label} ${value}`;
+    }
+
+    return level.headingTemplate
+      .replaceAll('{label}', level.label)
+      .replaceAll('{value}', value)
+      .replaceAll('{title}', normalizedTitle)
+      .replace(/\s+/g, ' ')
+      .replace(/:\s*$/, '')
+      .trim();
   }
 
   private async handleMessage(message: unknown): Promise<void> {
