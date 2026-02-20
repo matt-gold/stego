@@ -229,6 +229,10 @@ for (const actionEl of document.querySelectorAll('[data-action]')) {
       payload.basePath = actionEl.dataset.basePath;
     }
 
+    if (actionEl.dataset.resolveThread) {
+      payload.resolveThread = true;
+    }
+
     if (actionEl.dataset.value) {
       payload.value = actionEl.dataset.value;
     } else if (actionEl instanceof HTMLInputElement) {

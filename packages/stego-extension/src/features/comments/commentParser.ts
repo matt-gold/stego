@@ -74,7 +74,7 @@ export function serializeCommentAppendix(comments: StegoCommentThread[], lineEnd
   lines.push('');
 
   for (const comment of comments) {
-    lines.push(`### ${comment.id}`);
+    lines.push(`<!-- comment: ${comment.id} -->`);
     lines.push(`<!-- meta64: ${encodeCommentMeta64(comment)} -->`);
     const entry = comment.thread[0] ?? '';
     const parsed = parseThreadEntry(entry);
@@ -115,9 +115,9 @@ function parseCommentThreads(lines: string[], baseLineNumber: number): { comment
       continue;
     }
 
-    const heading = trimmed.match(/^###\s+(CMT-\d{4})\s*$/);
+    const heading = trimmed.match(/^<!--\s*comment:\s*(CMT-\d{4})\s*-->$/);
     if (!heading) {
-      errors.push(`Line ${baseLineNumber + index}: Expected comment heading '### CMT-0001'.`);
+      errors.push(`Line ${baseLineNumber + index}: Expected comment delimiter '<!-- comment: CMT-0001 -->'.`);
       index += 1;
       continue;
     }
@@ -129,7 +129,7 @@ function parseCommentThreads(lines: string[], baseLineNumber: number): { comment
     const rowLineNumbers: number[] = [];
     while (index < lines.length) {
       const rowTrimmed = lines[index].trim();
-      if (/^###\s+CMT-\d{4}\s*$/.test(rowTrimmed)) {
+      if (/^<!--\s*comment:\s*CMT-\d{4}\s*-->$/.test(rowTrimmed)) {
         break;
       }
       rows.push(lines[index]);
@@ -153,6 +153,10 @@ function parseSingleThread(id: string, rows: string[], rowLineNumbers: number[])
   let paragraphIndex: number | undefined;
   let signature: string | undefined;
   let excerpt: string | undefined;
+  let excerptStartLine: number | undefined;
+  let excerptStartCol: number | undefined;
+  let excerptEndLine: number | undefined;
+  let excerptEndCol: number | undefined;
   let sawMeta64 = false;
   let rowIndex = 0;
   while (rowIndex < rows.length) {
@@ -185,6 +189,10 @@ function parseSingleThread(id: string, rows: string[], rowLineNumbers: number[])
         paragraphIndex = decoded.paragraphIndex;
         signature = decoded.signature;
         excerpt = decoded.excerpt;
+        excerptStartLine = decoded.excerptStartLine;
+        excerptStartCol = decoded.excerptStartCol;
+        excerptEndLine = decoded.excerptEndLine;
+        excerptEndCol = decoded.excerptEndCol;
       }
       rowIndex += 1;
       continue;
@@ -279,6 +287,10 @@ function parseSingleThread(id: string, rows: string[], rowLineNumbers: number[])
     paragraphIndex,
     signature,
     excerpt,
+    excerptStartLine,
+    excerptStartCol,
+    excerptEndLine,
+    excerptEndCol,
     thread
   };
 
@@ -323,6 +335,19 @@ function encodeCommentMeta64(comment: StegoCommentThread): string {
     payload.excerpt = comment.excerpt;
   }
 
+  if (comment.excerptStartLine !== undefined) {
+    payload.excerpt_start_line = comment.excerptStartLine;
+  }
+  if (comment.excerptStartCol !== undefined) {
+    payload.excerpt_start_col = comment.excerptStartCol;
+  }
+  if (comment.excerptEndLine !== undefined) {
+    payload.excerpt_end_line = comment.excerptEndLine;
+  }
+  if (comment.excerptEndCol !== undefined) {
+    payload.excerpt_end_col = comment.excerptEndCol;
+  }
+
   return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
 }
 
@@ -337,6 +362,10 @@ function decodeCommentMeta64(
   paragraphIndex?: number;
   signature?: string;
   excerpt?: string;
+  excerptStartLine?: number;
+  excerptStartCol?: number;
+  excerptEndLine?: number;
+  excerptEndCol?: number;
 } | undefined {
   let rawJson = '';
   try {
@@ -360,7 +389,7 @@ function decodeCommentMeta64(
   }
 
   const record = parsed as Record<string, unknown>;
-  const allowedKeys = new Set(['status', 'anchor', 'paragraph_index', 'signature', 'excerpt']);
+  const allowedKeys = new Set(['status', 'anchor', 'paragraph_index', 'signature', 'excerpt', 'excerpt_start_line', 'excerpt_start_col', 'excerpt_end_line', 'excerpt_end_col']);
   for (const key of Object.keys(record)) {
     if (!allowedKeys.has(key)) {
       errors.push(`Line ${lineNumber}: meta64 for ${commentId} contains unsupported key '${key}'.`);
@@ -389,7 +418,11 @@ function decodeCommentMeta64(
     anchor,
     paragraphIndex: parseOptionalInteger(record.paragraph_index),
     signature: typeof record.signature === 'string' ? record.signature : undefined,
-    excerpt: typeof record.excerpt === 'string' ? record.excerpt : undefined
+    excerpt: typeof record.excerpt === 'string' ? record.excerpt : undefined,
+    excerptStartLine: parseOptionalInteger(record.excerpt_start_line),
+    excerptStartCol: parseOptionalInteger(record.excerpt_start_col),
+    excerptEndLine: parseOptionalInteger(record.excerpt_end_line),
+    excerptEndCol: parseOptionalInteger(record.excerpt_end_col)
   };
 }
 

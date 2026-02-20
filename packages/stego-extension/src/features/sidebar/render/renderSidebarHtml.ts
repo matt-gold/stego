@@ -1,10 +1,14 @@
 import * as vscode from 'vscode';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import { DEFAULT_IDENTIFIER_PATTERN } from '../../../shared/constants';
 import type { SidebarIdentifierLink, SidebarState } from '../../../shared/types';
 import { getSidebarFileTitle } from '../sidebarToc';
 import { getSidebarAssetUris } from './sidebarAssetUris';
 import { renderMarkdownForExplorer } from './renderMarkdownForExplorer';
 import { escapeAttribute, escapeHtml, randomNonce } from './renderUtils';
+
+dayjs.extend(relativeTime);
 
 export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, extensionUri: vscode.Uri): string {
   const nonce = randomNonce();
@@ -303,25 +307,29 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
   const commentsList = state.comments.items.length > 0
     ? state.comments.items.map((item) => (
-      `<article class="item metadata-item comment-list-item${item.status === 'resolved' ? ' resolved' : ''}${item.isSelected ? ' selected' : ''}">`
+      `<article class="item metadata-item comment-list-item${item.status === 'resolved' ? ' resolved' : ''}${item.isSelected ? ' selected' : ''}${item.threadPosition ? ` thread-${item.threadPosition}` : ''}" data-id="${escapeAttribute(item.id)}" data-action="openCommentThread">`
       + `<div class="item-main">`
       + `<div class="item-title-row">`
-      + `<button class="id-link" data-action="openCommentThread" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.id)}</button>`
-      + `<span class="badge${item.status === 'resolved' ? '' : ' warn'}">${item.status === 'resolved' ? 'Resolved' : 'Open'}</span>`
+      + `<span class="comment-message">${escapeHtml(item.message)}</span>`
+      + `<span class="badge${item.status === 'resolved' ? '' : ' warn'}">${item.status === 'resolved' ? 'Resolved' : 'Unresolved'}</span>`
       + `${item.degraded ? '<span class="badge warn">Moved</span>' : ''}`
       + `</div>`
-      + `<div class="item-subtext">${escapeHtml(item.excerpt)}</div>`
-      + `<div class="item-subtext">${escapeHtml(item.message)}</div>`
+      + `${item.threadPosition && item.threadPosition !== 'first' ? '' : `<div class="item-subtext">${escapeHtml(item.excerpt.length > 60 ? item.excerpt.slice(0, 60) + '…' : item.excerpt)}</div>`}`
       + `<div class="item-subtext tiny">`
-      + `line ${item.line}`
-      + `${item.author ? ` • ${escapeHtml(item.author)}` : ''}`
-      + `${item.created ? ` • ${escapeHtml(item.created)}` : ''}`
+      + `${item.author ? `${escapeHtml(item.author)}` : ''}`
+      + `${item.created ? ` • ${escapeHtml(dayjs(item.created).fromNow())}` : ''}`
       + `</div>`
       + `</div>`
-      + `<div class="item-actions">`
-      + `<button class="btn subtle inline-toggle" data-action="jumpToComment" data-id="${escapeAttribute(item.id)}">Jump</button>`
+      + `<div class="item-actions comment-actions">`
+      + `<button class="btn subtle inline-toggle comment-jump-btn" data-action="jumpToComment" data-id="${escapeAttribute(item.id)}" aria-label="Jump to line ${item.line}" title="Jump to line ${item.line}">${navIcon('M5.928 7.976l4.357-4.357-.618-.62L5 7.672v.618l4.667 4.632.618-.614L5.928 7.976z')} Line ${item.line}</button>`
+      + `<span class="comment-actions-spacer"></span>`
+      + `${item.threadPosition && item.threadPosition !== 'first'
+        ? ''
+        : `<button class="btn subtle inline-toggle" data-action="toggleCommentResolved" data-id="${escapeAttribute(item.id)}"${item.threadPosition === 'first' ? ' data-resolve-thread="true"' : ''}>${item.status === 'resolved' ? (item.threadPosition === 'first' ? 'Unresolve Thread' : 'Unresolve') : (item.threadPosition === 'first' ? 'Resolve Thread' : 'Resolve')}</button>`}`
       + `<button class="btn subtle inline-toggle" data-action="replyComment" data-id="${escapeAttribute(item.id)}">Reply</button>`
-      + `<button class="btn subtle inline-toggle" data-action="toggleCommentResolved" data-id="${escapeAttribute(item.id)}">${item.status === 'resolved' ? 'Reopen' : 'Resolve'}</button>`
+      + `${item.author && state.comments.currentAuthor && item.author.toLowerCase() === state.comments.currentAuthor.toLowerCase()
+        ? `<button class="btn danger inline-toggle" data-action="deleteComment" data-id="${escapeAttribute(item.id)}">Delete</button>`
+        : ''}`
       + `</div>`
       + `</article>`
     )).join('')
@@ -335,7 +343,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     + `<button class="btn subtle inline-toggle" data-action="clearResolvedComments">Clear Resolved</button>`
     + `</div>`
     + `</div>`
-    + `<div class="item-subtext comments-summary">${state.comments.totalCount} total • ${state.comments.openCount} open</div>`
+    + `<div class="item-subtext comments-summary">${state.comments.totalCount} total • ${state.comments.unresolvedCount} unresolved</div>`
     + `${commentErrors}`
     + `${commentsList}`
     + `</section>`;

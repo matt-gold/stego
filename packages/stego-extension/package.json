@@ -64,6 +64,14 @@
         "title": "Stego: Add Comment"
       }
     ],
+    "keybindings": [
+      {
+        "command": "stegoBible.addComment",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "editorTextFocus"
+      }
+    ],
     "menus": {
       "view/title": [
         {
@@ -138,6 +146,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
+    "dayjs": "^1.11.19",
     "js-yaml": "^4.1.0",
     "markdown-it": "^14.1.1"
   }

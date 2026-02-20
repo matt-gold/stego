@@ -68,12 +68,16 @@ export function buildSidebarCommentsState(markdownText: string, selectedId?: str
     : false;
   const normalizedSelectedId = selectedExists ? normalizedSelection : undefined;
 
-  const items: SidebarCommentListItem[] = sortedComments.map((comment) => {
+  type ItemWithKey = SidebarCommentListItem & { _threadKey?: string };
+
+  const items: ItemWithKey[] = sortedComments.map((comment) => {
     const anchor = loaded.anchorsById.get(comment.id) ?? { anchorType: comment.anchor, line: 1, degraded: true };
     const firstMessage = parseThreadEntry(comment.thread[0] ?? '');
     const created = firstMessage.timestamp;
     const author = firstMessage.author;
     const message = firstMessage.message || '(No message)';
+
+    const threadKey = getThreadKey(comment);
 
     return {
       id: comment.id,
@@ -85,16 +89,94 @@ export function buildSidebarCommentsState(markdownText: string, selectedId?: str
       author,
       created,
       message,
-      isSelected: normalizedSelectedId === comment.id.toUpperCase()
+      isSelected: normalizedSelectedId === comment.id.toUpperCase(),
+      _threadKey: threadKey
     };
   });
 
+  // Group items by thread key
+  const threadGroups = new Map<string, ItemWithKey[]>();
+  for (const item of items) {
+    const key = item._threadKey ?? '';
+    let group = threadGroups.get(key);
+    if (!group) {
+      group = [];
+      threadGroups.set(key, group);
+    }
+    group.push(item);
+  }
+
+  // Build the final ordered list with thread positions
+  const standaloneItems: ItemWithKey[] = [];
+  const multiGroups: ItemWithKey[][] = [];
+
+  for (const group of threadGroups.values()) {
+    if (group.length < 2) {
+      standaloneItems.push(...group);
+    } else {
+      // Sort within group: oldest first (ascending timestamp)
+      group.sort((a, b) => {
+        const aTime = a.created ?? '';
+        const bTime = b.created ?? '';
+        if (aTime !== bTime) {
+          return aTime.localeCompare(bTime);
+        }
+        return a.id.localeCompare(b.id);
+      });
+      multiGroups.push(group);
+    }
+  }
+
+  // Sort groups by oldest member's timestamp, newest group first
+  multiGroups.sort((a, b) => {
+    const aOldest = a[0]?.created ?? '';
+    const bOldest = b[0]?.created ?? '';
+    if (aOldest !== bOldest) {
+      return bOldest.localeCompare(aOldest);
+    }
+    return (b[0]?.id ?? '').localeCompare(a[0]?.id ?? '');
+  });
+
+  // Assign threadPosition within each multi-item group
+  for (const group of multiGroups) {
+    for (let i = 0; i < group.length; i++) {
+      group[i].threadPosition = i === 0 ? 'first' : i === group.length - 1 ? 'last' : 'middle';
+    }
+  }
+
+  // Merge: interleave groups and standalone items by newest-first timestamp
+  // Groups use oldest member timestamp for placement; standalone uses own timestamp
+  type Placeable = { sortKey: string; items: ItemWithKey[] };
+  const placeables: Placeable[] = [];
+
+  for (const group of multiGroups) {
+    placeables.push({ sortKey: group[0]?.created ?? '', items: group });
+  }
+  for (const item of standaloneItems) {
+    placeables.push({ sortKey: item.created ?? '', items: [item] });
+  }
+
+  placeables.sort((a, b) => {
+    if (a.sortKey !== b.sortKey) {
+      return b.sortKey.localeCompare(a.sortKey);
+    }
+    return (b.items[0]?.id ?? '').localeCompare(a.items[0]?.id ?? '');
+  });
+
+  const finalItems: SidebarCommentListItem[] = [];
+  for (const placeable of placeables) {
+    for (const item of placeable.items) {
+      const { _threadKey, ...clean } = item;
+      finalItems.push(clean);
+    }
+  }
+
   return {
     selectedId: normalizedSelectedId,
-    items,
+    items: finalItems,
     parseErrors: loaded.errors,
     totalCount: loaded.comments.length,
-    openCount: loaded.comments.filter((comment) => comment.status === 'open').length
+    unresolvedCount: loaded.comments.filter((comment) => comment.status === 'open').length
   };
 }
 
@@ -121,6 +203,25 @@ export async function addCommentAtSelection(
   const paragraph = findParagraphForLine(loaded.paragraphs, cursorLine)
     ?? findPreviousParagraphForLine(loaded.paragraphs, cursorLine);
 
+  // Check if the user has a non-empty text selection
+  let selectionExcerpt: string | undefined;
+  let excerptStartLine: number | undefined;
+  let excerptStartCol: number | undefined;
+  let excerptEndLine: number | undefined;
+  let excerptEndCol: number | undefined;
+
+  if (activeEditor && activeEditor.document.uri.toString() === document.uri.toString()) {
+    const selection = activeEditor.selection;
+    if (!selection.isEmpty) {
+      const selectedText = activeEditor.document.getText(selection);
+      selectionExcerpt = compactExcerpt(selectedText);
+      excerptStartLine = selection.start.line + 1;
+      excerptStartCol = selection.start.character;
+      excerptEndLine = selection.end.line + 1;
+      excerptEndCol = selection.end.character;
+    }
+  }
+
   const now = new Date().toISOString();
   const commentId = createNextCommentId(loaded.comments);
   const normalizedAuthor = normalizeAuthor(author);
@@ -132,7 +233,11 @@ export async function addCommentAtSelection(
       anchor: 'paragraph',
       paragraphIndex: paragraph.index,
       signature: paragraph.signature,
-      excerpt: compactExcerpt(paragraph.text),
+      excerpt: selectionExcerpt,
+      excerptStartLine,
+      excerptStartCol,
+      excerptEndLine,
+      excerptEndCol,
       thread: [formatThreadEntry(now, normalizedAuthor, normalizedMessage)]
     }
     : {
@@ -181,6 +286,10 @@ export async function replyToComment(
     paragraphIndex: target.anchor === 'paragraph' ? target.paragraphIndex : undefined,
     signature: target.anchor === 'paragraph' ? target.signature : undefined,
     excerpt: target.excerpt,
+    excerptStartLine: target.excerptStartLine,
+    excerptStartCol: target.excerptStartCol,
+    excerptEndLine: target.excerptEndLine,
+    excerptEndCol: target.excerptEndCol,
     thread: [formatThreadEntry(now, normalizedAuthor, normalizedMessage)]
   };
 
@@ -191,7 +300,8 @@ export async function replyToComment(
 
 export async function toggleCommentResolved(
   document: vscode.TextDocument,
-  commentId: string
+  commentId: string,
+  resolveThread = false
 ): Promise<{ warning?: string; resolved?: boolean }> {
   const loaded = loadCommentDocumentState(document.getText());
   if (loaded.errors.length > 0) {
@@ -204,15 +314,15 @@ export async function toggleCommentResolved(
     return { warning: `Comment ${normalizedId} was not found.` };
   }
 
-  if (target.status === 'resolved') {
-    target.status = 'open';
-    await persistComments(document, loaded, loaded.comments);
-    return { resolved: false };
+  const nextStatus = target.status === 'resolved' ? 'open' : 'resolved';
+  const targets = resolveThread ? getThreadSiblings(target, loaded.comments) : [target];
+
+  for (const comment of targets) {
+    comment.status = nextStatus;
   }
 
-  target.status = 'resolved';
   await persistComments(document, loaded, loaded.comments);
-  return { resolved: true };
+  return { resolved: nextStatus === 'resolved' };
 }
 
 export async function clearResolvedComments(document: vscode.TextDocument): Promise<{ removed: number; warning?: string }> {
@@ -230,6 +340,26 @@ export async function clearResolvedComments(document: vscode.TextDocument): Prom
 
   await persistComments(document, loaded, next);
   return { removed };
+}
+
+export async function deleteComment(
+  document: vscode.TextDocument,
+  commentId: string
+): Promise<{ warning?: string }> {
+  const loaded = loadCommentDocumentState(document.getText());
+  if (loaded.errors.length > 0) {
+    return { warning: `Cannot edit comments until appendix errors are fixed: ${loaded.errors[0]}` };
+  }
+
+  const normalizedId = commentId.trim().toUpperCase();
+  const target = loaded.comments.find((comment) => comment.id.toUpperCase() === normalizedId);
+  if (!target) {
+    return { warning: `Comment ${normalizedId} was not found.` };
+  }
+
+  const next = loaded.comments.filter((comment) => comment.id.toUpperCase() !== normalizedId);
+  await persistComments(document, loaded, next);
+  return {};
 }
 
 export async function jumpToComment(document: vscode.TextDocument, commentId: string): Promise<{ warning?: string }> {
@@ -278,6 +408,17 @@ function parseThreadEntry(entry: string): { timestamp: string; author: string; m
   };
 }
 
+function getThreadKey(comment: StegoCommentThread): string {
+  return comment.anchor === 'paragraph' && comment.signature
+    ? comment.signature
+    : 'file:' + (comment.excerpt?.trim() || '');
+}
+
+function getThreadSiblings(target: StegoCommentThread, comments: StegoCommentThread[]): StegoCommentThread[] {
+  const key = getThreadKey(target);
+  return comments.filter((c) => getThreadKey(c) === key);
+}
+
 function getSortTimestamp(comment: StegoCommentThread): string {
   const firstMessage = comment.thread[0];
   if (!firstMessage) {
@@ -317,7 +458,7 @@ function compactExcerpt(value: string, max = 180): string {
   return `${compact.slice(0, max - 1)}…`;
 }
 
-function normalizeAuthor(value: string): string {
+export function normalizeAuthor(value: string): string {
   const author = value.trim();
   if (author) {
     return author;

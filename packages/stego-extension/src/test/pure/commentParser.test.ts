@@ -13,7 +13,7 @@ test('comment parser accepts strict blockquote format with sparse metadata', () 
     '',
     '<!-- stego-comments:start -->',
     '',
-    '### CMT-0001',
+    '<!-- comment: CMT-0001 -->',
     `<!-- meta64: ${encodeMeta({
       status: 'open',
       anchor: 'paragraph',
@@ -25,7 +25,7 @@ test('comment parser accepts strict blockquote format with sparse metadata', () 
     '>',
     '> Is this chronology right?',
     '',
-    '### CMT-0002',
+    '<!-- comment: CMT-0002 -->',
     `<!-- meta64: ${encodeMeta({
       status: 'resolved',
       anchor: 'file'
@@ -51,7 +51,7 @@ test('comment parser rejects malformed quote lines and malformed thread rows', (
   const markdown = [
     'Body',
     '<!-- stego-comments:start -->',
-    '### CMT-0001',
+    '<!-- comment: CMT-0001 -->',
     '- bad row',
     `<!-- meta64: ${encodeMeta({ status: 'open', anchor: 'paragraph' })} -->`,
     '> malformed header',
@@ -69,7 +69,7 @@ test('comment parser rejects multiple messages under one comment id', () => {
   const markdown = [
     'Body',
     '<!-- stego-comments:start -->',
-    '### CMT-0001',
+    '<!-- comment: CMT-0001 -->',
     `<!-- meta64: ${encodeMeta({ status: 'open', anchor: 'paragraph', paragraph_index: 0, signature: 'fnv1a:abc' })} -->`,
     '> _2026-02-19T22:17:00Z | Matt Gold_',
     '>',
@@ -89,7 +89,7 @@ test('comment parser rejects legacy metadata rows', () => {
   const markdown = [
     'Body',
     '<!-- stego-comments:start -->',
-    '### CMT-0001',
+    '<!-- comment: CMT-0001 -->',
     '> - [ ] status: open',
     '> - anchor: paragraph',
     '> _2026-02-19T22:17:00Z | Matt Gold_',

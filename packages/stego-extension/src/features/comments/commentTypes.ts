@@ -9,6 +9,10 @@ export type StegoCommentThread = {
   paragraphIndex?: number;
   signature?: string;
   excerpt?: string;
+  excerptStartLine?: number;
+  excerptStartCol?: number;
+  excerptEndLine?: number;
+  excerptEndCol?: number;
   thread: string[];
 };
 

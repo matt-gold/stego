@@ -36,7 +36,9 @@ import {
   addCommentAtSelection,
   buildSidebarCommentsState,
   clearResolvedComments,
+  deleteComment,
   jumpToComment,
+  normalizeAuthor,
   replyToComment,
   toggleCommentResolved
 } from '../comments/commentStore';
@@ -194,12 +196,13 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           items: [],
           parseErrors: [],
           totalCount: 0,
-          openCount: 0
+          unresolvedCount: 0
         }
       };
     }
 
     const comments = buildSidebarCommentsState(document.getText(), this.selectedCommentId);
+    comments.currentAuthor = normalizeAuthor(getConfig(document.uri).get<string>('commentAuthor', '') ?? '');
     this.selectedCommentId = comments.selectedId;
 
     const tocEntries = collectTocEntries(document);
@@ -608,7 +611,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         if (!document) {
           break;
         }
-        const result = await toggleCommentResolved(document, payload.id.trim());
+        const result = await toggleCommentResolved(document, payload.id.trim(), !!payload.resolveThread);
         if (result.warning) {
           void vscode.window.showWarningMessage(result.warning);
           break;
@@ -629,6 +632,26 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         const result = await jumpToComment(document, payload.id.trim());
         if (result.warning) {
           void vscode.window.showWarningMessage(result.warning);
+        }
+        break;
+      }
+      case 'deleteComment': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.id !== 'string' || payload.id.trim().length === 0) {
+          break;
+        }
+        const document = getActiveMarkdownDocument(true);
+        if (!document) {
+          break;
+        }
+        const result = await deleteComment(document, payload.id.trim());
+        if (result.warning) {
+          void vscode.window.showWarningMessage(result.warning);
+          break;
+        }
+        this.activeTab = 'comments';
+        if (this.selectedCommentId === payload.id.trim().toUpperCase()) {
+          this.selectedCommentId = undefined;
         }
         break;
       }

@@ -12,6 +12,10 @@ export type ResolvedCommentAnchor = {
   anchorType: 'paragraph' | 'file';
   line: number;
   degraded: boolean;
+  underlineStartLine?: number;
+  underlineStartCol?: number;
+  underlineEndLine?: number;
+  underlineEndCol?: number;
 };
 
 export function extractParagraphs(markdownText: string): ParagraphInfo[] {
@@ -77,11 +81,25 @@ export function resolveCommentAnchor(comment: StegoCommentThread, paragraphs: Pa
   }
 
   if (matched) {
-    return {
+    const anchor: ResolvedCommentAnchor = {
       anchorType: 'paragraph',
       line: matched.startLine,
       degraded: false
     };
+
+    if (
+      comment.excerptStartLine !== undefined &&
+      comment.excerptStartCol !== undefined &&
+      comment.excerptEndLine !== undefined &&
+      comment.excerptEndCol !== undefined
+    ) {
+      anchor.underlineStartLine = comment.excerptStartLine;
+      anchor.underlineStartCol = comment.excerptStartCol;
+      anchor.underlineEndLine = comment.excerptEndLine;
+      anchor.underlineEndCol = comment.excerptEndCol;
+    }
+
+    return anchor;
   }
 
   if (comment.paragraphIndex !== undefined) {

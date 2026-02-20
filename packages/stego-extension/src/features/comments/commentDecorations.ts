@@ -1,13 +1,17 @@
 import * as vscode from 'vscode';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import { loadCommentDocumentState } from './commentStore';
 
+dayjs.extend(relativeTime);
+
 export class CommentDecorationsService implements vscode.Disposable {
-  private readonly openDecoration: vscode.TextEditorDecorationType;
+  private readonly unresolvedDecoration: vscode.TextEditorDecorationType;
   private readonly resolvedDecoration: vscode.TextEditorDecorationType;
   private readonly lineUnderlineDecoration: vscode.TextEditorDecorationType;
 
   constructor(private readonly extensionUri: vscode.Uri) {
-    this.openDecoration = vscode.window.createTextEditorDecorationType({
+    this.unresolvedDecoration = vscode.window.createTextEditorDecorationType({
       gutterIconPath: vscode.Uri.joinPath(extensionUri, 'assets', 'comment-open.svg'),
       gutterIconSize: 'contain'
     });
@@ -25,14 +29,14 @@ export class CommentDecorationsService implements vscode.Disposable {
 
   public dispose(): void {
     this.clearAll();
-    this.openDecoration.dispose();
+    this.unresolvedDecoration.dispose();
     this.resolvedDecoration.dispose();
     this.lineUnderlineDecoration.dispose();
   }
 
   public clearAll(): void {
     for (const editor of vscode.window.visibleTextEditors) {
-      editor.setDecorations(this.openDecoration, []);
+      editor.setDecorations(this.unresolvedDecoration, []);
       editor.setDecorations(this.resolvedDecoration, []);
       editor.setDecorations(this.lineUnderlineDecoration, []);
     }
@@ -51,13 +55,23 @@ export class CommentDecorationsService implements vscode.Disposable {
 
     const state = loadCommentDocumentState(editor.document.getText());
     if (state.errors.length > 0 || state.comments.length === 0) {
-      editor.setDecorations(this.openDecoration, []);
+      editor.setDecorations(this.unresolvedDecoration, []);
       editor.setDecorations(this.resolvedDecoration, []);
       editor.setDecorations(this.lineUnderlineDecoration, []);
       return;
     }
 
-    const byLine = new Map<number, { id: string; status: 'open' | 'resolved'; thread: string[] }[]>();
+    type CommentEntry = {
+      id: string;
+      status: 'open' | 'resolved';
+      thread: string[];
+      underlineStartLine?: number;
+      underlineStartCol?: number;
+      underlineEndLine?: number;
+      underlineEndCol?: number;
+    };
+
+    const byLine = new Map<number, CommentEntry[]>();
     for (const comment of state.comments) {
       const resolvedAnchor = state.anchorsById.get(comment.id);
       const line = clampLine(resolvedAnchor?.line ?? 1, editor.document.lineCount);
@@ -65,42 +79,65 @@ export class CommentDecorationsService implements vscode.Disposable {
       bucket.push({
         id: comment.id,
         status: comment.status,
-        thread: [...comment.thread]
+        thread: [...comment.thread],
+        underlineStartLine: resolvedAnchor?.underlineStartLine,
+        underlineStartCol: resolvedAnchor?.underlineStartCol,
+        underlineEndLine: resolvedAnchor?.underlineEndLine,
+        underlineEndCol: resolvedAnchor?.underlineEndCol
       });
       byLine.set(line, bucket);
     }
 
-    const openOptions: vscode.DecorationOptions[] = [];
+    const unresolvedOptions: vscode.DecorationOptions[] = [];
     const resolvedOptions: vscode.DecorationOptions[] = [];
     const underlineOptions: vscode.DecorationOptions[] = [];
 
     for (const [line, comments] of byLine.entries()) {
-      const hasOpen = comments.some((entry) => entry.status === 'open');
+      const hasUnresolved = comments.some((entry) => entry.status === 'open');
       const hover = buildHoverMarkdown(comments);
-      const lineTextLength = editor.document.lineAt(line - 1).text.length;
       const iconRange = new vscode.Range(
         new vscode.Position(line - 1, 0),
         new vscode.Position(line - 1, 0)
       );
-      const textRange = new vscode.Range(
-        new vscode.Position(line - 1, 0),
-        new vscode.Position(line - 1, lineTextLength)
-      );
       const option: vscode.DecorationOptions = { range: iconRange };
-      const underlineOption: vscode.DecorationOptions = {
-        range: textRange,
-        hoverMessage: hover
-      };
 
-      if (hasOpen) {
-        openOptions.push(option);
+      if (hasUnresolved) {
+        unresolvedOptions.push(option);
       } else {
         resolvedOptions.push(option);
       }
-      underlineOptions.push(underlineOption);
+
+      // Build individual underline ranges per comment
+      for (const entry of comments) {
+        let textRange: vscode.Range;
+        if (
+          entry.underlineStartLine !== undefined &&
+          entry.underlineStartCol !== undefined &&
+          entry.underlineEndLine !== undefined &&
+          entry.underlineEndCol !== undefined
+        ) {
+          const startLine = clampLine(entry.underlineStartLine, editor.document.lineCount) - 1;
+          const endLine = clampLine(entry.underlineEndLine, editor.document.lineCount) - 1;
+          textRange = new vscode.Range(
+            new vscode.Position(startLine, entry.underlineStartCol),
+            new vscode.Position(endLine, entry.underlineEndCol)
+          );
+        } else {
+          const lineTextLength = editor.document.lineAt(line - 1).text.length;
+          textRange = new vscode.Range(
+            new vscode.Position(line - 1, 0),
+            new vscode.Position(line - 1, lineTextLength)
+          );
+        }
+
+        underlineOptions.push({
+          range: textRange,
+          hoverMessage: hover
+        });
+      }
     }
 
-    editor.setDecorations(this.openDecoration, openOptions);
+    editor.setDecorations(this.unresolvedDecoration, unresolvedOptions);
     editor.setDecorations(this.resolvedDecoration, resolvedOptions);
     editor.setDecorations(this.lineUnderlineDecoration, underlineOptions);
   }
@@ -126,14 +163,14 @@ function buildHoverMarkdown(
     enabledCommands: ['stegoBible.openCommentThread']
   };
 
-  const openCount = comments.filter((entry) => entry.status === 'open').length;
+  const unresolvedCount = comments.filter((entry) => entry.status === 'open').length;
   markdown.appendMarkdown(`**${comments.length} comment${comments.length === 1 ? '' : 's'} on this line**`);
-  markdown.appendMarkdown(`  \n${openCount} open, ${comments.length - openCount} resolved\n\n`);
+  markdown.appendMarkdown(`  \n${unresolvedCount} unresolved, ${comments.length - unresolvedCount} resolved\n\n`);
 
   for (const comment of comments) {
     const encoded = encodeURIComponent(JSON.stringify([comment.id]));
     const commandUri = vscode.Uri.parse(`command:stegoBible.openCommentThread?${encoded}`);
-    const status = comment.status === 'open' ? 'open' : 'resolved';
+    const status = comment.status === 'open' ? 'unresolved' : 'resolved';
     markdown.appendMarkdown(`- [${escapeMarkdown(comment.id)}](${commandUri.toString()}) (${status})\n`);
 
     if (comment.thread.length === 0) {
@@ -143,7 +180,9 @@ function buildHoverMarkdown(
 
     for (const threadEntry of comment.thread) {
       const parsed = parseThreadEntry(threadEntry);
-      const timestamp = escapeMarkdown(parsed.timestamp || 'Unknown time');
+      const timestamp = parsed.timestamp
+        ? escapeMarkdown(dayjs(parsed.timestamp).fromNow())
+        : 'Unknown time';
       const author = escapeMarkdown(parsed.author || 'Unknown');
       markdown.appendMarkdown(`\n> _${timestamp} | ${author}_\n>\n`);
       const messageLines = (parsed.message || '(No message)').split(/\r?\n/);

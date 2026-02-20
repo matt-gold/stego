@@ -112,14 +112,16 @@ export type SidebarCommentListItem = {
   created?: string;
   message: string;
   isSelected: boolean;
+  threadPosition?: 'first' | 'middle' | 'last';
 };
 
 export type SidebarCommentsState = {
   selectedId?: string;
+  currentAuthor?: string;
   items: SidebarCommentListItem[];
   parseErrors: string[];
   totalCount: number;
-  openCount: number;
+  unresolvedCount: number;
 };
 
 export type SidebarExplorerEntry = {
@@ -259,7 +261,8 @@ export type SidebarMessage =
   | { type: 'addComment' }
   | { type: 'openCommentThread'; id: string }
   | { type: 'replyComment'; id: string }
-  | { type: 'toggleCommentResolved'; id: string }
+  | { type: 'toggleCommentResolved'; id: string; resolveThread?: boolean }
+  | { type: 'deleteComment'; id: string }
   | { type: 'jumpToComment'; id: string }
   | { type: 'clearResolvedComments' };
 
