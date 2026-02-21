@@ -7,6 +7,15 @@ import type { ProjectScriptContext, ScriptRunResult } from '../../shared/types';
 import { findNearestProjectConfig } from '../project/projectConfig';
 import { getActiveMarkdownDocument } from '../metadata/frontmatterEdit';
 
+export type WorkflowRunResult = {
+  ok: boolean;
+  cancelled?: boolean;
+  error?: string;
+  outputPath?: string;
+  projectDir?: string;
+  stage?: string;
+};
+
 export async function runCommand(
   command: string,
   args: string[],

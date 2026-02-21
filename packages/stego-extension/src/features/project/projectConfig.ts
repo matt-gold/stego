@@ -45,6 +45,7 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
     const parsed = JSON.parse(raw) as unknown;
     const structuralLevels = extractProjectStructuralLevels(parsed);
     const structuralKeys = extractProjectStructuralKeysFromLevels(structuralLevels);
+    const requiredMetadata = extractProjectRequiredMetadata(parsed);
     const categories = extractProjectCategories(parsed);
 
     return {
@@ -52,11 +53,38 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
       projectMtimeMs: stat.mtimeMs,
       structuralKeys,
       structuralLevels,
+      requiredMetadata,
       categories
     };
   } catch {
     return undefined;
   }
+}
+
+export function extractProjectRequiredMetadata(parsed: unknown): string[] {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return [];
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const raw = record.requiredMetadata;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    const key = asString(entry);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(key);
+  }
+
+  return result;
 }
 
 export function extractProjectStructuralLevels(parsed: unknown): ProjectStructuralLevel[] {

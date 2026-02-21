@@ -5,6 +5,7 @@ import type { ScriptRunResult } from '../../shared/types';
 import { parseMarkdownDocument } from '../metadata/frontmatterParse';
 import { resolveAllowedStatuses } from '../metadata/statusControl';
 import { pickToastDetails, resolveProjectScriptContext, runCommand } from './workflowUtils';
+import type { WorkflowRunResult } from './workflowUtils';
 
 export function getStageCheckDetails(stage: string, scope: 'file' | 'project'): string[] {
   const normalizedStage = stage.trim().toLowerCase();
@@ -37,16 +38,16 @@ export function getStageCheckDetails(stage: string, scope: 'file' | 'project'): 
   return details;
 }
 
-export async function runProjectGateStageWorkflow(): Promise<void> {
+export async function runProjectGateStageWorkflow(): Promise<WorkflowRunResult> {
   const context = await resolveProjectScriptContext(['check-stage']);
   if (!context) {
-    return;
+    return { ok: false, cancelled: true };
   }
 
   const allowedStatuses = await resolveAllowedStatuses(context.document);
   if (allowedStatuses.length === 0) {
     void vscode.window.showWarningMessage('No allowed statuses configured for stage gating.');
-    return;
+    return { ok: false, cancelled: true, projectDir: context.projectDir };
   }
 
   let currentStatus: string | undefined;
@@ -69,7 +70,7 @@ export async function runProjectGateStageWorkflow(): Promise<void> {
   );
 
   if (!pickedStage) {
-    return;
+    return { ok: false, cancelled: true, projectDir: context.projectDir };
   }
 
   const stage = pickedStage.label;
@@ -90,7 +91,12 @@ export async function runProjectGateStageWorkflow(): Promise<void> {
     );
   } catch (error) {
     void vscode.window.showErrorMessage(`Run Stage Checks failed: ${errorToMessage(error)}`);
-    return;
+    return {
+      ok: false,
+      error: errorToMessage(error),
+      projectDir: context.projectDir,
+      stage
+    };
   }
 
   if (result.exitCode === 0) {
@@ -98,11 +104,17 @@ export async function runProjectGateStageWorkflow(): Promise<void> {
       'Checks passed.',
       ...getStageCheckDetails(stage, 'project')
     ].join('\n'));
-    return;
+    return { ok: true, projectDir: context.projectDir, stage };
   }
 
   const details = pickToastDetails(result);
   void vscode.window.showErrorMessage(details
     ? `Run Stage Checks failed (${stage}): ${details}`
     : `Run Stage Checks failed (${stage}) with exit code ${result.exitCode}.`);
+  return {
+    ok: false,
+    error: details || `Exit code ${result.exitCode}`,
+    projectDir: context.projectDir,
+    stage
+  };
 }

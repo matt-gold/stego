@@ -24,7 +24,9 @@ export type SidebarState = {
   hasActiveMarkdown: boolean;
   documentPath: string;
   structureSummary?: string;
+  canShowOverview: boolean;
   activeTab: SidebarViewTab;
+  overview?: SidebarOverviewState;
   mode?: 'manuscript' | 'nonManuscript';
   parseError?: string;
   showExplorer: boolean;
@@ -36,6 +38,8 @@ export type SidebarState = {
   explorerCollapsed: boolean;
   explorerCanGoBack: boolean;
   explorerCanGoForward: boolean;
+  globalCanGoBack: boolean;
+  globalCanGoForward: boolean;
   explorerCanGoHome: boolean;
   explorerLoadToken: number;
   tocEntries: SidebarTocEntry[];
@@ -45,7 +49,63 @@ export type SidebarState = {
   comments: SidebarCommentsState;
 };
 
-export type SidebarViewTab = 'document' | 'comments';
+export type SidebarViewTab = 'document' | 'comments' | 'overview';
+
+export type SidebarOverviewStageCount = {
+  status: string;
+  count: number;
+};
+
+export type SidebarOverviewFirstUnresolved = {
+  filePath: string;
+  fileLabel: string;
+  commentId: string;
+};
+
+export type SidebarOverviewFirstMissingMetadata = {
+  filePath: string;
+  fileLabel: string;
+};
+
+export type SidebarOverviewState = {
+  generatedAt: string;
+  wordCount: number;
+  manuscriptFileCount: number;
+  missingRequiredMetadataCount: number;
+  unresolvedCommentsCount: number;
+  gateSnapshot: SidebarOverviewGateSnapshot;
+  stageBreakdown: SidebarOverviewStageCount[];
+  mapRows: SidebarOverviewMapRow[];
+  firstUnresolvedComment?: SidebarOverviewFirstUnresolved;
+  firstMissingMetadata?: SidebarOverviewFirstMissingMetadata;
+};
+
+export type SidebarOverviewGateSnapshot = {
+  stageCheck: SidebarOverviewGateStatus;
+  build: SidebarOverviewGateStatus;
+};
+
+export type SidebarOverviewGateStatus = {
+  state: 'never' | 'success' | 'failed';
+  updatedAt?: string;
+  detail?: string;
+  stage?: string;
+};
+
+export type SidebarOverviewMapRow = SidebarOverviewGroupRow | SidebarOverviewFileRow;
+
+export type SidebarOverviewGroupRow = {
+  kind: 'group';
+  level: number;
+  label: string;
+};
+
+export type SidebarOverviewFileRow = {
+  kind: 'file';
+  filePath: string;
+  fileLabel: string;
+  status: string;
+};
 
 export type FrontmatterLineRange = {
   start: number;
@@ -198,6 +258,7 @@ export type ProjectScanContext = {
   projectMtimeMs: number;
   structuralKeys: string[];
   structuralLevels: ProjectStructuralLevel[];
+  requiredMetadata: string[];
   categories: ProjectBibleCategory[];
 };
 
@@ -245,6 +306,8 @@ export type SidebarRenderContext = {
 
 export type SidebarMessage =
   | { type: 'setSidebarTab'; value: SidebarViewTab }
+  | { type: 'globalBack' }
+  | { type: 'globalForward' }
   | { type: 'addMetadataField' }
   | { type: 'editMetadataField'; key: string }
   | { type: 'removeMetadataField'; key: string }
@@ -277,6 +340,11 @@ export type SidebarMessage =
   | { type: 'deleteComment'; id: string }
   | { type: 'jumpToComment'; id: string }
   | { type: 'clearResolvedComments' }
+  | { type: 'runBuildWorkflow' }
+  | { type: 'runGateStageWorkflow' }
+  | { type: 'openOverviewFile'; filePath: string }
+  | { type: 'openFirstMissingMetadata'; filePath: string }
+  | { type: 'openFirstUnresolvedComment'; filePath: string; id: string }
   | { type: 'copyCleanManuscript' };
 
 export type CommandContext = {

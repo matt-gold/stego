@@ -10,6 +10,7 @@ import {
   runCommand,
   toProjectRelativePath
 } from './workflowUtils';
+import type { WorkflowRunResult } from './workflowUtils';
 
 export function getLocalValidateDetails(relativeFile: string, stage: string): string[] {
   return [
@@ -20,16 +21,16 @@ export function getLocalValidateDetails(relativeFile: string, stage: string): st
   ];
 }
 
-export async function runLocalValidateWorkflow(): Promise<void> {
+export async function runLocalValidateWorkflow(): Promise<WorkflowRunResult> {
   const context = await resolveProjectScriptContext(['validate', 'check-stage']);
   if (!context) {
-    return;
+    return { ok: false, cancelled: true };
   }
 
   const relativeFile = toProjectRelativePath(context.projectDir, context.document.uri.fsPath);
   if (!relativeFile) {
     void vscode.window.showWarningMessage('Validate requires an active file inside the current project.');
-    return;
+    return { ok: false, cancelled: true, projectDir: context.projectDir };
   }
 
   let stage: string | undefined;
@@ -38,12 +39,16 @@ export async function runLocalValidateWorkflow(): Promise<void> {
     stage = asString(parsed.frontmatter.status)?.toLowerCase();
   } catch (error) {
     void vscode.window.showErrorMessage(`Validate failed: could not parse frontmatter status (${errorToMessage(error)}).`);
-    return;
+    return {
+      ok: false,
+      error: `could not parse frontmatter status (${errorToMessage(error)})`,
+      projectDir: context.projectDir
+    };
   }
 
   if (!stage) {
     void vscode.window.showWarningMessage('Validate requires manuscript metadata status to run stage checks.');
-    return;
+    return { ok: false, cancelled: true, projectDir: context.projectDir };
   }
 
   const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -82,7 +87,11 @@ export async function runLocalValidateWorkflow(): Promise<void> {
     };
   } catch (error) {
     void vscode.window.showErrorMessage(`Validate failed: ${errorToMessage(error)}`);
-    return;
+    return {
+      ok: false,
+      error: errorToMessage(error),
+      projectDir: context.projectDir
+    };
   }
 
   if (validateResult.exitCode !== 0) {
@@ -90,7 +99,11 @@ export async function runLocalValidateWorkflow(): Promise<void> {
     void vscode.window.showErrorMessage(details
       ? `Validate failed: ${details}`
       : `Validate failed with exit code ${validateResult.exitCode}.`);
-    return;
+    return {
+      ok: false,
+      error: details || `Exit code ${validateResult.exitCode}`,
+      projectDir: context.projectDir
+    };
   }
 
   if (checkStageResult.exitCode !== 0) {
@@ -98,11 +111,16 @@ export async function runLocalValidateWorkflow(): Promise<void> {
     void vscode.window.showErrorMessage(details
       ? `Validate failed at stage gate (${stage}): ${details}`
       : `Validate failed at stage gate (${stage}) with exit code ${checkStageResult.exitCode}.`);
-    return;
+    return {
+      ok: false,
+      error: details || `Stage gate exit code ${checkStageResult.exitCode}`,
+      projectDir: context.projectDir
+    };
   }
 
   void vscode.window.showInformationMessage([
     'Checks passed.',
     ...getLocalValidateDetails(relativeFile, stage)
   ].join('\n'));
+  return { ok: true, projectDir: context.projectDir };
 }

@@ -36,7 +36,8 @@
         {
           "id": "stegoBible.metadataView",
           "name": "Metadata",
-          "type": "webview"
+          "type": "webview",
+          "icon": "assets/stego.svg"
         }
       ]
     },
@@ -54,6 +55,11 @@
         "command": "stegoBible.runGateStage",
         "title": "Run Stage Checks",
         "icon": "$(check)"
+      },
+      {
+        "command": "stegoBible.runLocalValidate",
+        "title": "Validate Current File",
+        "icon": "$(verified)"
       },
       {
         "command": "stegoBible.toggleFrontmatter",

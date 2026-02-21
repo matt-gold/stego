@@ -10,6 +10,30 @@ import { escapeAttribute, escapeHtml, randomNonce } from './renderUtils';
 
 dayjs.extend(relativeTime);
 
+function gateStateBadgeClass(state: 'never' | 'success' | 'failed'): string {
+  switch (state) {
+    case 'success':
+      return 'state-success';
+    case 'failed':
+      return 'state-failed';
+    case 'never':
+    default:
+      return 'state-neutral';
+  }
+}
+
+function gateStateLabel(state: 'never' | 'success' | 'failed'): string {
+  switch (state) {
+    case 'success':
+      return 'success';
+    case 'failed':
+      return 'failed';
+    case 'never':
+    default:
+      return 'not run yet';
+  }
+}
+
 export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, extensionUri: vscode.Uri): string {
   const nonce = randomNonce();
   const fileTitle = getSidebarFileTitle(state.documentPath);
@@ -96,6 +120,12 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const runLocalChecksIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.78 3.97a.75.75 0 0 1 0 1.06L6.75 12.06a.75.75 0 0 1-1.06 0L2.22 8.59a.75.75 0 1 1 1.06-1.06l2.94 2.94 6.5-6.5a.75.75 0 0 1 1.06 0z"></path></svg>';
   const copyCleanManuscriptLabel = 'Copy Without Metadata';
   const copyCleanManuscriptIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2.75A1.75 1.75 0 0 1 6.75 1h6.5A1.75 1.75 0 0 1 15 2.75v8.5A1.75 1.75 0 0 1 13.25 13h-6.5A1.75 1.75 0 0 1 5 11.25zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25z"></path><path d="M1 4.75A1.75 1.75 0 0 1 2.75 3h.5a.75.75 0 0 1 0 1.5h-.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-.5a.75.75 0 0 1 1.5 0v.5A1.75 1.75 0 0 1 9.25 15h-6.5A1.75 1.75 0 0 1 1 13.25z"></path></svg>';
+  const refreshLabel = 'Refresh';
+  const openMetricTargetLabel = 'Open next file';
+  const openMetricTargetIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3L5.4 4.1 9.3 8l-3.9 3.9L6.5 13l5-5z"></path></svg>';
+  const runStageLabel = 'Run Stage Check';
+  const runBuildLabel = 'Run Build';
+  const runBuildIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.75 1h4.19c.46 0 .9.18 1.22.5l2.34 2.34c.32.32.5.76.5 1.22v6.19A1.75 1.75 0 0 1 10.25 13h-6.5A1.75 1.75 0 0 1 2 11.25v-8.5A1.75 1.75 0 0 1 3.75 1zm0 1.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.06a.25.25 0 0 0-.07-.18L8.09 2.57a.25.25 0 0 0-.18-.07H3.75z"></path></svg>';
 
   const statusControlHtml = state.mode === 'manuscript' && state.statusControl
     ? `<div class="status-editor">`
@@ -350,11 +380,87 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     + `${commentsList}`
     + `</section>`;
 
+  const overviewPanel = state.overview
+    ? `<section class="panel">`
+      + `<div class="panel-heading">`
+      + `<h2>Overview</h2>`
+      + `<div class="actions">`
+      + `<button class="btn subtle" data-action="refresh">${escapeHtml(refreshLabel)}</button>`
+      + `</div>`
+      + `</div>`
+      + `<div class="item-subtext tiny">Last updated ${escapeHtml(dayjs(state.overview.generatedAt).fromNow())}</div>`
+      + `<div class="overview-metrics">`
+      + `<div class="overview-metric-row">`
+      + `<article class="item metadata-item overview-metric-card neutral"><div class="item-main"><div class="item-title-row"><span class="item-title-text">Word Count</span></div><div class="metadata-value">${state.overview.wordCount.toLocaleString()}</div></div></article>`
+      + `<article class="item metadata-item overview-metric-card neutral"><div class="item-main"><div class="item-title-row"><span class="item-title-text">Manuscript Files</span></div><div class="metadata-value">${state.overview.manuscriptFileCount.toLocaleString()}</div></div></article>`
+      + `</div>`
+      + `<div class="overview-metric-row">`
+      + `<article class="item metadata-item overview-metric-card ${state.overview.missingRequiredMetadataCount === 0 ? 'ok' : 'error'}">`
+      + `<div class="item-main"><div class="item-title-row"><span class="item-title-text">Missing Required Metadata</span></div><div class="metadata-value">${state.overview.missingRequiredMetadataCount.toLocaleString()}</div></div>`
+      + `<div class="metric-card-actions"><button class="btn subtle btn-icon metric-card-action" data-action="openFirstMissingMetadata" data-file-path="${escapeAttribute(state.overview.firstMissingMetadata?.filePath ?? '')}" aria-label="${escapeAttribute(openMetricTargetLabel)}" title="${escapeAttribute(openMetricTargetLabel)}"${state.overview.firstMissingMetadata ? '' : ' disabled'}>${openMetricTargetIcon}</button></div>`
+      + `</article>`
+      + `<article class="item metadata-item overview-metric-card ${state.overview.unresolvedCommentsCount === 0 ? 'ok' : 'warn'}">`
+      + `<div class="item-main"><div class="item-title-row"><span class="item-title-text">Unresolved Comments</span></div><div class="metadata-value">${state.overview.unresolvedCommentsCount.toLocaleString()}</div></div>`
+      + `<div class="metric-card-actions"><button class="btn subtle btn-icon metric-card-action" data-action="openFirstUnresolvedComment" data-file-path="${escapeAttribute(state.overview.firstUnresolvedComment?.filePath ?? '')}" data-id="${escapeAttribute(state.overview.firstUnresolvedComment?.commentId ?? '')}" aria-label="${escapeAttribute(openMetricTargetLabel)}" title="${escapeAttribute(openMetricTargetLabel)}"${state.overview.firstUnresolvedComment ? '' : ' disabled'}>${openMetricTargetIcon}</button></div>`
+      + `</article>`
+      + `</div>`
+      + `</div>`
+      + `<div class="overview-stage">`
+      + `<div class="item-title-row"><span class="item-title-text">Stage Breakdown</span></div>`
+      + `${state.overview.stageBreakdown.length > 0
+        ? `<div class="overview-stage-list">${state.overview.stageBreakdown.map((entry) => `<div class="overview-stage-row"><span>${escapeHtml(entry.status)}</span><span class="badge">${entry.count}</span></div>`).join('')}</div>`
+        : '<div class="empty tiny">No manuscript statuses found.</div>'}`
+      + `</div>`
+      + `<div class="overview-stage">`
+      + `<div class="overview-stage-list">`
+      + `<div class="overview-gate-item">`
+      + `<div class="overview-stage-row"><span>Stage Check</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.stageCheck.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.stageCheck.state))}</span><button class="btn subtle btn-icon" data-action="runGateStageWorkflow" aria-label="${escapeAttribute(runStageLabel)}" title="${escapeAttribute(runStageLabel)}">${runLocalChecksIcon}</button></div></div>`
+      + `${state.overview.gateSnapshot.stageCheck.stage ? `<div class="item-subtext tiny">Stage: ${escapeHtml(state.overview.gateSnapshot.stageCheck.stage)}</div>` : ''}`
+      + `${state.overview.gateSnapshot.stageCheck.updatedAt ? `<div class="item-subtext tiny">${escapeHtml(dayjs(state.overview.gateSnapshot.stageCheck.updatedAt).fromNow())}</div>` : ''}`
+      + `${state.overview.gateSnapshot.stageCheck.state === 'failed' && state.overview.gateSnapshot.stageCheck.detail ? `<div class="status-note warn overview-gate-error">${escapeHtml(state.overview.gateSnapshot.stageCheck.detail)}</div>` : ''}`
+      + `</div>`
+      + `<div class="overview-gate-item">`
+      + `<div class="overview-stage-row"><span>Build</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.build.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.build.state))}</span><button class="btn subtle btn-icon" data-action="runBuildWorkflow" aria-label="${escapeAttribute(runBuildLabel)}" title="${escapeAttribute(runBuildLabel)}">${runBuildIcon}</button></div></div>`
+      + `${state.overview.gateSnapshot.build.state === 'success' && state.overview.gateSnapshot.build.detail ? `<div class="item-subtext tiny">Output: ${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>` : ''}`
+      + `${state.overview.gateSnapshot.build.updatedAt ? `<div class="item-subtext tiny">${escapeHtml(dayjs(state.overview.gateSnapshot.build.updatedAt).fromNow())}</div>` : ''}`
+      + `${state.overview.gateSnapshot.build.state === 'failed' && state.overview.gateSnapshot.build.detail ? `<div class="status-note warn overview-gate-error">${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>` : ''}`
+      + `</div>`
+      + `</div>`
+      + `</div>`
+      + `<div class="overview-structure">`
+      + `<div class="item-title-row"><span class="item-title-text">Structure Map</span></div>`
+      + `${state.overview.mapRows.length > 0
+        ? `<div class="overview-file-list">${state.overview.mapRows.map((row) => row.kind === 'group'
+          ? `<div class="overview-group-row lvl-${row.level}">${escapeHtml(row.label)}</div>`
+          : `<article class="item metadata-item overview-file-item">`
+            + `<div class="item-main">`
+            + `<div class="item-title-row">`
+            + `<button class="backlink-link" data-action="openOverviewFile" data-file-path="${escapeAttribute(row.filePath)}">${escapeHtml(row.fileLabel)}</button>`
+            + `<span class="badge">${escapeHtml(row.status)}</span>`
+            + `</div>`
+            + `</div>`
+            + `</article>`).join('')}</div>`
+        : '<div class="empty tiny">No manuscript files found.</div>'}`
+      + `</div>`
+      + `</section>`
+    : '';
+
   const tabRow = `<div class="sidebar-tabs">`
-    + `<button class="sidebar-tab${state.activeTab === 'document' ? ' active' : ''}" data-action="setSidebarTab" data-value="document">Document</button>`
-    + `${state.enableComments
+    + `<div class="sidebar-tabs-main">`
+    + `${state.hasActiveMarkdown
+      ? `<button class="sidebar-tab${state.activeTab === 'document' ? ' active' : ''}" data-action="setSidebarTab" data-value="document">Document</button>`
+      : ''}`
+    + `${state.hasActiveMarkdown && state.enableComments
       ? `<button class="sidebar-tab${state.activeTab === 'comments' ? ' active' : ''}" data-action="setSidebarTab" data-value="comments">Comments <span class="badge">${state.comments.totalCount}</span></button>`
       : ''}`
+    + `${state.canShowOverview
+      ? `<button class="sidebar-tab${state.activeTab === 'overview' ? ' active' : ''}" data-action="setSidebarTab" data-value="overview">Manuscript</button>`
+      : ''}`
+    + `</div>`
+    + `<div class="sidebar-tabs-nav">`
+    + `<button class="btn subtle btn-icon" data-action="globalBack"${state.globalCanGoBack ? '' : ' disabled'} aria-label="Back" title="Back">${backIcon}</button>`
+    + `<button class="btn subtle btn-icon" data-action="globalForward"${state.globalCanGoForward ? '' : ' disabled'} aria-label="Forward" title="Forward">${forwardIcon}</button>`
+    + `</div>`
     + `</div>`;
 
   const documentContent = `
@@ -365,11 +471,23 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       ${state.mode === 'manuscript' ? tocPanel : ''}
     `;
 
-  const content = !state.hasActiveMarkdown
-    ? '<div class="empty-panel">Open a Markdown document to use the Stego sidebar.</div>'
-    : `
+  const content = state.activeTab === 'overview' && state.overview
+    ? `
       ${tabRow}
-      ${state.activeTab === 'comments' && state.enableComments ? commentsPanel : documentContent}
+      ${overviewPanel}
+    `
+    : !state.hasActiveMarkdown
+      ? state.canShowOverview
+        ? `
+          ${tabRow}
+          <div class="empty-panel">Overview is available for this project.</div>
+        `
+        : '<div class="empty-panel">Open a Markdown document to use the Stego sidebar.</div>'
+      : `
+      ${tabRow}
+      ${state.activeTab === 'comments' && state.enableComments
+        ? commentsPanel
+        : documentContent}
     `;
 
   const assets = getSidebarAssetUris(webview, extensionUri);

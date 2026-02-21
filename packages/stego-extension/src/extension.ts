@@ -3,6 +3,7 @@ import { METADATA_VIEW_ID } from './shared/constants';
 import { maybeAutoFoldFrontmatter, toggleFrontmatterFold } from './features/commands/frontmatterFold';
 import { runProjectBuildWorkflow } from './features/commands/buildWorkflow';
 import { runProjectGateStageWorkflow } from './features/commands/stageCheckWorkflow';
+import { runLocalValidateWorkflow } from './features/commands/localValidateWorkflow';
 import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments, isAnyWorkspaceIndexFile } from './features/diagnostics/refreshDiagnostics';
 import { createDocumentLinkProvider } from './features/identifiers/documentLinks';
 import { createHoverProvider } from './features/identifiers/hover';
@@ -108,10 +109,15 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showInformationMessage('Stego Bible index rebuilt.');
     }),
     vscode.commands.registerCommand('stegoBible.runBuild', async () => {
-      await runProjectBuildWorkflow();
+      const result = await runProjectBuildWorkflow();
+      await sidebarProvider.recordGateWorkflowResult('build', result);
     }),
     vscode.commands.registerCommand('stegoBible.runGateStage', async () => {
-      await runProjectGateStageWorkflow();
+      const result = await runProjectGateStageWorkflow();
+      await sidebarProvider.recordGateWorkflowResult('stageCheck', result);
+    }),
+    vscode.commands.registerCommand('stegoBible.runLocalValidate', async () => {
+      await runLocalValidateWorkflow();
     }),
     vscode.commands.registerCommand('stegoBible.toggleFrontmatter', async () => {
       await toggleFrontmatterFold();

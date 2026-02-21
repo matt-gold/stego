@@ -7,6 +7,7 @@ import {
   resolveProjectScriptContext,
   runCommand
 } from './workflowUtils';
+import type { WorkflowRunResult } from './workflowUtils';
 
 export async function showBuildSuccessToast(result: ScriptRunResult, formatLabel: string): Promise<void> {
   const outputPath = extractOutputPath(result);
@@ -31,10 +32,10 @@ export async function showBuildSuccessToast(result: ScriptRunResult, formatLabel
   }
 }
 
-export async function runProjectBuildWorkflow(): Promise<void> {
+export async function runProjectBuildWorkflow(): Promise<WorkflowRunResult> {
   const context = await resolveProjectScriptContext(['build', 'export']);
   if (!context) {
-    return;
+    return { ok: false, cancelled: true };
   }
 
   const pickedFormat = await vscode.window.showQuickPick(
@@ -67,7 +68,7 @@ export async function runProjectBuildWorkflow(): Promise<void> {
   );
 
   if (!pickedFormat) {
-    return;
+    return { ok: false, cancelled: true, projectDir: context.projectDir };
   }
 
   const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -87,16 +88,26 @@ export async function runProjectBuildWorkflow(): Promise<void> {
     );
   } catch (error) {
     void vscode.window.showErrorMessage(`Build failed: ${errorToMessage(error)}`);
-    return;
+    return {
+      ok: false,
+      error: errorToMessage(error),
+      projectDir: context.projectDir
+    };
   }
 
   if (result.exitCode === 0) {
-    await showBuildSuccessToast(result, formatLabel);
-    return;
+    const outputPath = extractOutputPath(result);
+    void showBuildSuccessToast(result, formatLabel);
+    return { ok: true, outputPath, projectDir: context.projectDir };
   }
 
   const details = pickToastDetails(result);
   void vscode.window.showErrorMessage(details
     ? `Build failed: ${details}`
     : `Build failed with exit code ${result.exitCode}.`);
+  return {
+    ok: false,
+    error: details || `Exit code ${result.exitCode}`,
+    projectDir: context.projectDir
+  };
 }

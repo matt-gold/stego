@@ -8,9 +8,14 @@ import type {
   ExplorerRoute,
   ProjectBibleCategory,
   SidebarCommentsState,
+  SidebarOverviewGateSnapshot,
+  SidebarOverviewState,
   SidebarState
 } from '../../shared/types';
+import { runProjectBuildWorkflow } from '../commands/buildWorkflow';
+import { runProjectGateStageWorkflow } from '../commands/stageCheckWorkflow';
 import { runLocalValidateWorkflow } from '../commands/localValidateWorkflow';
+import type { WorkflowRunResult } from '../commands/workflowUtils';
 import { openMarkdownPreviewCommand } from '../commands/openMarkdownPreview';
 import { toggleFrontmatterFold } from '../commands/frontmatterFold';
 import { refreshVisibleMarkdownDocuments } from '../diagnostics/refreshDiagnostics';
@@ -51,7 +56,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private backlinkFilter = '';
   private metadataEditing = false;
-  private activeTab: 'document' | 'comments' = 'document';
+  private activeTab: 'document' | 'comments' | 'overview' = 'document';
+  private readonly tabBackStack: Array<'document' | 'comments' | 'overview'> = [];
+  private readonly tabForwardStack: Array<'document' | 'comments' | 'overview'> = [];
   private selectedCommentId?: string;
   private explorerRoute: ExplorerRoute = { kind: 'home' };
   private explorerCollapsed = false;
@@ -60,6 +67,15 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private explorerBacklinksExpanded = false;
   private explorerLoadToken = 0;
   private readonly expandedTocBacklinks = new Set<string>();
+  private readonly overviewFileCache = new Map<string, Map<string, {
+    mtimeMs: number;
+    frontmatter: Record<string, unknown>;
+    wordCount: number;
+    unresolvedCount: number;
+    firstUnresolvedCommentId?: string;
+    status: string;
+  }>>();
+  private readonly gateSnapshotByProject = new Map<string, SidebarOverviewGateSnapshot>();
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -84,8 +100,86 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    this.activeTab = 'comments';
+    this.setActiveTab('comments');
     this.selectedCommentId = normalized;
+    await this.refresh();
+  }
+
+  private setActiveTab(tab: 'document' | 'comments' | 'overview', options?: { trackHistory?: boolean }): void {
+    if (this.activeTab === tab) {
+      return;
+    }
+
+    if (options?.trackHistory !== false) {
+      this.tabBackStack.push(this.activeTab);
+      this.tabForwardStack.length = 0;
+    }
+
+    this.activeTab = tab;
+  }
+
+  private canTabGoBack(): boolean {
+    return this.tabBackStack.length > 0;
+  }
+
+  private canTabGoForward(): boolean {
+    return this.tabForwardStack.length > 0;
+  }
+
+  private canGlobalGoBack(): boolean {
+    return this.canExplorerGoBack() || this.canTabGoBack();
+  }
+
+  private canGlobalGoForward(): boolean {
+    return this.canExplorerGoForward() || this.canTabGoForward();
+  }
+
+  private goGlobalBack(): void {
+    if (this.activeTab === 'document' && this.canExplorerGoBack()) {
+      this.goExplorerBack();
+      return;
+    }
+
+    const previousTab = this.tabBackStack.pop();
+    if (!previousTab) {
+      return;
+    }
+
+    this.tabForwardStack.push(this.activeTab);
+    this.activeTab = previousTab;
+  }
+
+  private goGlobalForward(): void {
+    if (this.activeTab === 'document' && this.canExplorerGoForward()) {
+      this.goExplorerForward();
+      return;
+    }
+
+    const nextTab = this.tabForwardStack.pop();
+    if (!nextTab) {
+      return;
+    }
+
+    this.tabBackStack.push(this.activeTab);
+    this.activeTab = nextTab;
+  }
+
+  public async recordGateWorkflowResult(
+    key: 'stageCheck' | 'build',
+    result: WorkflowRunResult
+  ): Promise<void> {
+    if (result.cancelled) {
+      return;
+    }
+
+    const context = result.projectDir ? undefined : await this.getCurrentProjectContext();
+    const projectDir = result.projectDir ?? context?.projectDir;
+    if (result.ok) {
+      this.updateGateSnapshot(projectDir, key, 'success', key === 'build' ? result.outputPath : undefined, result.stage);
+    } else {
+      this.updateGateSnapshot(projectDir, key, 'failed', result.error, result.stage);
+    }
+
     await this.refresh();
   }
 
@@ -177,11 +271,23 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private async getSidebarState(): Promise<SidebarState> {
     const document = getActiveMarkdownDocument(false);
     if (!document) {
+      const activeDocument = vscode.window.activeTextEditor?.document;
+      const workspaceFolder = activeDocument ? vscode.workspace.getWorkspaceFolder(activeDocument.uri) : undefined;
+      const projectContext = activeDocument && workspaceFolder
+        ? await findNearestProjectConfig(activeDocument.uri.fsPath, workspaceFolder.uri.fsPath)
+        : undefined;
+      const canShowOverview = !!projectContext;
+      const overview = projectContext
+        ? await this.buildOverviewState(projectContext)
+        : undefined;
+
       return {
         hasActiveMarkdown: false,
-        documentPath: '',
+        documentPath: activeDocument?.uri.fsPath ?? '',
         structureSummary: undefined,
-        activeTab: this.activeTab,
+        canShowOverview,
+        overview,
+        activeTab: canShowOverview ? 'overview' : this.activeTab,
         showExplorer: false,
         metadataEditing: false,
         enableComments: true,
@@ -191,6 +297,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         explorerCollapsed: this.explorerCollapsed,
         explorerCanGoBack: this.canExplorerGoBack(),
         explorerCanGoForward: this.canExplorerGoForward(),
+        globalCanGoBack: this.canGlobalGoBack(),
+        globalCanGoForward: this.canGlobalGoForward(),
         explorerCanGoHome: this.canExplorerGoHome(),
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: [],
@@ -208,7 +316,6 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     const enableComments = getConfig('comments', document.uri).get<boolean>('enable', true) !== false;
-    const effectiveTab = !enableComments && this.activeTab === 'comments' ? 'document' : this.activeTab;
 
     const emptyComments: SidebarCommentsState = {
       selectedId: undefined,
@@ -231,6 +338,11 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
     const projectContext = workspaceFolder
       ? await findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath)
+      : undefined;
+    const canShowOverview = !!projectContext;
+    const effectiveTab = this.resolveEffectiveTab(this.activeTab, enableComments, canShowOverview);
+    const overview = projectContext && effectiveTab === 'overview'
+      ? await this.buildOverviewState(projectContext)
       : undefined;
 
     const categoryByKey = new Map<string, ProjectBibleCategory>();
@@ -286,6 +398,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
         structureSummary: undefined,
+        canShowOverview,
+        overview,
         activeTab: effectiveTab,
         mode: 'nonManuscript',
         showExplorer,
@@ -297,6 +411,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         explorerCollapsed: this.explorerCollapsed,
         explorerCanGoBack: this.canExplorerGoBack(),
         explorerCanGoForward: this.canExplorerGoForward(),
+        globalCanGoBack: this.canGlobalGoBack(),
+        globalCanGoForward: this.canGlobalGoForward(),
         explorerCanGoHome: this.canExplorerGoHome(),
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: tocWithBacklinks,
@@ -359,6 +475,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
         structureSummary,
+        canShowOverview,
+        overview,
         activeTab: effectiveTab,
         mode: 'manuscript',
         showExplorer,
@@ -370,6 +488,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         explorerCollapsed: this.explorerCollapsed,
         explorerCanGoBack: this.canExplorerGoBack(),
         explorerCanGoForward: this.canExplorerGoForward(),
+        globalCanGoBack: this.canGlobalGoBack(),
+        globalCanGoForward: this.canGlobalGoForward(),
         explorerCanGoHome: this.canExplorerGoHome(),
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: tocWithBacklinks,
@@ -383,6 +503,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         hasActiveMarkdown: true,
         documentPath: document.uri.fsPath,
         structureSummary: undefined,
+        canShowOverview,
+        overview,
         activeTab: effectiveTab,
         mode: 'manuscript',
         parseError: errorToMessage(error),
@@ -395,6 +517,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         explorerCollapsed: this.explorerCollapsed,
         explorerCanGoBack: this.canExplorerGoBack(),
         explorerCanGoForward: this.canExplorerGoForward(),
+        globalCanGoBack: this.canGlobalGoBack(),
+        globalCanGoForward: this.canGlobalGoForward(),
         explorerCanGoHome: this.canExplorerGoHome(),
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: tocWithBacklinks,
@@ -554,15 +678,102 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       case 'setSidebarTab': {
         shouldRefreshDiagnostics = false;
         const value = typeof payload.value === 'string' ? payload.value.trim().toLowerCase() : '';
-        if (value === 'document' || value === 'comments') {
+        if (value === 'document' || value === 'comments' || value === 'overview') {
           if (value === 'comments') {
             const doc = getActiveMarkdownDocument(false);
             if (doc && !getConfig('comments', doc.uri).get<boolean>('enable', true)) {
               break;
             }
           }
-          this.activeTab = value;
+
+          if (value === 'overview') {
+            const doc = getActiveMarkdownDocument(false);
+            const folder = doc ? vscode.workspace.getWorkspaceFolder(doc.uri) : undefined;
+            const context = doc && folder ? await findNearestProjectConfig(doc.uri.fsPath, folder.uri.fsPath) : undefined;
+            if (!context) {
+              break;
+            }
+          }
+
+          this.setActiveTab(value);
         }
+        break;
+      }
+      case 'globalBack': {
+        shouldRefreshDiagnostics = false;
+        this.goGlobalBack();
+        break;
+      }
+      case 'globalForward': {
+        shouldRefreshDiagnostics = false;
+        this.goGlobalForward();
+        break;
+      }
+      case 'runBuildWorkflow': {
+        shouldRefreshDiagnostics = false;
+        const result = await runProjectBuildWorkflow();
+        if (result.cancelled) {
+          break;
+        }
+        if (result.ok) {
+          this.updateGateSnapshot(result.projectDir, 'build', 'success', result.outputPath);
+        } else {
+          this.updateGateSnapshot(result.projectDir, 'build', 'failed', result.error);
+        }
+        break;
+      }
+      case 'runGateStageWorkflow': {
+        shouldRefreshDiagnostics = false;
+        const result = await runProjectGateStageWorkflow();
+        if (result.cancelled) {
+          break;
+        }
+        if (result.ok) {
+          this.updateGateSnapshot(result.projectDir, 'stageCheck', 'success', undefined, result.stage);
+        } else {
+          this.updateGateSnapshot(result.projectDir, 'stageCheck', 'failed', result.error, result.stage);
+        }
+        break;
+      }
+      case 'openFirstUnresolvedComment': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.filePath !== 'string' || typeof payload.id !== 'string') {
+          break;
+        }
+
+        try {
+          const target = vscode.Uri.file(payload.filePath);
+          const document = await vscode.workspace.openTextDocument(target);
+          const result = await jumpToComment(document, payload.id);
+          if (result.warning) {
+            void vscode.window.showWarningMessage(result.warning);
+            break;
+          }
+          this.setActiveTab('comments');
+          this.selectedCommentId = payload.id.trim().toUpperCase();
+        } catch (error) {
+          void vscode.window.showWarningMessage(`Could not open unresolved comment: ${errorToMessage(error)}`);
+        }
+        break;
+      }
+      case 'openOverviewFile': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.filePath !== 'string') {
+          break;
+        }
+
+        await openBacklinkFile(payload.filePath, 1);
+        this.setActiveTab('document');
+        break;
+      }
+      case 'openFirstMissingMetadata': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.filePath !== 'string') {
+          break;
+        }
+
+        await openBacklinkFile(payload.filePath, 1);
+        this.setActiveTab('document');
         break;
       }
       case 'addMetadataField': {
@@ -626,7 +837,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       }
       case 'runLocalValidate': {
         shouldRefreshDiagnostics = false;
-        await runLocalValidateWorkflow();
+        const result = await runLocalValidateWorkflow();
         break;
       }
       case 'openMarkdownPreview': {
@@ -761,14 +972,14 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
-        this.activeTab = 'comments';
+        this.setActiveTab('comments');
         this.selectedCommentId = result.id;
         break;
       }
       case 'openCommentThread': {
         shouldRefreshDiagnostics = false;
         if (typeof payload.id === 'string' && payload.id.trim().length > 0) {
-          this.activeTab = 'comments';
+          this.setActiveTab('comments');
           this.selectedCommentId = payload.id.trim().toUpperCase();
         }
         break;
@@ -795,7 +1006,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
-        this.activeTab = 'comments';
+        this.setActiveTab('comments');
         this.selectedCommentId = result.id ?? payload.id.trim().toUpperCase();
         break;
       }
@@ -813,7 +1024,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
-        this.activeTab = 'comments';
+        this.setActiveTab('comments');
         this.selectedCommentId = payload.id.trim().toUpperCase();
         break;
       }
@@ -846,7 +1057,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
-        this.activeTab = 'comments';
+        this.setActiveTab('comments');
         if (this.selectedCommentId === payload.id.trim().toUpperCase()) {
           this.selectedCommentId = undefined;
         }
@@ -863,7 +1074,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
-        this.activeTab = 'comments';
+        this.setActiveTab('comments');
         if (!this.selectedCommentId) {
           break;
         }
@@ -900,6 +1111,307 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       await refreshVisibleMarkdownDocuments(this.indexService, this.diagnostics);
     }
     await this.refresh();
+  }
+
+  private resolveEffectiveTab(
+    requestedTab: 'document' | 'comments' | 'overview',
+    enableComments: boolean,
+    canShowOverview: boolean
+  ): 'document' | 'comments' | 'overview' {
+    if (requestedTab === 'comments' && !enableComments) {
+      return 'document';
+    }
+
+    if (requestedTab === 'overview' && !canShowOverview) {
+      return 'document';
+    }
+
+    return requestedTab;
+  }
+
+  private async buildOverviewState(projectContext: {
+    projectDir: string;
+    requiredMetadata: string[];
+    structuralLevels: { key: string; label: string; titleKey?: string; headingTemplate: string }[];
+  }): Promise<SidebarOverviewState | undefined> {
+    const manuscriptFiles = (await collectManuscriptMarkdownFiles(projectContext.projectDir))
+      .sort((a, b) => this.compareManuscriptFiles(a, b));
+    const cache = this.getOverviewCache(projectContext.projectDir);
+    if (manuscriptFiles.length === 0) {
+      return {
+        generatedAt: new Date().toISOString(),
+        wordCount: 0,
+        manuscriptFileCount: 0,
+        missingRequiredMetadataCount: 0,
+        unresolvedCommentsCount: 0,
+        gateSnapshot: this.getGateSnapshot(projectContext.projectDir),
+        stageBreakdown: [],
+        mapRows: []
+      };
+    }
+
+    let wordCount = 0;
+    let missingRequiredMetadataCount = 0;
+    let unresolvedCommentsCount = 0;
+    const stageCounts = new Map<string, number>();
+    const mapRows: SidebarOverviewState['mapRows'] = [];
+    const effectiveStructureValues = new Map<string, string>();
+    const effectiveStructureTitles = new Map<string, string>();
+    const previousStructureHeadings: string[] = [];
+    let firstUnresolvedComment: SidebarOverviewState['firstUnresolvedComment'];
+    let firstMissingMetadata: SidebarOverviewState['firstMissingMetadata'];
+
+    for (const filePath of manuscriptFiles) {
+      let stat: { mtimeMs: number };
+      try {
+        stat = await fs.stat(filePath);
+      } catch {
+        continue;
+      }
+
+      const cached = cache.get(filePath);
+      let frontmatter: Record<string, unknown>;
+      let unresolvedCount: number;
+      let firstUnresolvedCommentId: string | undefined;
+      let status: string;
+
+      if (cached && cached.mtimeMs === stat.mtimeMs) {
+        frontmatter = cached.frontmatter;
+        wordCount += cached.wordCount;
+        unresolvedCount = cached.unresolvedCount;
+        firstUnresolvedCommentId = cached.firstUnresolvedCommentId;
+        status = cached.status;
+      } else {
+        let text = '';
+        try {
+          text = await fs.readFile(filePath, 'utf8');
+        } catch {
+          continue;
+        }
+
+        const parsedComments = parseCommentAppendix(text);
+        const parsed = parseMarkdownDocument(parsedComments.contentWithoutComments);
+        frontmatter = parsed.frontmatter;
+        const fileWordCount = this.countWords(parsed.body);
+        wordCount += fileWordCount;
+
+        const unresolved = parsedComments.comments.filter((comment) => comment.status === 'open');
+        unresolvedCount = unresolved.length;
+        firstUnresolvedCommentId = unresolved[0]?.id;
+
+        const statusRaw = frontmatter.status;
+        status = statusRaw === null || statusRaw === undefined || String(statusRaw).trim().length === 0
+          ? '(missing)'
+          : String(statusRaw).trim().toLowerCase();
+
+        cache.set(filePath, {
+          mtimeMs: stat.mtimeMs,
+          frontmatter,
+          wordCount: fileWordCount,
+          unresolvedCount,
+          firstUnresolvedCommentId,
+          status
+        });
+      }
+
+      let fileMissingMetadata = false;
+      for (const key of projectContext.requiredMetadata) {
+        const value = frontmatter[key];
+        if (value === null || value === undefined || String(value).trim().length === 0) {
+          missingRequiredMetadataCount += 1;
+          fileMissingMetadata = true;
+        }
+      }
+
+      if (!firstMissingMetadata && fileMissingMetadata) {
+        firstMissingMetadata = {
+          filePath,
+          fileLabel: path.basename(filePath)
+        };
+      }
+
+      stageCounts.set(status, (stageCounts.get(status) ?? 0) + 1);
+
+      for (const level of projectContext.structuralLevels) {
+        const value = this.toScalarString(frontmatter[level.key]);
+        if (value) {
+          effectiveStructureValues.set(level.key, value);
+        }
+
+        if (level.titleKey) {
+          const title = this.toScalarString(frontmatter[level.titleKey]);
+          if (title) {
+            effectiveStructureTitles.set(level.key, title);
+          }
+        }
+      }
+
+      const structureParts = projectContext.structuralLevels
+        .map((level) => {
+          const value = effectiveStructureValues.get(level.key);
+          if (!value) {
+            return '';
+          }
+
+          const title = effectiveStructureTitles.get(level.key);
+          return this.formatStructureHeading(level, value, title);
+        })
+        .filter((value) => value.length > 0);
+
+      for (let level = 0; level < structureParts.length; level += 1) {
+        const heading = structureParts[level];
+        if (previousStructureHeadings[level] === heading) {
+          continue;
+        }
+
+        previousStructureHeadings.length = level;
+        previousStructureHeadings[level] = heading;
+        mapRows.push({
+          kind: 'group',
+          level,
+          label: heading
+        });
+      }
+
+      mapRows.push({
+        kind: 'file',
+        filePath,
+        fileLabel: path.basename(filePath),
+        status
+      });
+
+      unresolvedCommentsCount += unresolvedCount;
+
+      if (!firstUnresolvedComment && firstUnresolvedCommentId) {
+        firstUnresolvedComment = {
+          filePath,
+          fileLabel: path.basename(filePath),
+          commentId: firstUnresolvedCommentId
+        };
+      }
+    }
+
+    for (const cachedPath of [...cache.keys()]) {
+      if (!manuscriptFiles.includes(cachedPath)) {
+        cache.delete(cachedPath);
+      }
+    }
+
+    const stageBreakdown = [...stageCounts.entries()]
+      .map(([status, count]) => ({ status, count }))
+      .sort((a, b) => this.compareOverviewStatus(a.status, b.status));
+
+    return {
+      generatedAt: new Date().toISOString(),
+      wordCount,
+      manuscriptFileCount: manuscriptFiles.length,
+      missingRequiredMetadataCount,
+      unresolvedCommentsCount,
+      gateSnapshot: this.getGateSnapshot(projectContext.projectDir),
+      stageBreakdown,
+      mapRows,
+      firstUnresolvedComment,
+      firstMissingMetadata
+    };
+  }
+
+  private getOverviewCache(projectDir: string): Map<string, {
+    mtimeMs: number;
+    frontmatter: Record<string, unknown>;
+    wordCount: number;
+    unresolvedCount: number;
+    firstUnresolvedCommentId?: string;
+    status: string;
+  }> {
+    let cache = this.overviewFileCache.get(projectDir);
+    if (!cache) {
+      cache = new Map();
+      this.overviewFileCache.set(projectDir, cache);
+    }
+    return cache;
+  }
+
+  private getGateSnapshot(projectDir: string): SidebarOverviewGateSnapshot {
+    const existing = this.gateSnapshotByProject.get(projectDir);
+    if (existing) {
+      return existing;
+    }
+
+    const empty: SidebarOverviewGateSnapshot = {
+      stageCheck: { state: 'never' },
+      build: { state: 'never' }
+    };
+    this.gateSnapshotByProject.set(projectDir, empty);
+    return empty;
+  }
+
+  private updateGateSnapshot(
+    projectDir: string | undefined,
+    key: 'stageCheck' | 'build',
+    state: 'success' | 'failed',
+    detail?: string,
+    stage?: string
+  ): void {
+    if (!projectDir) {
+      return;
+    }
+
+    const snapshot = this.getGateSnapshot(projectDir);
+    snapshot[key] = {
+      state,
+      updatedAt: new Date().toISOString(),
+      detail,
+      stage: key === 'stageCheck' && stage ? stage : undefined
+    };
+  }
+
+  private async getCurrentProjectContext(): Promise<{ projectDir: string } | undefined> {
+    const document = getActiveMarkdownDocument(false);
+    if (!document) {
+      return undefined;
+    }
+
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) {
+      return undefined;
+    }
+
+    const projectContext = await findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath);
+    return projectContext ? { projectDir: projectContext.projectDir } : undefined;
+  }
+
+  private compareOverviewStatus(aStatus: string, bStatus: string): number {
+    const rank = (status: string): number => {
+      switch (status) {
+        case 'draft': return 0;
+        case 'revise': return 1;
+        case 'line-edit': return 2;
+        case 'proof': return 3;
+        case 'final': return 4;
+        case '(missing)': return 5;
+        default: return 100;
+      }
+    };
+
+    const aRank = rank(aStatus);
+    const bRank = rank(bStatus);
+    if (aRank !== bRank) {
+      return aRank - bRank;
+    }
+
+    return aStatus.localeCompare(bStatus);
+  }
+
+  private countWords(text: string): number {
+    const normalized = text
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/~~~[\s\S]*?~~~/g, ' ')
+      .trim();
+    if (!normalized) {
+      return 0;
+    }
+
+    return normalized.split(/\s+/).filter((token) => token.length > 0).length;
   }
 
 }
