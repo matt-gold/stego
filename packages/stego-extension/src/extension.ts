@@ -138,7 +138,11 @@ export function activate(context: vscode.ExtensionContext): void {
       void refreshDiagnosticsForDocument(event.document, indexService, diagnostics);
       commentDecorations.refreshVisibleEditors();
       if (event.document === vscode.window.activeTextEditor?.document) {
-        void sidebarProvider.refresh();
+        if (event.document.languageId === 'markdown') {
+          sidebarProvider.scheduleRefresh({ mode: 'fast', debounceMs: 180 });
+        } else {
+          void sidebarProvider.refresh('full');
+        }
       }
     }),
     vscode.workspace.onDidSaveTextDocument((document) => {

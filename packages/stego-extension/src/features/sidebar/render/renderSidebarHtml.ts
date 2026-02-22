@@ -120,7 +120,6 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const runLocalChecksIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.78 3.97a.75.75 0 0 1 0 1.06L6.75 12.06a.75.75 0 0 1-1.06 0L2.22 8.59a.75.75 0 1 1 1.06-1.06l2.94 2.94 6.5-6.5a.75.75 0 0 1 1.06 0z"></path></svg>';
   const copyCleanManuscriptLabel = 'Copy Without Metadata';
   const copyCleanManuscriptIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2.75A1.75 1.75 0 0 1 6.75 1h6.5A1.75 1.75 0 0 1 15 2.75v8.5A1.75 1.75 0 0 1 13.25 13h-6.5A1.75 1.75 0 0 1 5 11.25zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25z"></path><path d="M1 4.75A1.75 1.75 0 0 1 2.75 3h.5a.75.75 0 0 1 0 1.5h-.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-.5a.75.75 0 0 1 1.5 0v.5A1.75 1.75 0 0 1 9.25 15h-6.5A1.75 1.75 0 0 1 1 13.25z"></path></svg>';
-  const refreshLabel = 'Refresh';
   const openMetricTargetLabel = 'Open next file';
   const openMetricTargetIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3L5.4 4.1 9.3 8l-3.9 3.9L6.5 13l5-5z"></path></svg>';
   const runStageLabel = 'Run Stage Check';
@@ -324,13 +323,20 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     : '';
 
   const metadataPanel = state.mode === 'manuscript'
-    ? `<section class="panel">`
+    ? `<section class="panel metadata-panel${state.metadataCollapsed ? ' collapsed' : ''}">`
       + `<div class="panel-heading">`
       + `<h2>Metadata</h2>`
-      + `<button class="btn subtle" data-action="toggleMetadataEditing">${state.metadataEditing ? 'Done' : 'Edit'}</button>`
+      + `<div class="explorer-nav">`
+      + `${state.metadataCollapsed
+        ? ''
+        : `<button class="btn subtle" data-action="toggleMetadataEditing">${state.metadataEditing ? 'Done' : 'Edit'}</button>`}`
+      + `<button class="btn subtle btn-icon" data-action="toggleMetadataCollapse" aria-label="${state.metadataCollapsed ? 'Expand' : 'Collapse'}" title="${state.metadataCollapsed ? 'Expand' : 'Collapse'}">${state.metadataCollapsed ? expandPanelIcon : collapsePanelIcon}</button>`
       + `</div>`
-      + `${showMetadataEditingControls ? '<div class="actions"><button class="btn primary" data-action="addMetadataField">Add Field</button></div>' : ''}`
-      + `<div class="list">${metadataHtml}</div>`
+      + `</div>`
+      + `${state.metadataCollapsed
+        ? ''
+        : `${showMetadataEditingControls ? '<div class="actions"><button class="btn primary" data-action="addMetadataField">Add Field</button></div>' : ''}`
+          + `<div class="list">${metadataHtml}</div>`}`
       + `</section>`
     : '';
 
@@ -381,14 +387,33 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     + `</section>`;
 
   const overviewPanel = state.overview
-    ? `<section class="panel">`
+    ? `<section class="panel title-panel">`
       + `<div class="panel-heading">`
-      + `<h2>Overview</h2>`
+      + `<div class="title-heading-block">`
+      + `<h2>${escapeHtml(state.overview.manuscriptTitle)}</h2>`
+      + `<div class="title-structure">Last updated ${escapeHtml(dayjs(state.overview.generatedAt).fromNow())}</div>`
+      + `</div>`
       + `<div class="actions">`
-      + `<button class="btn subtle" data-action="refresh">${escapeHtml(refreshLabel)}</button>`
+      + `<button class="btn subtle btn-icon" data-action="runGateStageWorkflow" aria-label="${escapeAttribute(runStageLabel)}" title="${escapeAttribute(runStageLabel)}">${runLocalChecksIcon}</button>`
+      + `<button class="btn subtle btn-icon" data-action="runBuildWorkflow" aria-label="${escapeAttribute(runBuildLabel)}" title="${escapeAttribute(runBuildLabel)}">${runBuildIcon}</button>`
       + `</div>`
       + `</div>`
-      + `<div class="item-subtext tiny">Last updated ${escapeHtml(dayjs(state.overview.generatedAt).fromNow())}</div>`
+      + `<div class="overview-stage">`
+      + `<div class="overview-stage-list">`
+      + `<div class="overview-gate-item">`
+      + `<div class="overview-stage-row"><span>Stage Check</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.stageCheck.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.stageCheck.state))}</span></div></div>`
+      + `${state.overview.gateSnapshot.stageCheck.stage ? `<div class="item-subtext tiny">Stage: ${escapeHtml(state.overview.gateSnapshot.stageCheck.stage)}</div>` : ''}`
+      + `${state.overview.gateSnapshot.stageCheck.updatedAt ? `<div class="item-subtext tiny">${escapeHtml(dayjs(state.overview.gateSnapshot.stageCheck.updatedAt).fromNow())}</div>` : ''}`
+      + `${state.overview.gateSnapshot.stageCheck.state === 'failed' && state.overview.gateSnapshot.stageCheck.detail ? `<div class="status-note warn overview-gate-error">${escapeHtml(state.overview.gateSnapshot.stageCheck.detail)}</div>` : ''}`
+      + `</div>`
+      + `<div class="overview-gate-item">`
+      + `<div class="overview-stage-row"><span>Build</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.build.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.build.state))}</span></div></div>`
+      + `${state.overview.gateSnapshot.build.state === 'success' && state.overview.gateSnapshot.build.detail ? `<div class="item-subtext tiny">Output: ${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>` : ''}`
+      + `${state.overview.gateSnapshot.build.updatedAt ? `<div class="item-subtext tiny">${escapeHtml(dayjs(state.overview.gateSnapshot.build.updatedAt).fromNow())}</div>` : ''}`
+      + `${state.overview.gateSnapshot.build.state === 'failed' && state.overview.gateSnapshot.build.detail ? `<div class="status-note warn overview-gate-error">${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>` : ''}`
+      + `</div>`
+      + `</div>`
+      + `</div>`
       + `<div class="overview-metrics">`
       + `<div class="overview-metric-row">`
       + `<article class="item metadata-item overview-metric-card neutral"><div class="item-main"><div class="item-title-row"><span class="item-title-text">Word Count</span></div><div class="metadata-value">${state.overview.wordCount.toLocaleString()}</div></div></article>`
@@ -405,30 +430,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `</article>`
       + `</div>`
       + `</div>`
-      + `<div class="overview-stage">`
-      + `<div class="item-title-row"><span class="item-title-text">Stage Breakdown</span></div>`
-      + `${state.overview.stageBreakdown.length > 0
-        ? `<div class="overview-stage-list">${state.overview.stageBreakdown.map((entry) => `<div class="overview-stage-row"><span>${escapeHtml(entry.status)}</span><span class="badge">${entry.count}</span></div>`).join('')}</div>`
-        : '<div class="empty tiny">No manuscript statuses found.</div>'}`
-      + `</div>`
-      + `<div class="overview-stage">`
-      + `<div class="overview-stage-list">`
-      + `<div class="overview-gate-item">`
-      + `<div class="overview-stage-row"><span>Stage Check</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.stageCheck.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.stageCheck.state))}</span><button class="btn subtle btn-icon" data-action="runGateStageWorkflow" aria-label="${escapeAttribute(runStageLabel)}" title="${escapeAttribute(runStageLabel)}">${runLocalChecksIcon}</button></div></div>`
-      + `${state.overview.gateSnapshot.stageCheck.stage ? `<div class="item-subtext tiny">Stage: ${escapeHtml(state.overview.gateSnapshot.stageCheck.stage)}</div>` : ''}`
-      + `${state.overview.gateSnapshot.stageCheck.updatedAt ? `<div class="item-subtext tiny">${escapeHtml(dayjs(state.overview.gateSnapshot.stageCheck.updatedAt).fromNow())}</div>` : ''}`
-      + `${state.overview.gateSnapshot.stageCheck.state === 'failed' && state.overview.gateSnapshot.stageCheck.detail ? `<div class="status-note warn overview-gate-error">${escapeHtml(state.overview.gateSnapshot.stageCheck.detail)}</div>` : ''}`
-      + `</div>`
-      + `<div class="overview-gate-item">`
-      + `<div class="overview-stage-row"><span>Build</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.build.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.build.state))}</span><button class="btn subtle btn-icon" data-action="runBuildWorkflow" aria-label="${escapeAttribute(runBuildLabel)}" title="${escapeAttribute(runBuildLabel)}">${runBuildIcon}</button></div></div>`
-      + `${state.overview.gateSnapshot.build.state === 'success' && state.overview.gateSnapshot.build.detail ? `<div class="item-subtext tiny">Output: ${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>` : ''}`
-      + `${state.overview.gateSnapshot.build.updatedAt ? `<div class="item-subtext tiny">${escapeHtml(dayjs(state.overview.gateSnapshot.build.updatedAt).fromNow())}</div>` : ''}`
-      + `${state.overview.gateSnapshot.build.state === 'failed' && state.overview.gateSnapshot.build.detail ? `<div class="status-note warn overview-gate-error">${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>` : ''}`
-      + `</div>`
-      + `</div>`
-      + `</div>`
       + `<div class="overview-structure">`
-      + `<div class="item-title-row"><span class="item-title-text">Structure Map</span></div>`
       + `${state.overview.mapRows.length > 0
         ? `<div class="overview-file-list">${state.overview.mapRows.map((row) => row.kind === 'group'
           ? `<div class="overview-group-row lvl-${row.level}">${escapeHtml(row.label)}</div>`
@@ -450,9 +452,6 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     + `${state.hasActiveMarkdown
       ? `<button class="sidebar-tab${state.activeTab === 'document' ? ' active' : ''}" data-action="setSidebarTab" data-value="document">Document</button>`
       : ''}`
-    + `${state.hasActiveMarkdown && state.enableComments
-      ? `<button class="sidebar-tab${state.activeTab === 'comments' ? ' active' : ''}" data-action="setSidebarTab" data-value="comments">Comments <span class="badge">${state.comments.totalCount}</span></button>`
-      : ''}`
     + `${state.canShowOverview
       ? `<button class="sidebar-tab${state.activeTab === 'overview' ? ' active' : ''}" data-action="setSidebarTab" data-value="overview">Manuscript</button>`
       : ''}`
@@ -469,6 +468,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       ${state.showExplorer ? explorerHtml : ''}
       ${state.mode === 'manuscript' ? metadataPanel : tocPanel}
       ${state.mode === 'manuscript' ? tocPanel : ''}
+      ${state.enableComments ? commentsPanel : ''}
     `;
 
   const content = state.activeTab === 'overview' && state.overview
@@ -485,9 +485,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         : '<div class="empty-panel">Open a Markdown document to use the Stego sidebar.</div>'
       : `
       ${tabRow}
-      ${state.activeTab === 'comments' && state.enableComments
-        ? commentsPanel
-        : documentContent}
+      ${documentContent}
     `;
 
   const assets = getSidebarAssetUris(webview, extensionUri);
@@ -499,7 +497,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="${assets.styleUri.toString()}" />
 </head>
-<body data-explorer-load-token="${state.explorerLoadToken}" data-identifier-pattern="${escapeAttribute(DEFAULT_IDENTIFIER_PATTERN)}">
+<body data-explorer-load-token="${state.explorerLoadToken}" data-identifier-pattern="${escapeAttribute(DEFAULT_IDENTIFIER_PATTERN)}" data-active-tab="${escapeAttribute(state.activeTab)}" data-selected-comment-id="${escapeAttribute(state.comments.selectedId ?? '')}">
   ${content}
   <script nonce="${nonce}" src="${assets.scriptUri.toString()}"></script>
 </body>

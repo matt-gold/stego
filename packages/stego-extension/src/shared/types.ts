@@ -30,6 +30,7 @@ export type SidebarState = {
   mode?: 'manuscript' | 'nonManuscript';
   parseError?: string;
   showExplorer: boolean;
+  metadataCollapsed: boolean;
   metadataEditing: boolean;
   enableComments: boolean;
   statusControl?: SidebarStatusControl;
@@ -49,7 +50,7 @@ export type SidebarState = {
   comments: SidebarCommentsState;
 };
 
-export type SidebarViewTab = 'document' | 'comments' | 'overview';
+export type SidebarViewTab = 'document' | 'overview';
 
 export type SidebarOverviewStageCount = {
   status: string;
@@ -68,6 +69,7 @@ export type SidebarOverviewFirstMissingMetadata = {
 };
 
 export type SidebarOverviewState = {
+  manuscriptTitle: string;
   generatedAt: string;
   wordCount: number;
   manuscriptFileCount: number;
@@ -256,6 +258,7 @@ export type ProjectBibleCategory = {
 export type ProjectScanContext = {
   projectDir: string;
   projectMtimeMs: number;
+  projectTitle?: string;
   structuralKeys: string[];
   structuralLevels: ProjectStructuralLevel[];
   requiredMetadata: string[];
@@ -308,6 +311,7 @@ export type SidebarMessage =
   | { type: 'setSidebarTab'; value: SidebarViewTab }
   | { type: 'globalBack' }
   | { type: 'globalForward' }
+  | { type: 'toggleMetadataCollapse' }
   | { type: 'addMetadataField' }
   | { type: 'editMetadataField'; key: string }
   | { type: 'removeMetadataField'; key: string }

@@ -43,6 +43,7 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
 
     const raw = await fs.readFile(projectFilePath, 'utf8');
     const parsed = JSON.parse(raw) as unknown;
+    const projectTitle = extractProjectTitle(parsed);
     const structuralLevels = extractProjectStructuralLevels(parsed);
     const structuralKeys = extractProjectStructuralKeysFromLevels(structuralLevels);
     const requiredMetadata = extractProjectRequiredMetadata(parsed);
@@ -51,6 +52,7 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
     return {
       projectDir: path.dirname(projectFilePath),
       projectMtimeMs: stat.mtimeMs,
+      projectTitle,
       structuralKeys,
       structuralLevels,
       requiredMetadata,
@@ -59,6 +61,15 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
   } catch {
     return undefined;
   }
+}
+
+export function extractProjectTitle(parsed: unknown): string | undefined {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return undefined;
+  }
+
+  const record = parsed as Record<string, unknown>;
+  return asString(record.title) || asString(record.name) || undefined;
 }
 
 export function extractProjectRequiredMetadata(parsed: unknown): string[] {

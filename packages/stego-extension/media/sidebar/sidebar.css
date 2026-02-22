@@ -144,6 +144,9 @@ h2 {
 .explorer-panel.collapsed {
   padding-bottom: 10px;
 }
+.metadata-panel.collapsed {
+  padding-bottom: 10px;
+}
 .explorer-list {
   display: flex;
   flex-direction: column;

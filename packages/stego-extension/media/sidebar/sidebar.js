@@ -3,15 +3,30 @@ const explorerIdentifierPatternSource = document.body.dataset.identifierPattern 
 const webviewState = vscode.getState() || {};
 const explorerLoadToken = Number(document.body.dataset.explorerLoadToken || 0);
 const previousExplorerLoadToken = Number(webviewState.lastExplorerLoadToken || 0);
+const activeTab = document.body.dataset.activeTab || '';
+const selectedCommentId = (document.body.dataset.selectedCommentId || '').trim().toUpperCase();
 const didLoadNewExplorer = (
   Number.isFinite(explorerLoadToken)
   && explorerLoadToken > 0
   && explorerLoadToken !== previousExplorerLoadToken
 );
 
+const shouldScrollToSelectedComment = (
+  activeTab === 'document'
+  && selectedCommentId.length > 0
+  && (
+    selectedCommentId !== (typeof webviewState.lastSelectedCommentId === 'string'
+      ? webviewState.lastSelectedCommentId.trim().toUpperCase()
+      : '')
+    || (webviewState.lastActiveTab && webviewState.lastActiveTab !== 'document')
+  )
+);
+
 const nextState = {
   ...webviewState,
-  lastExplorerLoadToken: explorerLoadToken
+  lastExplorerLoadToken: explorerLoadToken,
+  lastActiveTab: activeTab,
+  lastSelectedCommentId: selectedCommentId
 };
 
 if (didLoadNewExplorer) {
@@ -26,6 +41,19 @@ if (didLoadNewExplorer) {
 }
 
 vscode.setState(nextState);
+
+if (shouldScrollToSelectedComment) {
+  requestAnimationFrame(() => {
+    const selectedComment = selectedCommentId
+      ? document.querySelector(`.comment-list-item.selected[data-id="${selectedCommentId}"]`)
+      : null;
+    if (!(selectedComment instanceof HTMLElement)) {
+      return;
+    }
+
+    selectedComment.scrollIntoView({ block: 'center', behavior: 'auto' });
+  });
+}
 
 function linkifyExplorerIdentifiers(container) {
   if (!(container instanceof HTMLElement)) {
