@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.1.3
+
+### Patch Changes
+
+- 16595c7: Improve onboarding docs: update the repo README for the CLI-first workflow and generate a scaffolded workspace `README.md` during `stego init`.
+
 ## 0.1.2
 
 ### Patch Changes
