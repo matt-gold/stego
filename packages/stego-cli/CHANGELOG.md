@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.1.2
+
+### Patch Changes
+
+- cbf742f: Fix `stego init` for npm-installed CLI usage by writing the scaffold `.gitignore` directly instead of copying a package `.gitignore` asset.
+
 ## 0.1.1
 
 ### Patch Changes
