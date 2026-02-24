@@ -1,7 +1,7 @@
 {
   "name": "stego-extension",
-  "displayName": "Stego Bible Links",
-  "description": "Auto-link Bible identifiers like LOC-ASDF in Markdown manuscripts.",
+  "displayName": "Stego Spine Links",
+  "description": "Auto-link Spine identifiers like LOC-ASDF in Markdown manuscripts.",
   "version": "0.0.1",
   "publisher": "matt-gold",
   "license": "Apache-2.0",
@@ -13,28 +13,28 @@
   ],
   "activationEvents": [
     "onLanguage:markdown",
-    "onCommand:stegoBible.reloadIndex",
-    "onCommand:stegoBible.runBuild",
-    "onCommand:stegoBible.runGateStage",
-    "onCommand:stegoBible.addComment",
-    "onCommand:stegoBible.toggleFrontmatter",
-    "onView:stegoBible.metadataView"
+    "onCommand:stegoSpine.reloadIndex",
+    "onCommand:stegoSpine.runBuild",
+    "onCommand:stegoSpine.runGateStage",
+    "onCommand:stegoSpine.addComment",
+    "onCommand:stegoSpine.toggleFrontmatter",
+    "onView:stegoSpine.metadataView"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "stegoBible",
+          "id": "stegoSpine",
           "title": "Stego",
           "icon": "assets/stego.svg"
         }
       ]
     },
     "views": {
-      "stegoBible": [
+      "stegoSpine": [
         {
-          "id": "stegoBible.metadataView",
+          "id": "stegoSpine.metadataView",
           "name": "Metadata",
           "type": "webview",
           "icon": "assets/stego.svg"
@@ -43,36 +43,36 @@
     },
     "commands": [
       {
-        "command": "stegoBible.reloadIndex",
-        "title": "Stego Bible: Rebuild Index"
+        "command": "stegoSpine.reloadIndex",
+        "title": "Stego Spine: Rebuild Index"
       },
       {
-        "command": "stegoBible.runBuild",
+        "command": "stegoSpine.runBuild",
         "title": "Compile Full Manuscript",
         "icon": "$(file)"
       },
       {
-        "command": "stegoBible.runGateStage",
+        "command": "stegoSpine.runGateStage",
         "title": "Run Stage Checks",
         "icon": "$(check)"
       },
       {
-        "command": "stegoBible.runLocalValidate",
+        "command": "stegoSpine.runLocalValidate",
         "title": "Validate Current File",
         "icon": "$(verified)"
       },
       {
-        "command": "stegoBible.toggleFrontmatter",
-        "title": "Stego Bible: Toggle Frontmatter Fold"
+        "command": "stegoSpine.toggleFrontmatter",
+        "title": "Stego Spine: Toggle Frontmatter Fold"
       },
       {
-        "command": "stegoBible.addComment",
+        "command": "stegoSpine.addComment",
         "title": "Stego: Add Comment"
       }
     ],
     "keybindings": [
       {
-        "command": "stegoBible.addComment",
+        "command": "stegoSpine.addComment",
         "key": "ctrl+shift+c",
         "mac": "cmd+shift+c",
         "when": "editorTextFocus"
@@ -81,13 +81,13 @@
     "menus": {
       "view/title": [
         {
-          "command": "stegoBible.runBuild",
-          "when": "view == stegoBible.metadataView",
+          "command": "stegoSpine.runBuild",
+          "when": "view == stegoSpine.metadataView",
           "group": "navigation@1"
         },
         {
-          "command": "stegoBible.runGateStage",
-          "when": "view == stegoBible.metadataView",
+          "command": "stegoSpine.runGateStage",
+          "when": "view == stegoSpine.metadataView",
           "group": "navigation@2"
         }
       ]
@@ -95,22 +95,22 @@
     "configuration": {
       "title": "Stego",
       "properties": {
-        "stego.bible.identifierPattern": {
+        "stego.spine.identifierPattern": {
           "type": "string",
           "default": "\\b[A-Z][A-Z0-9]*-[A-Z0-9]+(?:-[A-Z0-9]+)*\\b",
-          "description": "Regex used to find Bible identifiers in Markdown text (for example LOC-ASDF or CHAR-JANE)."
+          "description": "Regex used to find Spine identifiers in Markdown text (for example LOC-ASDF or CHAR-JANE)."
         },
-        "stego.bible.indexFile": {
+        "stego.spine.indexFile": {
           "type": "string",
-          "default": ".stego/bible-index.json",
-          "description": "Path to the workspace JSON file containing identifier definitions. If missing or partial, Stego also infers entries from project.json bible category prefixes and markdown headings."
+          "default": ".stego/spine-index.json",
+          "description": "Path to the workspace JSON file containing indexed identifiers. If missing or partial, Stego also infers plates from project.json spine category prefixes and markdown headings."
         },
-        "stego.bible.definitionBaseUrl": {
+        "stego.spine.definitionBaseUrl": {
           "type": "string",
           "default": "",
           "description": "Optional fallback base URL used when an identifier has no explicit URL or path in the index."
         },
-        "stego.bible.reportUnknownIdentifiers": {
+        "stego.spine.reportUnknownIdentifiers": {
           "type": "boolean",
           "default": true,
           "description": "Warn when identifiers are found in text but missing from the index file."

@@ -3,13 +3,13 @@ import { DEFAULT_IDENTIFIER_PATTERN } from '../../shared/constants';
 import { collectIdentifiers } from './collectIdentifiers';
 import { createExploreIdentifierCommandUri } from '../navigation/openTargets';
 import { getConfig } from '../project/projectConfig';
-import { BibleIndexService } from '../indexing/bibleIndexService';
+import { SpineIndexService } from '../indexing/spineIndexService';
 import { isCommentIdentifier, normalizeCommentIdentifier } from '../comments/commentIds';
 
-export function createDocumentLinkProvider(indexService: BibleIndexService): vscode.DocumentLinkProvider {
+export function createDocumentLinkProvider(indexService: SpineIndexService): vscode.DocumentLinkProvider {
   return {
     async provideDocumentLinks(document): Promise<vscode.DocumentLink[]> {
-      const pattern = getConfig('bible', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+      const pattern = getConfig('spine', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
       const includeFences = getConfig('editor', document.uri).get<boolean>('linkInCodeFences', false);
       const matches = collectIdentifiers(document, pattern, includeFences);
       if (matches.length === 0) {
@@ -23,7 +23,7 @@ export function createDocumentLinkProvider(indexService: BibleIndexService): vsc
         if (isCommentIdentifier(match.id)) {
           const commentId = normalizeCommentIdentifier(match.id);
           const encodedArgs = encodeURIComponent(JSON.stringify([commentId]));
-          const commandUri = vscode.Uri.parse(`command:stegoBible.openCommentThread?${encodedArgs}`);
+          const commandUri = vscode.Uri.parse(`command:stegoSpine.openCommentThread?${encodedArgs}`);
           const link = new vscode.DocumentLink(match.range, commandUri);
           link.tooltip = `Open comment ${commentId}`;
           links.push(link);
@@ -33,7 +33,7 @@ export function createDocumentLinkProvider(indexService: BibleIndexService): vsc
           if (record?.title) {
             link.tooltip = `${match.id}: ${record.title}`;
           } else {
-            link.tooltip = `Explore ${match.id} in Bible sidebar`;
+            link.tooltip = `Explore ${match.id} in Spine sidebar`;
           }
           links.push(link);
         }

@@ -1,12 +1,12 @@
 import * as path from 'path';
 import { promises as fs, type Dirent } from 'fs';
-import { STORY_BIBLE_DIR } from '../../shared/constants';
+import { SPINE_DIR } from '../../shared/constants';
 import { normalizeFsPath, uniqueResolvedPaths } from '../../shared/path';
-import type { ProjectBibleCategory } from '../../shared/types';
+import type { ProjectSpineCategory } from '../../shared/types';
 
 export async function buildProjectScanPlan(
   projectDir: string,
-  categories: ProjectBibleCategory[]
+  categories: ProjectSpineCategory[]
 ): Promise<{ files: string[]; prefixes: Set<string>; stampParts: string[] }> {
   const prefixes = new Set(categories.map((category) => category.prefix));
   const notesFiles: string[] = [];
@@ -43,7 +43,7 @@ export async function resolveCategoryNotesFile(projectDir: string, notesFile: st
     return undefined;
   }
 
-  const candidate = path.join(projectDir, STORY_BIBLE_DIR, trimmed);
+  const candidate = path.join(projectDir, SPINE_DIR, trimmed);
   return (await isFile(candidate)) ? path.resolve(candidate) : undefined;
 }
 
@@ -152,11 +152,11 @@ export function shouldSkipScanDirectory(name: string): boolean {
     || value === '.vscode';
 }
 
-export async function resolveCurrentBibleCategoryFile(
+export async function resolveCurrentSpineCategoryFile(
   projectDir: string,
-  categories: ProjectBibleCategory[],
+  categories: ProjectSpineCategory[],
   currentFilePath: string
-): Promise<ProjectBibleCategory | undefined> {
+): Promise<ProjectSpineCategory | undefined> {
   const normalizedCurrent = normalizeFsPath(path.resolve(currentFilePath));
   for (const category of categories) {
     if (!category.notesFile) {

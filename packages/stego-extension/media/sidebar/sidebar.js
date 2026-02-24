@@ -22,23 +22,51 @@ const shouldScrollToSelectedComment = (
   )
 );
 
+const existingBacklinkInputsState = (webviewState.backlinkInputs && typeof webviewState.backlinkInputs === 'object')
+  ? webviewState.backlinkInputs
+  : {};
+const nextBacklinkInputsState = { ...existingBacklinkInputsState };
+
+if (didLoadNewExplorer) {
+  const activeBacklinkState = nextBacklinkInputsState.active;
+  if (activeBacklinkState && typeof activeBacklinkState === 'object') {
+    nextBacklinkInputsState.active = {
+      ...activeBacklinkState,
+      focused: false
+    };
+  }
+
+  // Keep the active Spine browser in view without jumping to the top of the whole sidebar.
+  const scrollToActiveExplorerPanel = () => {
+    const activeExplorerPanel = document.querySelector('.explorer-panel:not(.explorer-panel-pinned)');
+    if (!(activeExplorerPanel instanceof HTMLElement)) {
+      return;
+    }
+
+    const stickyTabs = document.querySelector('.sidebar-tabs');
+    const stickyOffset = stickyTabs instanceof HTMLElement ? (stickyTabs.offsetHeight + 4) : 0;
+    const targetTop = Math.max(
+      0,
+      window.scrollY + activeExplorerPanel.getBoundingClientRect().top - stickyOffset
+    );
+    window.scrollTo({ top: targetTop, behavior: 'auto' });
+  };
+
+  requestAnimationFrame(() => {
+    scrollToActiveExplorerPanel();
+    setTimeout(() => {
+      scrollToActiveExplorerPanel();
+    }, 0);
+  });
+}
+
 const nextState = {
   ...webviewState,
+  backlinkInputs: nextBacklinkInputsState,
   lastExplorerLoadToken: explorerLoadToken,
   lastActiveTab: activeTab,
   lastSelectedCommentId: selectedCommentId
 };
-
-if (didLoadNewExplorer) {
-  // Explorer navigation should always land the user at the top.
-  nextState.backlinkFocused = false;
-  requestAnimationFrame(() => {
-    window.scrollTo({ top: 0, behavior: 'auto' });
-    setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: 'auto' });
-    }, 0);
-  });
-}
 
 vscode.setState(nextState);
 
@@ -138,19 +166,76 @@ for (const markdownContainer of document.querySelectorAll('.md-rendered')) {
   linkifyExplorerIdentifiers(markdownContainer);
 }
 
-const backlinkInput = document.getElementById('backlink-filter');
-if (backlinkInput) {
-  if (typeof webviewState.backlinkValue === 'string' && webviewState.backlinkValue !== backlinkInput.value) {
-    backlinkInput.value = webviewState.backlinkValue;
+function readBacklinkInputStateMap() {
+  const state = vscode.getState();
+  if (!state || typeof state !== 'object') {
+    return {};
   }
 
-  if (!didLoadNewExplorer && webviewState.backlinkFocused) {
+  const map = state.backlinkInputs;
+  return (map && typeof map === 'object') ? map : {};
+}
+
+function writeBacklinkInputState(instanceKey, patch) {
+  const state = vscode.getState() || {};
+  const currentMap = (state.backlinkInputs && typeof state.backlinkInputs === 'object')
+    ? state.backlinkInputs
+    : {};
+  const existing = (currentMap[instanceKey] && typeof currentMap[instanceKey] === 'object')
+    ? currentMap[instanceKey]
+    : {};
+
+  vscode.setState({
+    ...state,
+    backlinkInputs: {
+      ...currentMap,
+      [instanceKey]: {
+        ...existing,
+        ...patch
+      }
+    }
+  });
+}
+
+const filterDebounceByInstance = new Map();
+
+for (const backlinkInput of document.querySelectorAll('input[data-backlink-instance][data-backlink-action]')) {
+  if (!(backlinkInput instanceof HTMLInputElement)) {
+    continue;
+  }
+
+  const instanceKey = (backlinkInput.dataset.backlinkInstance || '').trim();
+  const actionType = (backlinkInput.dataset.backlinkAction || '').trim();
+  if (!instanceKey || !actionType) {
+    continue;
+  }
+
+  const inputStateMap = readBacklinkInputStateMap();
+  const persistedState = (inputStateMap[instanceKey] && typeof inputStateMap[instanceKey] === 'object')
+    ? inputStateMap[instanceKey]
+    : undefined;
+  const shouldRestoreState = !(didLoadNewExplorer && instanceKey === 'active');
+
+  if (
+    shouldRestoreState
+    && persistedState
+    && typeof persistedState.value === 'string'
+    && persistedState.value !== backlinkInput.value
+  ) {
+    backlinkInput.value = persistedState.value;
+  }
+
+  if (
+    shouldRestoreState
+    && persistedState
+    && persistedState.focused
+  ) {
     backlinkInput.focus();
-    const start = typeof webviewState.backlinkSelectionStart === 'number'
-      ? webviewState.backlinkSelectionStart
+    const start = typeof persistedState.selectionStart === 'number'
+      ? persistedState.selectionStart
       : backlinkInput.value.length;
-    const end = typeof webviewState.backlinkSelectionEnd === 'number'
-      ? webviewState.backlinkSelectionEnd
+    const end = typeof persistedState.selectionEnd === 'number'
+      ? persistedState.selectionEnd
       : start;
     try {
       backlinkInput.setSelectionRange(start, end);
@@ -159,28 +244,54 @@ if (backlinkInput) {
     }
   }
 
-  let filterDebounce;
   backlinkInput.addEventListener('input', () => {
     const selectionStart = backlinkInput.selectionStart ?? backlinkInput.value.length;
     const selectionEnd = backlinkInput.selectionEnd ?? selectionStart;
-    vscode.setState({
-      ...vscode.getState(),
-      backlinkValue: backlinkInput.value,
-      backlinkFocused: true,
-      backlinkSelectionStart: selectionStart,
-      backlinkSelectionEnd: selectionEnd
+    writeBacklinkInputState(instanceKey, {
+      value: backlinkInput.value,
+      focused: true,
+      selectionStart,
+      selectionEnd
     });
 
-    clearTimeout(filterDebounce);
-    filterDebounce = setTimeout(() => {
-      vscode.postMessage({ type: 'setBacklinkFilter', value: backlinkInput.value });
+    const existingDebounce = filterDebounceByInstance.get(instanceKey);
+    if (existingDebounce) {
+      clearTimeout(existingDebounce);
+    }
+
+    const nextDebounce = setTimeout(() => {
+      const payload = { type: actionType, value: backlinkInput.value };
+      if (actionType === 'setPinnedBacklinkFilter') {
+        const pinnedId = (backlinkInput.dataset.id || '').trim();
+        if (!pinnedId) {
+          return;
+        }
+        payload.id = pinnedId;
+      }
+      vscode.postMessage(payload);
     }, 120);
+    filterDebounceByInstance.set(instanceKey, nextDebounce);
+  });
+
+  backlinkInput.addEventListener('focus', () => {
+    const selectionStart = backlinkInput.selectionStart ?? backlinkInput.value.length;
+    const selectionEnd = backlinkInput.selectionEnd ?? selectionStart;
+    writeBacklinkInputState(instanceKey, {
+      value: backlinkInput.value,
+      focused: true,
+      selectionStart,
+      selectionEnd
+    });
   });
 
   backlinkInput.addEventListener('blur', () => {
-    vscode.setState({
-      ...vscode.getState(),
-      backlinkFocused: false
+    const selectionStart = backlinkInput.selectionStart ?? backlinkInput.value.length;
+    const selectionEnd = backlinkInput.selectionEnd ?? selectionStart;
+    writeBacklinkInputState(instanceKey, {
+      value: backlinkInput.value,
+      focused: false,
+      selectionStart,
+      selectionEnd
     });
   });
 }

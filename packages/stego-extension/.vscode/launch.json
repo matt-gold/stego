@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Stego Bible Links",
+      "name": "Run Stego Spine Links",
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",

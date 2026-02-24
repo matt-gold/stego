@@ -2,7 +2,13 @@ import * as vscode from 'vscode';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { DEFAULT_IDENTIFIER_PATTERN } from '../../../shared/constants';
-import type { SidebarIdentifierLink, SidebarState } from '../../../shared/types';
+import type {
+  SidebarExplorerIdentifierPage,
+  SidebarExplorerPage,
+  SidebarIdentifierLink,
+  SidebarPinnedExplorerPanel,
+  SidebarState
+} from '../../../shared/types';
 import { getSidebarFileTitle } from '../sidebarToc';
 import { getSidebarAssetUris } from './sidebarAssetUris';
 import { renderMarkdownForExplorer } from './renderMarkdownForExplorer';
@@ -86,7 +92,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
         return `<article class="item metadata-item metadata-array-field">`
           + `<div class="item-main">`
-          + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isStructural ? '<span class="badge structural">Structure</span>' : ''}${entry.isBibleCategory ? '<span class="badge bible">Story Bible</span>' : ''}<span class="badge">${entry.arrayItems.length} items</span></div>`
+          + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isStructural ? '<span class="badge structural">Structural</span>' : ''}${entry.isSpineCategory ? '<span class="badge spine">Spine</span>' : ''}<span class="badge">${entry.arrayItems.length} items</span></div>`
           + `${arrayItems}`
           + `${showMetadataEditingControls
             ? `<div class="array-field-actions">`
@@ -99,7 +105,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
       return `<article class="item metadata-item">`
         + `<div class="item-main">`
-        + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isStructural ? '<span class="badge structural">Structure</span>' : ''}${entry.isBibleCategory ? '<span class="badge bible">Story Bible</span>' : ''}</div>`
+        + `<div class="item-title-row"><code>${escapeHtml(entry.key)}</code>${entry.isStructural ? '<span class="badge structural">Structural</span>' : ''}${entry.isSpineCategory ? '<span class="badge spine">Spine</span>' : ''}</div>`
         + `<div class="item-subtext metadata-value">${escapeHtml(entry.valueText)}</div>`
         + `${renderReferenceCards(entry.references)}`
         + `</div>`
@@ -125,6 +131,8 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const runStageLabel = 'Run Stage Check';
   const runBuildLabel = 'Run Build';
   const runBuildIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.75 1h4.19c.46 0 .9.18 1.22.5l2.34 2.34c.32.32.5.76.5 1.22v6.19A1.75 1.75 0 0 1 10.25 13h-6.5A1.75 1.75 0 0 1 2 11.25v-8.5A1.75 1.75 0 0 1 3.75 1zm0 1.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.06a.25.25 0 0 0-.07-.18L8.09 2.57a.25.25 0 0 0-.18-.07H3.75z"></path></svg>';
+  const pinAllFromFileLabel = 'Pin All From File';
+  const unpinAllLabel = 'Unpin All';
 
   const statusControlHtml = state.mode === 'manuscript' && state.statusControl
     ? `<div class="status-editor">`
@@ -171,115 +179,187 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const collapsePanelIcon = navIcon('M3.4 5.4L8 10l4.6-4.6 1 1L8 12 2.4 6.4z');
   const expandPanelIcon = navIcon('M10.6 3.4L6 8l4.6 4.6-1 1L4 8l5.6-5.6z');
 
-  const explorerNav = `<div class="explorer-nav">`
+  const renderExplorerBreadcrumbs = (page: SidebarExplorerPage | undefined, collapsed: boolean): string => {
+    if (!page || collapsed) {
+      return '';
+    }
+
+    if (page.kind === 'home') {
+      return `<div class="explorer-breadcrumbs"><span class="explorer-crumb-current">Home</span></div>`;
+    }
+
+    if (page.kind === 'category') {
+      return `<div class="explorer-breadcrumbs">`
+        + `<button class="explorer-crumb-link" data-action="explorerHome">Home</button>`
+        + `<span class="explorer-crumb-separator">/</span>`
+        + `<span class="explorer-crumb-current">${escapeHtml(page.category.label)}</span>`
+        + `</div>`;
+    }
+
+    return `<div class="explorer-breadcrumbs">`
+      + `<button class="explorer-crumb-link" data-action="explorerHome">Home</button>`
+      + `<span class="explorer-crumb-separator">/</span>`
+      + `${page.category
+        ? `<button class="explorer-crumb-link" data-action="openExplorerCategory" data-key="${escapeAttribute(page.category.key)}" data-prefix="${escapeAttribute(page.category.prefix)}">${escapeHtml(page.category.label)}</button>`
+          + `<span class="explorer-crumb-separator">/</span>`
+        : ''}`
+      + `<span class="explorer-crumb-current">${escapeHtml(page.entry.id)}</span>`
+      + `</div>`;
+  };
+
+  const renderExplorerIdentifierBody = (
+    page: SidebarExplorerIdentifierPage,
+    options: { mode: 'active' | 'pinned'; filterValue: string; pinnedId?: string }
+  ): string => {
+    const entry = page.entry;
+    const toggleAction = options.mode === 'pinned' ? 'togglePinnedExplorerBacklinks' : 'toggleExplorerBacklinks';
+    const filterAction = options.mode === 'pinned' ? 'setPinnedBacklinkFilter' : 'setBacklinkFilter';
+    const showPinnedSummary = options.mode !== 'pinned';
+    const panelId = options.pinnedId ? options.pinnedId.trim().toUpperCase() : '';
+    const idAttribute = panelId ? ` data-id="${escapeAttribute(panelId)}"` : '';
+    const filterInstance = options.mode === 'pinned' && panelId
+      ? `pinned:${panelId}`
+      : 'active';
+
+    return `<article class="item metadata-item">`
+      + `<div class="item-main">`
+      + `${showPinnedSummary
+        ? `<div class="item-title-row">`
+          + `<span class="item-title-text">${escapeHtml(entry.title)}</span>`
+          + `${!entry.known ? '<span class="badge warn">Missing</span>' : ''}`
+          + `</div>`
+        : (!entry.known ? `<div class="item-title-row"><span class="badge warn">Missing</span></div>` : '')}`
+      + `${showPinnedSummary && entry.description
+        ? `<div class="metadata-value">${renderMarkdownForExplorer(entry.description, entry.sourceFilePath ?? state.documentPath)}</div>`
+        : ''}`
+      + `${entry.sourceFilePath && entry.sourceLine
+        ? `<div class="explorer-source-row">`
+          + `<span class="tiny-label">Source</span>`
+          + `<button class="backlink-link" data-action="openBacklink" data-file-path="${escapeAttribute(entry.sourceFilePath)}" data-line="${entry.sourceLine}">${escapeHtml(entry.sourceFileLabel ?? entry.sourceFilePath)}:${entry.sourceLine}</button>`
+          + `</div>`
+        : ''}`
+      + `${entry.sourceBody
+        ? `<div class="explorer-body">${renderMarkdownForExplorer(entry.sourceBody, entry.sourceFilePath)}</div>`
+        : ''}`
+      + `<div class="backlink-section">`
+      + `<div class="item-title-row">`
+      + `<button class="btn subtle inline-toggle" data-action="${toggleAction}"${idAttribute}>${entry.backlinks.length} references${entry.backlinksExpanded ? ' (hide)' : ''}</button>`
+      + `</div>`
+      + `${entry.backlinksExpanded
+        ? `<div class="filter-row filter-row-tight"><input class="filter-input" type="text" value="${escapeAttribute(options.filterValue)}" placeholder="Filter references by filename" data-backlink-instance="${escapeAttribute(filterInstance)}" data-backlink-action="${escapeAttribute(filterAction)}"${idAttribute} /></div>`
+        : ''}`
+      + `${entry.backlinksExpanded
+        ? (entry.backlinks.length > 0
+          ? entry.backlinks.map((backlink) => `<div class="backlink-row">`
+            + `<button class="backlink-link" data-action="openBacklink" data-file-path="${escapeAttribute(backlink.filePath)}" data-line="${backlink.line}">${escapeHtml(backlink.fileLabel)}</button>`
+            + `<span class="badge">${backlink.count}x</span>`
+            + `<div class="item-subtext">${escapeHtml(backlink.excerpt)}</div>`
+            + `</div>`).join('')
+          : '<div class="empty tiny">No references found.</div>')
+        : ''}`
+      + `</div>`
+      + `</div>`
+      + `</article>`;
+  };
+
+  const renderExplorerBody = (
+    page: SidebarExplorerPage | undefined,
+    options: { mode: 'active' | 'pinned'; collapsed: boolean; filterValue: string; pinnedId?: string }
+  ): string => {
+    if (!page) {
+      return `<div class="empty">Click an identifier to inspect it here.</div>`;
+    }
+
+    if (options.collapsed) {
+      return '';
+    }
+
+    if (page.kind === 'home') {
+      return page.categories.length > 0
+        ? `<div class="explorer-list">`
+          + page.categories.map((category) => `<div class="explorer-list-row">`
+            + `<button class="id-link" data-action="openExplorerCategory" data-key="${escapeAttribute(category.key)}" data-prefix="${escapeAttribute(category.prefix)}">${escapeHtml(category.label)}</button>`
+            + `<span class="badge">${category.count}</span>`
+            + `</div>`).join('')
+          + `</div>`
+        : '<div class="empty">No spine categories found in this project.</div>';
+    }
+
+    if (page.kind === 'category') {
+      return `<article class="item metadata-item">`
+        + `<div class="item-main">`
+        + `<div class="item-title-row"><span class="item-title-text">${escapeHtml(page.category.label)}</span><span class="badge">${page.items.length}</span></div>`
+        + `${page.items.length > 0
+          ? `<div class="explorer-list">`
+            + page.items.map((item) => `<div class="explorer-list-row">`
+              + `<button class="id-link" data-action="openIdentifier" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.id)}</button>`
+              + `${item.title.trim().toUpperCase() !== item.id.toUpperCase() ? `<span class="item-subtext">${escapeHtml(item.title)}</span>` : ''}`
+              + `${!item.known ? '<span class="badge warn">Missing</span>' : ''}`
+              + `${item.description ? `<div class="item-subtext">${escapeHtml(item.description)}</div>` : ''}`
+              + `</div>`).join('')
+            + `</div>`
+          : '<div class="empty tiny">No plates found for this category.</div>'}`
+        + `</div>`
+        + `</article>`;
+    }
+
+    return renderExplorerIdentifierBody(page, options);
+  };
+
+  const pinnedIdentifiers = new Set(state.pinnedExplorers.map((panel) => panel.id.trim().toUpperCase()));
+  const activeIdentifierId = state.explorer?.kind === 'identifier'
+    ? state.explorer.entry.id.trim().toUpperCase()
+    : '';
+  const showPinButton = !!activeIdentifierId && !pinnedIdentifiers.has(activeIdentifierId);
+  const pinButtonHtml = showPinButton
+    ? `<button class="btn subtle explorer-pin-btn" data-action="pinExplorerEntry">Pin</button>`
+    : '';
+
+  const activeExplorerNav = `<div class="explorer-nav">`
+    + `${pinButtonHtml}`
     + `<button class="btn subtle btn-icon" data-action="explorerBack"${state.explorerCanGoBack ? '' : ' disabled'} aria-label="Back" title="Back">${backIcon}</button>`
     + `<button class="btn subtle btn-icon" data-action="explorerForward"${state.explorerCanGoForward ? '' : ' disabled'} aria-label="Forward" title="Forward">${forwardIcon}</button>`
     + `<button class="btn subtle btn-icon" data-action="explorerHome"${state.explorerCanGoHome ? '' : ' disabled'} aria-label="Home" title="Home">${homeIcon}</button>`
-    + `<button class="btn subtle btn-icon" data-action="toggleExplorerCollapse" aria-label="${state.explorerCollapsed ? 'Expand' : 'Collapse'}" title="${state.explorerCollapsed ? 'Expand' : 'Collapse'}">${state.explorerCollapsed ? expandPanelIcon : collapsePanelIcon}</button>`
     + `</div>`;
 
-  const explorerBreadcrumbs = !state.explorer || state.explorerCollapsed
-    ? ''
-    : state.explorer.kind === 'home'
-      ? `<div class="explorer-breadcrumbs"><span class="explorer-crumb-current">Home</span></div>`
-      : state.explorer.kind === 'category'
-        ? `<div class="explorer-breadcrumbs">`
-          + `<button class="explorer-crumb-link" data-action="explorerHome">Home</button>`
-          + `<span class="explorer-crumb-separator">/</span>`
-          + `<span class="explorer-crumb-current">${escapeHtml(state.explorer.category.label)}</span>`
-          + `</div>`
-        : `<div class="explorer-breadcrumbs">`
-          + `<button class="explorer-crumb-link" data-action="explorerHome">Home</button>`
-          + `<span class="explorer-crumb-separator">/</span>`
-          + `${state.explorer.category
-            ? `<button class="explorer-crumb-link" data-action="openExplorerCategory" data-key="${escapeAttribute(state.explorer.category.key)}" data-prefix="${escapeAttribute(state.explorer.category.prefix)}">${escapeHtml(state.explorer.category.label)}</button>`
-              + `<span class="explorer-crumb-separator">/</span>`
-            : ''}`
-          + `<span class="explorer-crumb-current">${escapeHtml(state.explorer.entry.id)}</span>`
-          + `</div>`;
-
-  const explorerBody = !state.explorer
-    ? `<div class="empty">Click an identifier to inspect it here.</div>`
-    : state.explorerCollapsed
-      ? ''
-      : state.explorer.kind === 'home'
-        ? (state.explorer.categories.length > 0
-          ? `<div class="explorer-list">`
-            + state.explorer.categories.map((category) => `<div class="explorer-list-row">`
-              + `<button class="id-link" data-action="openExplorerCategory" data-key="${escapeAttribute(category.key)}" data-prefix="${escapeAttribute(category.prefix)}">${escapeHtml(category.label)}</button>`
-              + `<span class="badge">${category.count}</span>`
-              + `</div>`).join('')
-            + `</div>`
-          : '<div class="empty">No bible categories found in this project.</div>')
-        : state.explorer.kind === 'category'
-          ? `<article class="item metadata-item">`
-            + `<div class="item-main">`
-            + `<div class="item-title-row"><span class="item-title-text">${escapeHtml(state.explorer.category.label)}</span><span class="badge">${state.explorer.items.length}</span></div>`
-            + `${state.explorer.items.length > 0
-              ? `<div class="explorer-list">`
-                + state.explorer.items.map((item) => `<div class="explorer-list-row">`
-                  + `<button class="id-link" data-action="openIdentifier" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.id)}</button>`
-                  + `${item.title.trim().toUpperCase() !== item.id.toUpperCase() ? `<span class="item-subtext">${escapeHtml(item.title)}</span>` : ''}`
-                  + `${!item.known ? '<span class="badge warn">Missing</span>' : ''}`
-                  + `${item.description ? `<div class="item-subtext">${escapeHtml(item.description)}</div>` : ''}`
-                  + `</div>`).join('')
-                + `</div>`
-              : '<div class="empty tiny">No identifiers found for this category.</div>'}`
-            + `</div>`
-            + `</article>`
-          : (() => {
-            const entry = state.explorer.entry;
-            return `<article class="item metadata-item">`
-              + `<div class="item-main">`
-              + `<div class="item-title-row">`
-              + `<span class="item-title-text">${escapeHtml(entry.title)}</span>`
-              + `${!entry.known ? '<span class="badge warn">Missing</span>' : ''}`
-              + `</div>`
-              + `${entry.description
-                ? `<div class="metadata-value">${renderMarkdownForExplorer(entry.description, entry.sourceFilePath ?? state.documentPath)}</div>`
-                : ''}`
-              + `${entry.sourceFilePath && entry.sourceLine
-                ? `<div class="explorer-source-row">`
-                  + `<span class="tiny-label">Source</span>`
-                  + `<button class="backlink-link" data-action="openBacklink" data-file-path="${escapeAttribute(entry.sourceFilePath)}" data-line="${entry.sourceLine}">${escapeHtml(entry.sourceFileLabel ?? entry.sourceFilePath)}:${entry.sourceLine}</button>`
-                  + `</div>`
-                : ''}`
-              + `${entry.sourceBody
-                ? `<div class="explorer-body">${renderMarkdownForExplorer(entry.sourceBody, entry.sourceFilePath)}</div>`
-                : ''}`
-              + `<div class="backlink-section">`
-              + `<div class="item-title-row">`
-              + `<button class="btn subtle inline-toggle" data-action="toggleExplorerBacklinks">${entry.backlinks.length} references${entry.backlinksExpanded ? ' (hide)' : ''}</button>`
-              + `</div>`
-              + `${entry.backlinksExpanded
-                ? `<div class="filter-row filter-row-tight"><input id="backlink-filter" class="filter-input" type="text" value="${escapeAttribute(state.backlinkFilter)}" placeholder="Filter references by filename" /></div>`
-                : ''}`
-              + `${entry.backlinksExpanded
-                ? (entry.backlinks.length > 0
-                  ? entry.backlinks.map((backlink) => `<div class="backlink-row">`
-                    + `<button class="backlink-link" data-action="openBacklink" data-file-path="${escapeAttribute(backlink.filePath)}" data-line="${backlink.line}">${escapeHtml(backlink.fileLabel)}</button>`
-                    + `<span class="badge">${backlink.count}x</span>`
-                    + `<div class="item-subtext">${escapeHtml(backlink.excerpt)}</div>`
-                    + `</div>`).join('')
-                  : '<div class="empty tiny">No references found.</div>')
-                : ''}`
-              + `</div>`
-              + `</div>`
-              + `</article>`;
-          })();
-
-  const explorerHtml = `<section class="panel explorer-panel${state.explorerCollapsed ? ' collapsed' : ''}">`
+  const activeExplorerPanel = `<section class="panel explorer-panel">`
     + `<div class="panel-heading">`
-    + `<h2>Bible Browser</h2>`
-    + `${explorerNav}`
+    + `<h2>Spine Browser</h2>`
+    + `${activeExplorerNav}`
     + `</div>`
-    + `${explorerBreadcrumbs}`
-    + `${explorerBody}`
+    + `${renderExplorerBreadcrumbs(state.explorer, false)}`
+    + `${renderExplorerBody(state.explorer, { mode: 'active', collapsed: false, filterValue: state.backlinkFilter })}`
     + `</section>`;
+
+  const renderPinnedExplorerPanel = (panel: SidebarPinnedExplorerPanel): string => {
+    const unpinLabel = `Unpin ${panel.id}`;
+    const collapseLabel = panel.collapsed ? 'Expand pinned panel' : 'Collapse pinned panel';
+    return `<section class="panel explorer-panel explorer-panel-pinned${panel.collapsed ? ' collapsed' : ''}" data-pinned-id="${escapeAttribute(panel.id)}">`
+      + `<div class="panel-heading">`
+      + `<h2>${escapeHtml(panel.page.entry.id)}</h2>`
+      + `<div class="explorer-nav explorer-nav-pinned">`
+      + `<span class="panel-kind-badge">Pinned</span>`
+      + `<button class="btn subtle btn-icon" data-action="togglePinnedExplorerCollapse" data-id="${escapeAttribute(panel.id)}" aria-label="${escapeAttribute(collapseLabel)}" title="${escapeAttribute(collapseLabel)}">${panel.collapsed ? expandPanelIcon : collapsePanelIcon}</button>`
+      + `<button class="btn subtle btn-icon explorer-unpin-btn" data-action="unpinExplorerEntry" data-id="${escapeAttribute(panel.id)}" aria-label="${escapeAttribute(unpinLabel)}" title="${escapeAttribute(unpinLabel)}">×</button>`
+      + `</div>`
+      + `</div>`
+      + `${renderExplorerBody(panel.page, { mode: 'pinned', collapsed: panel.collapsed, filterValue: panel.backlinkFilter, pinnedId: panel.id })}`
+      + `</section>`;
+  };
+
+  const explorerPanelsHtml = state.showExplorer
+    ? `<div class="spine-panel-stack">`
+      + `${state.pinnedExplorers.map((panel) => renderPinnedExplorerPanel(panel)).join('')}`
+      + `${activeExplorerPanel}`
+      + `</div>`
+    : '<div class="empty-panel">No spine categories found in this project.</div>';
 
   const tocHtml = state.tocEntries.length > 0
     ? state.tocEntries.map((entry) => {
-      const headingLink = `<button class="toc-link lvl-${entry.level}" data-action="openTocHeading" data-line="${entry.line}">${escapeHtml(entry.heading)}</button>`;
+      const shouldOpenSpineBrowser = state.isSpineCategoryFile && !!entry.identifier;
+      const headingLink = shouldOpenSpineBrowser
+        ? `<button class="toc-link lvl-${entry.level}" data-action="openIdentifier" data-id="${escapeAttribute(entry.identifier!.id)}">${escapeHtml(entry.heading)}</button>`
+        : `<button class="toc-link lvl-${entry.level}" data-action="openTocHeading" data-line="${entry.line}">${escapeHtml(entry.heading)}</button>`;
       const backlinkSection = entry.identifier
         ? `<div class="backlink-section">`
           + `<div class="item-title-row">`
@@ -304,19 +384,10 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const tocPanel = state.showToc
     ? `<section class="panel">`
       + `<div class="panel-heading">`
-      + `<h2>Table Of Contents</h2>`
-      + `${state.mode
-        ? `<span class="panel-kind-badge">${
-          state.mode === 'manuscript'
-            ? 'Manuscript'
-            : state.isBibleCategoryFile
-              ? 'Bible Entry'
-              : 'Note'
-        }</span>`
-        : ''}`
+      + `<h2>${state.isSpineCategoryFile ? 'Plates' : 'Table Of Contents'}</h2>`
       + `</div>`
-      + `${state.isBibleCategoryFile && (!state.explorer || state.explorer.kind !== 'identifier' || state.explorerCollapsed)
-        ? `<div class="filter-row"><input id="backlink-filter" class="filter-input" type="text" value="${escapeAttribute(state.backlinkFilter)}" placeholder="Filter references by filename" /></div>`
+      + `${state.isSpineCategoryFile
+        ? `<div class="filter-row"><input class="filter-input" type="text" value="${escapeAttribute(state.backlinkFilter)}" placeholder="Filter references by filename" data-backlink-instance="active" data-backlink-action="setBacklinkFilter" /></div>`
         : ''}`
       + `<div class="toc-list">${tocHtml}</div>`
       + `</section>`
@@ -447,10 +518,26 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `</section>`
     : '';
 
+  const showSpineTabActions = state.activeTab === 'spine' && state.showExplorer && state.hasActiveMarkdown;
+  const spineTabActions = showSpineTabActions
+    ? `<div class="sidebar-tabs-actions">`
+      + `<button class="btn subtle" data-action="pinAllExplorerEntriesFromFile"${state.canPinAllFromFile ? '' : ' disabled'}>${pinAllFromFileLabel}</button>`
+      + `${state.pinnedExplorers.length > 0
+        ? `<button class="btn subtle" data-action="unpinAllExplorerEntries">${unpinAllLabel}</button>`
+        : ''}`
+      + `</div>`
+    : '';
+  const spineTabActionsRow = spineTabActions
+    ? `<div class="spine-tab-actions-row">${spineTabActions}</div>`
+    : '';
+
   const tabRow = `<div class="sidebar-tabs">`
     + `<div class="sidebar-tabs-main">`
     + `${state.hasActiveMarkdown
       ? `<button class="sidebar-tab${state.activeTab === 'document' ? ' active' : ''}" data-action="setSidebarTab" data-value="document">Document</button>`
+      : ''}`
+    + `${state.showExplorer
+      ? `<button class="sidebar-tab${state.activeTab === 'spine' ? ' active' : ''}" data-action="setSidebarTab" data-value="spine">Spine</button>`
       : ''}`
     + `${state.canShowOverview
       ? `<button class="sidebar-tab${state.activeTab === 'overview' ? ' active' : ''}" data-action="setSidebarTab" data-value="overview">Manuscript</button>`
@@ -462,20 +549,34 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     + `</div>`
     + `</div>`;
 
+  const warningsHtml = state.warnings.length > 0
+    ? `<div class="warning-panel">${state.warnings.map((warning) => escapeHtml(warning)).join('<br/>')}</div>`
+    : '';
+
   const documentContent = `
+      ${warningsHtml}
       ${statusPanel}
       ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
-      ${state.showExplorer ? explorerHtml : ''}
       ${state.mode === 'manuscript' ? metadataPanel : tocPanel}
       ${state.mode === 'manuscript' ? tocPanel : ''}
       ${state.enableComments ? commentsPanel : ''}
     `;
 
+  const spineContent = `
+      ${tabRow}
+      ${spineTabActionsRow}
+      ${warningsHtml}
+      ${explorerPanelsHtml}
+    `;
+
   const content = state.activeTab === 'overview' && state.overview
     ? `
       ${tabRow}
+      ${warningsHtml}
       ${overviewPanel}
     `
+    : state.activeTab === 'spine'
+      ? spineContent
     : !state.hasActiveMarkdown
       ? state.canShowOverview
         ? `

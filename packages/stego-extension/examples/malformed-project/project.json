@@ -1,0 +1,23 @@
+{
+  "title": 42,
+  "name": "Malformed Demo Project",
+  "requiredMetadata": ["status", "", 123, "arc#", "status"],
+  "spineCategories": [
+    "not-an-object",
+    { "key": "characters", "prefix": "char", "notesFile": 7 },
+    { "key": "locations", "prefix": "LOC", "notesFile": "locations.md" },
+    { "key": "bad key!", "prefix": "BAD" },
+    { "key": "duplicatePrefix", "prefix": "LOC" },
+    { "key": "commentReserved", "prefix": "CMT" }
+  ],
+  "compileStructure": {
+    "levels": [
+      "bad-level",
+      { "key": "book", "label": "Book", "titleKey": "bookTitle", "headingTemplate": 99 },
+      { "key": "book", "label": "Duplicate Book" },
+      { "key": "part#", "label": "Part" },
+      { "key": "chapter", "label": "" },
+      { "key": "scene", "label": "Scene", "titleKey": "scene title" }
+    ]
+  }
+}

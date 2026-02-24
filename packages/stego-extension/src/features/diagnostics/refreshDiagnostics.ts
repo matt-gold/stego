@@ -3,12 +3,12 @@ import { DEFAULT_IDENTIFIER_PATTERN } from '../../shared/constants';
 import { normalizeFsPath } from '../../shared/path';
 import { collectIdentifiers } from '../identifiers/collectIdentifiers';
 import { getConfig, getResolvedIndexPath } from '../project/projectConfig';
-import { BibleIndexService } from '../indexing/bibleIndexService';
+import { SpineIndexService } from '../indexing/spineIndexService';
 import { isCommentIdentifier } from '../comments/commentIds';
 
 export async function refreshDiagnosticsForDocument(
   document: vscode.TextDocument,
-  indexService: BibleIndexService,
+  indexService: SpineIndexService,
   diagnostics: vscode.DiagnosticCollection
 ): Promise<void> {
   if (document.languageId !== 'markdown') {
@@ -16,13 +16,13 @@ export async function refreshDiagnosticsForDocument(
     return;
   }
 
-  const bibleConfig = getConfig('bible', document.uri);
-  if (!bibleConfig.get<boolean>('reportUnknownIdentifiers', true)) {
+  const spineConfig = getConfig('spine', document.uri);
+  if (!spineConfig.get<boolean>('reportUnknownIdentifiers', true)) {
     diagnostics.delete(document.uri);
     return;
   }
 
-  const pattern = bibleConfig.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+  const pattern = spineConfig.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
   const includeFences = getConfig('editor', document.uri).get<boolean>('linkInCodeFences', false);
   const matches = collectIdentifiers(document, pattern, includeFences);
   if (matches.length === 0) {
@@ -44,10 +44,10 @@ export async function refreshDiagnosticsForDocument(
 
     const diagnostic = new vscode.Diagnostic(
       match.range,
-      `Unknown Bible identifier '${match.id}'. Add the category in project.json (bibleCategories) and define the identifier in story-bible/<notesFile>.md.`,
+      `Unknown Spine identifier '${match.id}'. Add the category in project.json (spineCategories) and define the identifier in spine/<notesFile>.md.`,
       vscode.DiagnosticSeverity.Warning
     );
-    diagnostic.source = 'stegoBible';
+    diagnostic.source = 'stegoSpine';
     documentDiagnostics.push(diagnostic);
   }
 
@@ -55,7 +55,7 @@ export async function refreshDiagnosticsForDocument(
 }
 
 export async function refreshVisibleMarkdownDocuments(
-  indexService: BibleIndexService,
+  indexService: SpineIndexService,
   diagnostics: vscode.DiagnosticCollection
 ): Promise<void> {
   const documents = vscode.workspace.textDocuments.filter((document) => document.languageId === 'markdown');

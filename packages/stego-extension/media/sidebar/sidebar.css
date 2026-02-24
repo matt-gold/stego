@@ -14,6 +14,14 @@ body {
   margin-bottom: 12px;
   background: var(--vscode-editorWidget-background);
 }
+.spine-panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.spine-panel-stack .panel {
+  margin-bottom: 0;
+}
 h2 {
   margin: 0 0 8px;
   font-size: 11px;
@@ -79,6 +87,21 @@ h2 {
   align-items: center;
   gap: 6px;
 }
+.spine-tab-actions-row {
+  margin: -4px 0 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+.sidebar-tabs-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.sidebar-tabs-actions .btn {
+  white-space: nowrap;
+}
 .sidebar-tab {
   border: 1px solid var(--vscode-panel-border);
   border-radius: 999px;
@@ -111,6 +134,18 @@ h2 {
   display: inline-flex;
   gap: 6px;
   align-items: center;
+}
+.explorer-nav-pinned {
+  gap: 8px;
+}
+.explorer-pin-btn {
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.explorer-unpin-btn {
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 700;
 }
 .explorer-breadcrumbs {
   display: flex;
@@ -528,7 +563,7 @@ code {
   letter-spacing: 0.02em;
   border: 1px solid var(--vscode-panel-border);
 }
-.badge.bible {
+.badge.spine {
   background: var(--vscode-button-background);
   border-color: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
@@ -814,6 +849,15 @@ code {
   padding: 10px;
   line-height: 1.4;
   margin-bottom: 12px;
+}
+.warning-panel {
+  border: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground) 60%, var(--vscode-panel-border));
+  border-radius: 8px;
+  padding: 10px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+  color: var(--vscode-editorWarning-foreground);
+  background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, var(--vscode-editorWidget-background));
 }
 .empty-panel {
   color: var(--vscode-descriptionForeground);

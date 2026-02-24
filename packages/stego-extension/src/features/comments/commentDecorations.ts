@@ -8,9 +8,12 @@ import type { CommentExcerptTracker } from './commentExcerptTracker';
 dayjs.extend(relativeTime);
 
 export class CommentDecorationsService implements vscode.Disposable {
+  private static readonly UNRESOLVED_COMMENT_YELLOW = '#c4a24a';
+
   private readonly unresolvedDecoration: vscode.TextEditorDecorationType;
   private readonly resolvedDecoration: vscode.TextEditorDecorationType;
   private readonly lineUnderlineDecoration: vscode.TextEditorDecorationType;
+  private readonly unresolvedLineUnderlineDecoration: vscode.TextEditorDecorationType;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -30,6 +33,11 @@ export class CommentDecorationsService implements vscode.Disposable {
       textDecoration: 'underline dotted',
       rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
     });
+
+    this.unresolvedLineUnderlineDecoration = vscode.window.createTextEditorDecorationType({
+      textDecoration: `underline dotted ${CommentDecorationsService.UNRESOLVED_COMMENT_YELLOW}`,
+      rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
+    });
   }
 
   public dispose(): void {
@@ -37,6 +45,7 @@ export class CommentDecorationsService implements vscode.Disposable {
     this.unresolvedDecoration.dispose();
     this.resolvedDecoration.dispose();
     this.lineUnderlineDecoration.dispose();
+    this.unresolvedLineUnderlineDecoration.dispose();
   }
 
   public clearAll(): void {
@@ -44,6 +53,7 @@ export class CommentDecorationsService implements vscode.Disposable {
       editor.setDecorations(this.unresolvedDecoration, []);
       editor.setDecorations(this.resolvedDecoration, []);
       editor.setDecorations(this.lineUnderlineDecoration, []);
+      editor.setDecorations(this.unresolvedLineUnderlineDecoration, []);
     }
   }
 
@@ -62,6 +72,7 @@ export class CommentDecorationsService implements vscode.Disposable {
       editor.setDecorations(this.unresolvedDecoration, []);
       editor.setDecorations(this.resolvedDecoration, []);
       editor.setDecorations(this.lineUnderlineDecoration, []);
+      editor.setDecorations(this.unresolvedLineUnderlineDecoration, []);
       return;
     }
 
@@ -70,6 +81,7 @@ export class CommentDecorationsService implements vscode.Disposable {
       editor.setDecorations(this.unresolvedDecoration, []);
       editor.setDecorations(this.resolvedDecoration, []);
       editor.setDecorations(this.lineUnderlineDecoration, []);
+      editor.setDecorations(this.unresolvedLineUnderlineDecoration, []);
       return;
     }
 
@@ -172,6 +184,7 @@ export class CommentDecorationsService implements vscode.Disposable {
     const unresolvedOptions: vscode.DecorationOptions[] = [];
     const resolvedOptions: vscode.DecorationOptions[] = [];
     const underlineOptions: vscode.DecorationOptions[] = [];
+    const unresolvedUnderlineOptions: vscode.DecorationOptions[] = [];
 
     for (const [line, comments] of byLine.entries()) {
       const hasUnresolved = comments.some((entry) => entry.status === 'open');
@@ -189,19 +202,40 @@ export class CommentDecorationsService implements vscode.Disposable {
     }
 
     const overlapGroups = buildOverlapGroups(commentEntries);
+    const rangeState = new Map<string, { hasUnresolved: boolean; option: vscode.DecorationOptions }>();
     for (const group of overlapGroups) {
       const hover = buildHoverMarkdown(group);
       for (const entry of group) {
-        underlineOptions.push({
+        const option: vscode.DecorationOptions = {
           range: entry.range,
           hoverMessage: hover
+        };
+        const key = `${entry.range.start.line}:${entry.range.start.character}-${entry.range.end.line}:${entry.range.end.character}`;
+        const existing = rangeState.get(key);
+        if (existing) {
+          existing.hasUnresolved = existing.hasUnresolved || entry.status === 'open';
+          continue;
+        }
+
+        rangeState.set(key, {
+          hasUnresolved: entry.status === 'open',
+          option
         });
+      }
+    }
+
+    for (const stateEntry of rangeState.values()) {
+      if (stateEntry.hasUnresolved) {
+        unresolvedUnderlineOptions.push(stateEntry.option);
+      } else {
+        underlineOptions.push(stateEntry.option);
       }
     }
 
     editor.setDecorations(this.unresolvedDecoration, unresolvedOptions);
     editor.setDecorations(this.resolvedDecoration, resolvedOptions);
     editor.setDecorations(this.lineUnderlineDecoration, underlineOptions);
+    editor.setDecorations(this.unresolvedLineUnderlineDecoration, unresolvedUnderlineOptions);
   }
 }
 
@@ -222,16 +256,18 @@ function buildHoverMarkdown(
 ): vscode.MarkdownString {
   const markdown = new vscode.MarkdownString();
   markdown.isTrusted = {
-    enabledCommands: ['stegoBible.openCommentThread']
+    enabledCommands: ['stegoSpine.openCommentThread']
   };
 
-  const unresolvedCount = comments.filter((entry) => entry.status === 'open').length;
-  markdown.appendMarkdown(`**${comments.length} comment${comments.length === 1 ? '' : 's'} in this section**`);
-  markdown.appendMarkdown(`  \n${unresolvedCount} unresolved, ${comments.length - unresolvedCount} resolved`);
+  if (comments.length > 1) {
+    const unresolvedCount = comments.filter((entry) => entry.status === 'open').length;
+    markdown.appendMarkdown(`**${comments.length} comments in this section**`);
+    markdown.appendMarkdown(`  \n${unresolvedCount} unresolved, ${comments.length - unresolvedCount} resolved`);
+  }
 
   comments.forEach((comment, index) => {
     const encoded = encodeURIComponent(JSON.stringify([comment.id]));
-    const commandUri = vscode.Uri.parse(`command:stegoBible.openCommentThread?${encoded}`);
+    const commandUri = vscode.Uri.parse(`command:stegoSpine.openCommentThread?${encoded}`);
     const latest = parseThreadEntry(comment.thread[comment.thread.length - 1] ?? '');
     const status = comment.status === 'open' ? 'Unresolved' : 'Resolved';
     const timestampSource = comment.createdAt || latest.timestamp;

@@ -2,4 +2,4 @@
 
 ## 0.0.1
 
-- Initial scaffold for Bible identifier links in Markdown.
+- Initial scaffold for Spine identifier links in Markdown.

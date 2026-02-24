@@ -4,17 +4,17 @@ import { escapeMarkdown } from '../../shared/markdown';
 import { collectIdentifiers } from './collectIdentifiers';
 import { createExploreIdentifierCommandUri } from '../navigation/openTargets';
 import { getConfig } from '../project/projectConfig';
-import { BibleIndexService } from '../indexing/bibleIndexService';
+import { SpineIndexService } from '../indexing/spineIndexService';
 import { isCommentIdentifier, normalizeCommentIdentifier } from '../comments/commentIds';
 
-export function createHoverProvider(indexService: BibleIndexService): vscode.HoverProvider {
+export function createHoverProvider(indexService: SpineIndexService): vscode.HoverProvider {
   return {
     async provideHover(document, position): Promise<vscode.Hover | undefined> {
       if (!getConfig('editor', document.uri).get<boolean>('enableHover', true)) {
         return undefined;
       }
 
-      const pattern = getConfig('bible', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+      const pattern = getConfig('spine', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
       const includeFences = getConfig('editor', document.uri).get<boolean>('linkInCodeFences', false);
       const matches = collectIdentifiers(document, pattern, includeFences);
       const match = matches.find((candidate) => candidate.range.contains(position));
@@ -25,10 +25,10 @@ export function createHoverProvider(indexService: BibleIndexService): vscode.Hov
       if (isCommentIdentifier(match.id)) {
         const commentId = normalizeCommentIdentifier(match.id);
         const encodedArgs = encodeURIComponent(JSON.stringify([commentId]));
-        const commandUri = vscode.Uri.parse(`command:stegoBible.openCommentThread?${encodedArgs}`);
+        const commandUri = vscode.Uri.parse(`command:stegoSpine.openCommentThread?${encodedArgs}`);
         const commentMd = new vscode.MarkdownString();
         commentMd.isTrusted = {
-          enabledCommands: ['stegoBible.openCommentThread']
+          enabledCommands: ['stegoSpine.openCommentThread']
         };
         commentMd.appendMarkdown(`**${commentId}**`);
         commentMd.appendMarkdown(`\\n\\nComment identifier.`);
@@ -51,7 +51,7 @@ export function createHoverProvider(indexService: BibleIndexService): vscode.Hov
         md.appendMarkdown(`\\n\\n${escapeMarkdown(record.description)}`);
       }
 
-      md.appendMarkdown(`\\n\\n[Open in Bible Browser](${createExploreIdentifierCommandUri(match.id).toString()})`);
+      md.appendMarkdown(`\\n\\n[Open in Spine Browser](${createExploreIdentifierCommandUri(match.id).toString()})`);
 
       return new vscode.Hover(md, match.range);
     }

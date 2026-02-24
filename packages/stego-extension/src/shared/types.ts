@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-export type BibleRecord = {
+export type SpineRecord = {
   title?: string;
   description?: string;
   url?: string;
@@ -24,6 +24,7 @@ export type SidebarState = {
   hasActiveMarkdown: boolean;
   documentPath: string;
   structureSummary?: string;
+  warnings: string[];
   canShowOverview: boolean;
   activeTab: SidebarViewTab;
   overview?: SidebarOverviewState;
@@ -36,6 +37,8 @@ export type SidebarState = {
   statusControl?: SidebarStatusControl;
   metadataEntries: SidebarMetadataEntry[];
   explorer?: SidebarExplorerPage;
+  pinnedExplorers: SidebarPinnedExplorerPanel[];
+  canPinAllFromFile: boolean;
   explorerCollapsed: boolean;
   explorerCanGoBack: boolean;
   explorerCanGoForward: boolean;
@@ -45,12 +48,12 @@ export type SidebarState = {
   explorerLoadToken: number;
   tocEntries: SidebarTocEntry[];
   showToc: boolean;
-  isBibleCategoryFile: boolean;
+  isSpineCategoryFile: boolean;
   backlinkFilter: string;
   comments: SidebarCommentsState;
 };
 
-export type SidebarViewTab = 'document' | 'overview';
+export type SidebarViewTab = 'document' | 'spine' | 'overview';
 
 export type SidebarOverviewStageCount = {
   status: string;
@@ -117,7 +120,7 @@ export type FrontmatterLineRange = {
 export type SidebarMetadataEntry = {
   key: string;
   isStructural: boolean;
-  isBibleCategory: boolean;
+  isSpineCategory: boolean;
   isArray: boolean;
   valueText: string;
   references: SidebarIdentifierLink[];
@@ -236,12 +239,20 @@ export type SidebarExplorerIdentifierPage = {
 
 export type SidebarExplorerPage = SidebarExplorerHomePage | SidebarExplorerCategoryPage | SidebarExplorerIdentifierPage;
 
+export type SidebarPinnedExplorerPanel = {
+  id: string;
+  page: SidebarExplorerIdentifierPage;
+  backlinkFilter: string;
+  backlinksExpanded: boolean;
+  collapsed: boolean;
+};
+
 export type ExplorerRoute =
   | { kind: 'home' }
   | { kind: 'category'; key: string; prefix: string }
   | { kind: 'identifier'; id: string };
 
-export type BibleSectionPreview = {
+export type SpineSectionPreview = {
   heading: string;
   body: string;
   filePath: string;
@@ -249,10 +260,15 @@ export type BibleSectionPreview = {
   line: number;
 };
 
-export type ProjectBibleCategory = {
+export type ProjectSpineCategory = {
   key: string;
   prefix: string;
   notesFile?: string;
+};
+
+export type ProjectConfigIssue = {
+  path: string;
+  message: string;
 };
 
 export type ProjectScanContext = {
@@ -262,7 +278,8 @@ export type ProjectScanContext = {
   structuralKeys: string[];
   structuralLevels: ProjectStructuralLevel[];
   requiredMetadata: string[];
-  categories: ProjectBibleCategory[];
+  categories: ProjectSpineCategory[];
+  issues: ProjectConfigIssue[];
 };
 
 export type ProjectStructuralLevel = {
@@ -329,12 +346,19 @@ export type SidebarMessage =
   | { type: 'explorerHome' }
   | { type: 'explorerBack' }
   | { type: 'explorerForward' }
+  | { type: 'pinExplorerEntry' }
+  | { type: 'pinAllExplorerEntriesFromFile' }
+  | { type: 'unpinExplorerEntry'; id: string }
+  | { type: 'unpinAllExplorerEntries' }
   | { type: 'toggleExplorerBacklinks' }
+  | { type: 'togglePinnedExplorerBacklinks'; id: string }
+  | { type: 'togglePinnedExplorerCollapse'; id: string }
   | { type: 'toggleExplorerCollapse' }
   | { type: 'reloadIdentifierIndex' }
   | { type: 'openTocHeading'; line: number }
   | { type: 'toggleTocBacklinks'; id: string }
   | { type: 'setBacklinkFilter'; value: string }
+  | { type: 'setPinnedBacklinkFilter'; id: string; value: string }
   | { type: 'openBacklink'; filePath: string; line: number }
   | { type: 'openExternalLink'; url: string; basePath?: string }
   | { type: 'addComment' }
@@ -354,7 +378,7 @@ export type SidebarMessage =
 export type CommandContext = {
   indexService: {
     clear(): void;
-    loadForDocument(document: vscode.TextDocument): Promise<Map<string, BibleRecord>>;
+    loadForDocument(document: vscode.TextDocument): Promise<Map<string, SpineRecord>>;
   };
   diagnostics: vscode.DiagnosticCollection;
 };

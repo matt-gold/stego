@@ -3,20 +3,20 @@ import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { uniqueResolvedPaths } from '../../shared/path';
 import type {
-  BibleRecord,
-  BibleSectionPreview,
-  ProjectBibleCategory,
+  SpineRecord,
+  SpineSectionPreview,
+  ProjectSpineCategory,
   ProjectScanContext,
   SidebarExplorerCategoryItem,
   SidebarExplorerCategorySummary
 } from '../../shared/types';
 import { getIdentifierPrefix, tryParseIdentifierFromHeading } from '../identifiers/collectIdentifiers';
 import { resolveCategoryNotesFile } from '../project/fileScan';
-import { resolveRecordPathToFile } from '../indexing/bibleIndexService';
+import { resolveRecordPathToFile } from '../indexing/spineIndexService';
 
 export function collectExplorerCategorySummaries(
-  categories: ProjectBibleCategory[],
-  index: Map<string, BibleRecord>
+  categories: ProjectSpineCategory[],
+  index: Map<string, SpineRecord>
 ): SidebarExplorerCategorySummary[] {
   const countByPrefix = new Map<string, number>();
   for (const id of index.keys()) {
@@ -40,7 +40,7 @@ export function collectExplorerCategorySummaries(
 
 export function collectExplorerCategoryItems(
   prefix: string,
-  index: Map<string, BibleRecord>
+  index: Map<string, SpineRecord>
 ): SidebarExplorerCategoryItem[] {
   const normalizedPrefix = prefix.toUpperCase();
   const items: SidebarExplorerCategoryItem[] = [];
@@ -70,12 +70,12 @@ export function toCategoryLabel(key: string): string {
   return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
 }
 
-export async function resolveBibleSectionPreview(
+export async function resolveSpineSectionPreview(
   identifier: string,
-  record: BibleRecord | undefined,
+  record: SpineRecord | undefined,
   document: vscode.TextDocument,
   projectContext: ProjectScanContext | undefined
-): Promise<BibleSectionPreview | undefined> {
+): Promise<SpineSectionPreview | undefined> {
   const folder = vscode.workspace.getWorkspaceFolder(document.uri);
   const candidates: string[] = [];
 
@@ -112,7 +112,7 @@ export async function parseIdentifierSectionFromFile(
   filePath: string,
   identifier: string,
   projectDir?: string
-): Promise<BibleSectionPreview | undefined> {
+): Promise<SpineSectionPreview | undefined> {
   if (!filePath.toLowerCase().endsWith('.md')) {
     return undefined;
   }

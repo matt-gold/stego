@@ -17,15 +17,15 @@ export function getStageCheckDetails(stage: string, scope: 'file' | 'project'): 
 
   switch (normalizedStage) {
     case 'revise':
-      details.push('Checked story-bible continuity.');
+      details.push('Checked spine continuity.');
       break;
     case 'line-edit':
-      details.push('Checked story-bible continuity.');
+      details.push('Checked spine continuity.');
       details.push('Ran spell check.');
       break;
     case 'proof':
     case 'final':
-      details.push('Checked story-bible continuity.');
+      details.push('Checked spine continuity.');
       details.push('Ran markdown lint.');
       details.push('Ran spell check.');
       details.push('Enforced strict local link checks.');
@@ -65,7 +65,7 @@ export async function runProjectGateStageWorkflow(): Promise<WorkflowRunResult> 
     })),
     {
       title: 'Run Stage Checks',
-      placeHolder: 'Select stage to enforce across the project'
+      placeHolder: 'Select stage to check across the project'
     }
   );
 

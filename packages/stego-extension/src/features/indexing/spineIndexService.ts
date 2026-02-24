@@ -4,20 +4,20 @@ import * as vscode from 'vscode';
 import { slugifyHeading } from '../../shared/markdown';
 import { asString } from '../../shared/value';
 import { toWorkspacePath } from '../../shared/path';
-import type { BibleRecord } from '../../shared/types';
+import type { SpineRecord } from '../../shared/types';
 import { buildProjectScanPlan } from '../project/fileScan';
 import { findNearestProjectConfig, getResolvedIndexPath } from '../project/projectConfig';
 
-export class BibleIndexService {
-  private readonly explicitCache = new Map<string, { mtimeMs: number; index: Map<string, BibleRecord> }>();
-  private readonly inferredCache = new Map<string, { stamp: string; index: Map<string, BibleRecord> }>();
+export class SpineIndexService {
+  private readonly explicitCache = new Map<string, { mtimeMs: number; index: Map<string, SpineRecord> }>();
+  private readonly inferredCache = new Map<string, { stamp: string; index: Map<string, SpineRecord> }>();
 
   public clear(): void {
     this.explicitCache.clear();
     this.inferredCache.clear();
   }
 
-  public async loadForDocument(document: vscode.TextDocument): Promise<Map<string, BibleRecord>> {
+  public async loadForDocument(document: vscode.TextDocument): Promise<Map<string, SpineRecord>> {
     const folder = vscode.workspace.getWorkspaceFolder(document.uri);
     if (!folder) {
       return new Map();
@@ -37,7 +37,7 @@ export class BibleIndexService {
     return mergeIndexes(inferred, explicit);
   }
 
-  private async loadExplicitIndex(folder: vscode.WorkspaceFolder): Promise<Map<string, BibleRecord>> {
+  private async loadExplicitIndex(folder: vscode.WorkspaceFolder): Promise<Map<string, SpineRecord>> {
     const indexPath = getResolvedIndexPath(folder);
     if (!indexPath) {
       return new Map();
@@ -69,7 +69,7 @@ export class BibleIndexService {
   private async loadInferredIndex(
     document: vscode.TextDocument,
     folder: vscode.WorkspaceFolder
-  ): Promise<Map<string, BibleRecord>> {
+  ): Promise<Map<string, SpineRecord>> {
     const project = await findNearestProjectConfig(document.uri.fsPath, folder.uri.fsPath);
     if (!project || project.categories.length === 0) {
       return new Map();
@@ -93,8 +93,8 @@ export class BibleIndexService {
   }
 }
 
-export function parseIndexFile(parsed: unknown): Map<string, BibleRecord> {
-  const index = new Map<string, BibleRecord>();
+export function parseIndexFile(parsed: unknown): Map<string, SpineRecord> {
+  const index = new Map<string, SpineRecord>();
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return index;
@@ -123,18 +123,18 @@ export function parseIndexFile(parsed: unknown): Map<string, BibleRecord> {
   return index;
 }
 
-export function mergeIndexes(base: Map<string, BibleRecord>, overrides: Map<string, BibleRecord>): Map<string, BibleRecord> {
+export function mergeIndexes(base: Map<string, SpineRecord>, overrides: Map<string, SpineRecord>): Map<string, SpineRecord> {
   const merged = new Map(base);
 
   for (const [id, record] of overrides) {
     const existing = merged.get(id);
-    merged.set(id, existing ? mergeBibleRecord(existing, record) : record);
+    merged.set(id, existing ? mergeSpineRecord(existing, record) : record);
   }
 
   return merged;
 }
 
-export function mergeBibleRecord(base: BibleRecord, override: BibleRecord): BibleRecord {
+export function mergeSpineRecord(base: SpineRecord, override: SpineRecord): SpineRecord {
   return {
     title: override.title ?? base.title,
     description: override.description ?? base.description,
@@ -148,8 +148,8 @@ export async function buildIndexFromHeadingScan(
   files: string[],
   prefixes: Set<string>,
   workspaceRoot: string
-): Promise<Map<string, BibleRecord>> {
-  const index = new Map<string, BibleRecord>();
+): Promise<Map<string, SpineRecord>> {
+  const index = new Map<string, SpineRecord>();
 
   for (const filePath of files) {
     let raw: string;

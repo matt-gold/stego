@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type {
-  BibleRecord,
-  ProjectBibleCategory,
+  SpineRecord,
+  ProjectSpineCategory,
   ProjectScanContext,
   SidebarIdentifierLink,
   SidebarExplorerPage,
@@ -13,15 +13,15 @@ import { extractIdentifierTokensFromValue, getIdentifierPrefix, tryParseIdentifi
 import { resolveTarget } from '../navigation/openTargets';
 import { ReferenceUsageIndexService } from '../indexing/referenceUsageIndexService';
 import { applyBacklinkFilter } from './sidebarToc';
-import { collectExplorerCategoryItems, collectExplorerCategorySummaries, resolveBibleSectionPreview } from './sidebarExplorer';
+import { collectExplorerCategoryItems, collectExplorerCategorySummaries, resolveSpineSectionPreview } from './sidebarExplorer';
 import type { SidebarTocEntry } from '../../shared/types';
 
 export function buildMetadataEntry(
   key: string,
   value: unknown,
   isStructural: boolean,
-  category: ProjectBibleCategory | undefined,
-  index: Map<string, BibleRecord>,
+  category: ProjectSpineCategory | undefined,
+  index: Map<string, SpineRecord>,
   document: vscode.TextDocument,
   pattern: string
 ): SidebarMetadataEntry {
@@ -35,7 +35,7 @@ export function buildMetadataEntry(
     return {
       key,
       isStructural,
-      isBibleCategory: !!category,
+      isSpineCategory: !!category,
       isArray: true,
       valueText: '',
       references: [],
@@ -46,7 +46,7 @@ export function buildMetadataEntry(
   return {
     key,
     isStructural,
-    isBibleCategory: !!category,
+    isSpineCategory: !!category,
     isArray: false,
     valueText: formatMetadataValue(value),
     references: buildIdentifierLinksForValue(value, category, index, document, pattern),
@@ -56,8 +56,8 @@ export function buildMetadataEntry(
 
 export function buildIdentifierLinksForValue(
   value: unknown,
-  category: ProjectBibleCategory | undefined,
-  index: Map<string, BibleRecord>,
+  category: ProjectSpineCategory | undefined,
+  index: Map<string, SpineRecord>,
   document: vscode.TextDocument,
   pattern: string
 ): SidebarIdentifierLink[] {
@@ -86,7 +86,7 @@ export function buildIdentifierLinksForValue(
 
 export async function buildExplorerState(
   document: vscode.TextDocument,
-  index: Map<string, BibleRecord>,
+  index: Map<string, SpineRecord>,
   projectContext: ProjectScanContext | undefined,
   pattern: string,
   route: { kind: 'home' } | { kind: 'category'; key: string; prefix: string } | { kind: 'identifier'; id: string },
@@ -133,7 +133,7 @@ export async function buildExplorerState(
   }
 
   const record = index.get(id);
-  const section = await resolveBibleSectionPreview(id, record, document, projectContext);
+  const section = await resolveSpineSectionPreview(id, record, document, projectContext);
   const title = (record?.title?.trim() || section?.heading?.trim() || id);
   const description = (record?.description?.trim() || section?.body?.trim() || '');
   const prefix = getIdentifierPrefix(id);
@@ -172,23 +172,23 @@ export async function buildExplorerState(
 
 export async function buildTocWithBacklinks(
   tocEntries: SidebarTocEntry[],
-  bibleCategoryForFile: ProjectBibleCategory | undefined,
+  spineCategoryForFile: ProjectSpineCategory | undefined,
   projectContext: ProjectScanContext | undefined,
   document: vscode.TextDocument,
-  index: Map<string, BibleRecord>,
+  index: Map<string, SpineRecord>,
   pattern: string,
   backlinkFilter: string,
   expandedTocBacklinks: Set<string>,
   referenceUsageService: ReferenceUsageIndexService
 ): Promise<SidebarTocEntry[]> {
-  if (!bibleCategoryForFile || !projectContext) {
+  if (!spineCategoryForFile || !projectContext) {
     return tocEntries;
   }
 
   const filteredEntries: SidebarTocEntry[] = [];
   const tocIdentifiers = tocEntries
     .map((entry) => tryParseIdentifierFromHeading(entry.heading))
-    .filter((identifier): identifier is string => !!identifier && identifier.startsWith(`${bibleCategoryForFile.prefix}-`));
+    .filter((identifier): identifier is string => !!identifier && identifier.startsWith(`${spineCategoryForFile.prefix}-`));
   const backlinksByIdentifier = await referenceUsageService.getReferencesForIdentifiers(
     projectContext.projectDir,
     [...new Set(tocIdentifiers)],
@@ -198,7 +198,7 @@ export async function buildTocWithBacklinks(
 
   for (const entry of tocEntries) {
     const identifier = tryParseIdentifierFromHeading(entry.heading);
-    if (!identifier || !identifier.startsWith(`${bibleCategoryForFile.prefix}-`)) {
+    if (!identifier || !identifier.startsWith(`${spineCategoryForFile.prefix}-`)) {
       filteredEntries.push(entry);
       continue;
     }

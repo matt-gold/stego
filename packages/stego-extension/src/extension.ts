@@ -7,7 +7,7 @@ import { runLocalValidateWorkflow } from './features/commands/localValidateWorkf
 import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments, isAnyWorkspaceIndexFile } from './features/diagnostics/refreshDiagnostics';
 import { createDocumentLinkProvider } from './features/identifiers/documentLinks';
 import { createHoverProvider } from './features/identifiers/hover';
-import { BibleIndexService } from './features/indexing/bibleIndexService';
+import { SpineIndexService } from './features/indexing/spineIndexService';
 import { ReferenceUsageIndexService } from './features/indexing/referenceUsageIndexService';
 import { getFrontmatterLineRange, getStegoCommentsLineRange } from './features/metadata/frontmatterParse';
 import { getActiveMarkdownDocument } from './features/metadata/frontmatterEdit';
@@ -18,8 +18,8 @@ import { CommentExcerptTracker } from './features/comments/commentExcerptTracker
 import { addCommentAtSelection, loadCommentDocumentState, persistExcerptUpdates, deleteCommentsByIds } from './features/comments/commentStore';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const diagnostics = vscode.languages.createDiagnosticCollection('stegoBible');
-  const indexService = new BibleIndexService();
+  const diagnostics = vscode.languages.createDiagnosticCollection('stegoSpine');
+  const indexService = new SpineIndexService();
   const referenceUsageService = new ReferenceUsageIndexService();
   const sidebarProvider = new MetadataSidebarProvider(
     context.extensionUri,
@@ -36,21 +36,21 @@ export function activate(context: vscode.ExtensionContext): void {
     diagnostics,
     commentDecorations,
     vscode.window.registerWebviewViewProvider(METADATA_VIEW_ID, sidebarProvider),
-    vscode.commands.registerCommand('stegoBible.exploreIdentifier', async (rawId: unknown) => {
+    vscode.commands.registerCommand('stegoSpine.exploreIdentifier', async (rawId: unknown) => {
       if (typeof rawId !== 'string' || rawId.trim().length === 0) {
         return;
       }
 
       await sidebarProvider.focusIdentifier(rawId);
     }),
-    vscode.commands.registerCommand('stegoBible.openCommentThread', async (rawId: unknown) => {
+    vscode.commands.registerCommand('stegoSpine.openCommentThread', async (rawId: unknown) => {
       if (typeof rawId !== 'string' || rawId.trim().length === 0) {
         return;
       }
 
       await sidebarProvider.focusComment(rawId);
     }),
-    vscode.commands.registerCommand('stegoBible.addComment', async () => {
+    vscode.commands.registerCommand('stegoSpine.addComment', async () => {
       const document = getActiveMarkdownDocument(true);
       if (!document) {
         return;
@@ -101,25 +101,25 @@ export function activate(context: vscode.ExtensionContext): void {
         return ranges;
       }
     }),
-    vscode.commands.registerCommand('stegoBible.reloadIndex', async () => {
+    vscode.commands.registerCommand('stegoSpine.reloadIndex', async () => {
       indexService.clear();
       referenceUsageService.clear();
       await refreshVisibleMarkdownDocuments(indexService, diagnostics);
       await sidebarProvider.refresh();
-      void vscode.window.showInformationMessage('Stego Bible index rebuilt.');
+      void vscode.window.showInformationMessage('Stego Spine index rebuilt.');
     }),
-    vscode.commands.registerCommand('stegoBible.runBuild', async () => {
+    vscode.commands.registerCommand('stegoSpine.runBuild', async () => {
       const result = await runProjectBuildWorkflow();
       await sidebarProvider.recordGateWorkflowResult('build', result);
     }),
-    vscode.commands.registerCommand('stegoBible.runGateStage', async () => {
+    vscode.commands.registerCommand('stegoSpine.runGateStage', async () => {
       const result = await runProjectGateStageWorkflow();
       await sidebarProvider.recordGateWorkflowResult('stageCheck', result);
     }),
-    vscode.commands.registerCommand('stegoBible.runLocalValidate', async () => {
+    vscode.commands.registerCommand('stegoSpine.runLocalValidate', async () => {
       await runLocalValidateWorkflow();
     }),
-    vscode.commands.registerCommand('stegoBible.toggleFrontmatter', async () => {
+    vscode.commands.registerCommand('stegoSpine.toggleFrontmatter', async () => {
       await toggleFrontmatterFold();
     }),
     vscode.workspace.onDidOpenTextDocument((document) => {

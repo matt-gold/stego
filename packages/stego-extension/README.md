@@ -1,37 +1,37 @@
-# Stego Bible Links
+# Stego Spine Links
 
-Stego Bible Links turns inline identifiers like `LOC-ASDF` into clickable links in Markdown so writers do not need to manually add Markdown links for every reference.
+Stego Spine Links turns inline identifiers like `LOC-ASDF` into clickable links in Markdown so writers do not need to manually add Markdown links for every reference.
 
 ## Features
 
-- Detect identifiers with a configurable regex (`stego.bible.identifierPattern`)
+- Detect identifiers with a configurable regex (`stego.spine.identifierPattern`)
 - Render identifiers as hyperlinks with `DocumentLinkProvider`
 - Show definition previews on hover
-- Warn when identifiers are missing from your index (`stego.bible.reportUnknownIdentifiers`)
+- Warn when identifiers are missing from your index (`stego.spine.reportUnknownIdentifiers`)
 - Ignore fenced code blocks by default
-- Auto-build index entries from `project.json` bible category prefixes by scanning `#`/`##`/`###` headings like `CHAR-...`, `LOC-...`, `SRC-...`
+- Auto-build index entries from `project.json` spine category prefixes by scanning `#`/`##`/`###` headings like `CHAR-...`, `LOC-...`, `SRC-...`
 - Mode-driven sidebar:
-- Manuscript files (`/manuscript` or `/manuscripts`) show a rich metadata editor, with identifier links/previews for bible category keys
+- Manuscript files (`/manuscript` or `/manuscripts`) show a rich metadata editor, with identifier links/previews for spine category keys
 - Manuscript files also show TOC when there is more than one heading (H1-H3)
 - Non-manuscript files show TOC (H1-H3)
-- Bible category note files show backlinks under identifier headings, with filename filtering
+- Spine category note files show backlinks under identifier headings, with filename filtering
 - Frontmatter folding support with optional auto-fold on open
 
 ## Index Format
 
-Create an index file at `.stego/bible-index.json` (or set `stego.bible.indexFile`).
+Create an index file at `.stego/spine-index.json` (or set `stego.spine.indexFile`).
 
 ```json
 {
   "LOC-ASDF": {
     "title": "Location Alpha",
     "description": "Primary coastal site used in chapter 3.",
-    "url": "https://example.com/bible/LOC-ASDF"
+    "url": "https://example.com/spine/LOC-ASDF"
   },
   "LOC-QWER": {
     "title": "Location Q",
     "description": "Secondary fallback location.",
-    "path": "docs/bible/location-qwer.md",
+    "path": "docs/spine/location-qwer.md",
     "anchor": "definition"
   },
   "LOC-ZXCV": "Short plain-text definition also supported"
@@ -48,14 +48,14 @@ Each identifier value can be:
 - `path` (workspace-relative file path target)
 - `anchor` (optional fragment appended to `url` or `path` target)
 
-If the JSON index is missing or incomplete, the extension also infers entries from your nearest `project.json` by reading `bibleCategories[].prefix` and scanning headings in project markdown files.
+If the JSON index is missing or incomplete, the extension also infers entries from your nearest `project.json` by reading `spineCategories[].prefix` and scanning headings in project markdown files.
 
 ## Settings
 
-- `stego.bible.identifierPattern`
-- `stego.bible.indexFile`
-- `stego.bible.definitionBaseUrl`
-- `stego.bible.reportUnknownIdentifiers`
+- `stego.spine.identifierPattern`
+- `stego.spine.indexFile`
+- `stego.spine.definitionBaseUrl`
+- `stego.spine.reportUnknownIdentifiers`
 - `stego.editor.enableHover`
 - `stego.editor.linkInCodeFences`
 - `stego.editor.autoFoldFrontmatter`
@@ -66,14 +66,14 @@ If the JSON index is missing or incomplete, the extension also infers entries fr
 
 1. Open a Markdown file and open the **Stego** activity bar panel.
 2. In manuscript files, edit frontmatter metadata directly in the sidebar.
-3. If a metadata value under a bible category key contains identifiers, those identifiers render as links with inline previews.
+3. If a metadata value under a spine category key contains identifiers, those identifiers render as links with inline previews.
 4. In non-manuscript files, use TOC links to navigate headings.
-5. In bible category note files, use TOC identifier backlink sections and filter by filename.
+5. In spine category note files, use TOC identifier backlink sections and filter by filename.
 
 ## Commands
 
-- `Stego Bible: Rebuild Index`
-- `Stego Bible: Toggle Frontmatter Fold`
+- `Stego Spine: Rebuild Index`
+- `Stego Spine: Toggle Frontmatter Fold`
 
 ## Development
 
