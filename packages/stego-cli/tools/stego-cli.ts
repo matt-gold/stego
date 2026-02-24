@@ -792,6 +792,10 @@ function shouldCopyTemplatePath(currentSourcePath: string): boolean {
   }
 
   if (parts[0] === "projects") {
+    if (parts[parts.length - 2] === ".vscode" && name === "settings.json") {
+      return false;
+    }
+
     const distIndex = parts.indexOf("dist");
     if (distIndex >= 0) {
       const isDistRoot = distIndex === parts.length - 1;
