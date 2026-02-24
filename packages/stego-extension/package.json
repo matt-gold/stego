@@ -2,7 +2,7 @@
   "name": "stego-extension",
   "displayName": "Stego Spine Links",
   "description": "Auto-link Spine identifiers like LOC-ASDF in Markdown manuscripts.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "matt-gold",
   "license": "Apache-2.0",
   "repository": {
