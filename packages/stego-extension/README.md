@@ -1,101 +1,246 @@
-# Stego Spine Links
+# Stego - VSCode Extension for `stego-cli`
 
-Stego Spine Links turns inline identifiers like `LOC-ASDF` into clickable links in Markdown so writers do not need to manually add Markdown links for every reference.
+Give your manuscript plot armor.
+
+`stego-cli` turns VS Code into a stage-aware writing environment with Git-backed drafts, structured “spine” knowledge, and workflow validation built for long-form projects.
+
+This extension provides the native UX for stego projects:
+
+- A project-aware sidebar for manuscripts, comments, and Spine browsing
+- Spine identifier links and hover previews inside Markdown
+- In-editor buttons for running your project's validation and compile scripts
 
 ## Features
 
-- Detect identifiers with a configurable regex (`stego.spine.identifierPattern`)
-- Render identifiers as hyperlinks with `DocumentLinkProvider`
-- Show definition previews on hover
-- Warn when identifiers are missing from your index (`stego.spine.reportUnknownIdentifiers`)
-- Ignore fenced code blocks by default
-- Auto-build index entries from `stego-project.json` spine category prefixes by scanning `#`/`##`/`###` headings like `CHAR-...`, `LOC-...`, `SRC-...`
-- Mode-driven sidebar:
-- Manuscript files (`/manuscript` or `/manuscripts`) show a rich metadata editor, with identifier links/previews for spine category keys
-- Manuscript files also show TOC when there is more than one heading (H1-H3)
-- Non-manuscript files show TOC (H1-H3)
-- Spine category note files show backlinks under identifier headings, with filename filtering
-- Frontmatter folding support with optional auto-fold on open
+- Dedicated Stego sidebar
+  - Provides a **Document** tab for file-level controls and comments
+  - Provides a **Spine** tab with a browser for your project knowledge base
+  - Provides a **Manuscript** tab for frontmatter editing, status control, overview metrics, and run actions
+- Detects Spine identifiers in Markdown and turns them into clickable links
+  - Shows hover previews for indexed identifiers
+- Runs project scripts for:
+    - stage checks
+    - full manuscript compile/export
+    - current-file validation
 
-## Index Format
+## Core Concepts
 
-Create an index file at `.stego/spine-index.json` (or set `stego.spine.indexFile`).
+- **Spine**: Your project reference system (characters, locations, sources, etc.)
+- **Plate**: A user-facing term for an entry inside a Spine category (for example `LOC-HOTELDIEU`)
+- **Manuscript file**: A Markdown file with frontmatter in your manuscript workflow
+- **Project config**: `stego-project.json`, discovered by walking upward from the active file
+
+## Sidebar Overview
+
+Stego adds a **Stego** sidebar panel in the activity bar with a webview UI.
+
+### Document tab
+
+- Contextual panels for the current file (for example TOC in standard Markdown files)
+- **Plates** panel when viewing Spine category files (clicking a plate opens it in the Spine browser)
+- Comments panel with unresolved/resolved threads (when comments are enabled)
+
+### Spine tab
+
+- Project-wide Spine browser (home -> category -> plate)
+- Back / forward / home navigation
+- Multi-pin workflow:
+  - Pin a plate to keep it visible
+  - Continue browsing in a fresh active browser instance below
+  - Unpin individual plates or unpin all
+- "Pin All From File" action to pin all referenced plates found in the current Markdown file
+
+### Manuscript tab
+
+- Frontmatter metadata editor
+- Status dropdown (project-aware)
+- Overview metrics (manuscript files, unresolved comments, etc.)
+- Run menu for:
+  - **Compile Full Manuscript**
+  - **Run Stage Check**
+- Status/result cards for stage checks and compile results
+
+## Project Setup
+
+Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward.
+
+### Minimal `stego-project.json`
 
 ```json
 {
-  "LOC-ASDF": {
-    "title": "Location Alpha",
-    "description": "Primary coastal site used in chapter 3.",
-    "url": "https://example.com/spine/LOC-ASDF"
+  "name": "My Novel",
+  "requiredMetadata": ["status", "chapter", "title"],
+  "spineCategories": [
+    { "key": "characters", "prefix": "CHAR", "notesFile": "spine/characters.md" },
+    { "key": "locations", "prefix": "LOC", "notesFile": "spine/locations.md" },
+    { "key": "sources", "prefix": "SRC", "notesFile": "spine/sources.md" }
+  ],
+  "compileStructure": {
+    "levels": [
+      { "key": "chapter", "label": "Chapter", "titleKey": "title" }
+    ]
+  }
+}
+```
+
+### Supported `stego-project.json` fields (current)
+
+- `title` or `name`
+- `requiredMetadata` (array of frontmatter keys)
+- `spineCategories[]`
+  - `key` (metadata key used in manuscripts)
+  - `prefix` (identifier prefix, uppercased internally)
+  - `notesFile` (optional path to the Spine category note file)
+- `compileStructure.levels[]`
+  - `key`
+  - `label`
+  - `titleKey` (optional)
+  - `headingTemplate` (optional, defaults to `{label} {value}: {title}`)
+
+Stego validates this file and reports non-fatal problems instead of failing hard.
+
+## Spine Index (Optional but Recommended)
+
+Stego can read a JSON identifier index from `.stego/spine-index.json` (configurable via `stego.spine.indexFile`).
+
+If the index is missing or incomplete, Stego also infers plates by scanning Markdown headings using prefixes from `stego-project.json`.
+
+### Example `.stego/spine-index.json`
+
+```json
+{
+  "LOC-HOTELDIEU": {
+    "title": "Hotel-Dieu",
+    "description": "Paris hospital and recurring setting.",
+    "path": "spine/locations.md",
+    "anchor": "loc-hoteldieu"
   },
-  "LOC-QWER": {
-    "title": "Location Q",
-    "description": "Secondary fallback location.",
-    "path": "docs/spine/location-qwer.md",
-    "anchor": "definition"
-  },
-  "LOC-ZXCV": "Short plain-text definition also supported"
+  "CHAR-JANE": "Primary point-of-view character"
 }
 ```
 
 Each identifier value can be:
 
-- A string (treated as description)
-- An object with:
-- `title`
-- `description`
-- `url` (absolute URL target)
-- `path` (workspace-relative file path target)
-- `anchor` (optional fragment appended to `url` or `path` target)
+- a string (treated as a short description)
+- an object with:
+  - `title`
+  - `description`
+  - `url` (absolute target)
+  - `path` (workspace-relative file target)
+  - `anchor` (optional fragment)
 
-If the JSON index is missing or incomplete, the extension also infers entries from your nearest `stego-project.json` by reading `spineCategories[].prefix` and scanning headings in project markdown files.
+## Project Scripts Stego Calls
 
-## Settings
+Stego does not compile manuscripts itself. It runs scripts from the nearest project `package.json`.
+
+### Required scripts by action
+
+- **Run Stage Check**: `check-stage`
+- **Compile Full Manuscript**: `build` and `export`
+- **Validate Current File**: `validate` and `check-stage`
+
+### Example project `package.json` scripts
+
+```json
+{
+  "scripts": {
+    "build": "node scripts/build-manuscript.js",
+    "export": "node scripts/export-manuscript.js",
+    "check-stage": "node scripts/check-stage.js",
+    "validate": "node scripts/validate-file.js"
+  }
+}
+```
+
+Stego passes arguments for format / stage / file where relevant (for example `--stage`, `--file`, `--format`).
+
+## Comments
+
+- Add comments from the editor with `Cmd+Shift+C` / `Ctrl+Shift+C`
+- Unresolved comments are highlighted in the editor and listed in the sidebar
+- Comment anchors track edits so comments remain attached to the intended text
+- The sidebar supports resolving and clearing resolved threads
+
+## Configuration
+
+### Spine
 
 - `stego.spine.identifierPattern`
 - `stego.spine.indexFile`
 - `stego.spine.definitionBaseUrl`
 - `stego.spine.reportUnknownIdentifiers`
+
+### Editor
+
 - `stego.editor.enableHover`
 - `stego.editor.linkInCodeFences`
 - `stego.editor.autoFoldFrontmatter`
+
+### Comments
+
 - `stego.comments.enable`
 - `stego.comments.author`
 
-## Sidebar Workflow
+### Optional status list override
 
-1. Open a Markdown file and open the **Stego** activity bar panel.
-2. In manuscript files, edit frontmatter metadata directly in the sidebar.
-3. If a metadata value under a spine category key contains identifiers, those identifiers render as links with inline previews.
-4. In non-manuscript files, use TOC links to navigate headings.
-5. In spine category note files, use TOC identifier backlink sections and filter by filename.
+If present, Stego reads `stego.config.json` (nearest upward) for:
+
+- `allowedStatuses` (array of strings), used by manuscript status controls and stage-check picker
+
+Default statuses are:
+
+- `draft`
+- `revise`
+- `line-edit`
+- `proof`
+- `final`
 
 ## Commands
 
+User-facing commands contributed by the extension:
+
 - `Stego Spine: Rebuild Index`
+- `Compile Full Manuscript`
+- `Run Stage Checks`
+- `Validate Current File`
 - `Stego Spine: Toggle Frontmatter Fold`
+- `Stego: Add Comment`
+
+## Malformed Project Demo
+
+The repo includes a demo workspace that intentionally contains bad data to test hardening behavior:
+
+- `examples/malformed-project`
+
+Open it in VS Code and inspect the Stego sidebar plus the **Stego Project Health** output channel.
 
 ## Development
 
 ```bash
 npm install
 npm run compile
-npm run test:pure
+npm test
+npm run package
 ```
 
-Press `F5` in VS Code to run the Extension Development Host.
+To debug in VS Code:
 
-### Source Layout
+1. Open this repo (`stego-extension`)
+2. Press `F5` to launch an Extension Development Host
 
-- `/Users/mattgold/Code/stego-extension/src/extension.ts`: composition root only (activation, registrations, wiring)
-- `/Users/mattgold/Code/stego-extension/src/shared/*`: shared constants, types, and pure helpers
-- `/Users/mattgold/Code/stego-extension/src/features/*`: feature modules (project, indexing, metadata, navigation, sidebar, commands)
-- `/Users/mattgold/Code/stego-extension/src/test/pure/*`: pure unit tests (no VS Code host dependency)
-- `/Users/mattgold/Code/stego-extension/media/sidebar/*`: external webview assets (`sidebar.css`, `sidebar.js`)
+## Release Workflow (Changesets + GitHub Actions)
 
-### Contribution Rules
+- CI runs on pushes/PRs to `main`
+- Releases are driven by Changesets
+- Publishing to the VS Code Marketplace uses the `VSCE_PAT` GitHub Actions secret
 
-- Keep `shared -> features -> extension.ts` dependency direction.
-- Keep command IDs, view IDs, and config keys backward-compatible.
-- Keep VS Code API usage at the module edges (providers, commands, activation).
-- Put webview styles/scripts in `/Users/mattgold/Code/stego-extension/media/sidebar/`, not inline template strings.
+Typical contributor flow:
+
+1. Make changes
+2. Add a changeset: `npm run changeset`
+3. Merge to `main`
+4. Let CI + release workflows handle versioning and publish
+
+## License
+
+Apache-2.0. See `LICENSE`.
