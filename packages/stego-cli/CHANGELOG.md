@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.1.4
+
+### Patch Changes
+
+- 03ad1d7: Prompt during `stego init` and `stego new-project` to optionally enable project-level proportional (prose-style) VS Code font settings, with `yes` selected by default.
+
 ## 0.1.3
 
 ### Patch Changes
