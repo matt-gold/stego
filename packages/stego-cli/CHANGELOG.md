@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.1.5
+
+### Patch Changes
+
+- 26985e2: Add repository boilerplate and npm package metadata, including a LICENSE file and package links.
+
 ## 0.1.4
 
 ### Patch Changes
