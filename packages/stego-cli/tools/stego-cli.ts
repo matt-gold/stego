@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { markdownExporter } from "./exporters/markdown-exporter.ts";
 import { createPandocExporter } from "./exporters/pandoc-exporter.ts";
@@ -156,6 +157,7 @@ const STATUS_RANK: Record<StageName, number> = {
 };
 const RESERVED_COMMENT_PREFIX = "CMT";
 const ROOT_CONFIG_FILENAME = "stego.config.json";
+const PROSE_FONT_PROMPT = "Switch workspace to proportional (prose-style) font? (recommended)";
 const SCAFFOLD_GITIGNORE_CONTENT = `node_modules/
 /dist/
 .DS_Store
@@ -215,6 +217,17 @@ This keeps your editor context focused and applies the project's recommended ext
 stego new-project --project my-book --title "My Book"
 \`\`\`
 `;
+const PROSE_MARKDOWN_EDITOR_SETTINGS: Record<string, unknown> = {
+  "[markdown]": {
+    "editor.fontFamily": "Inter, Helvetica Neue, Helvetica, Arial, sans-serif",
+    "editor.fontSize": 17,
+    "editor.lineHeight": 28,
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 72,
+    "editor.lineNumbers": "off"
+  },
+  "markdown.preview.fontFamily": "Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+};
 const PROJECT_EXTENSION_RECOMMENDATIONS = [
   "matt-gold.stego-extension",
   "matt-gold.saurus-extension"
@@ -224,9 +237,9 @@ const packageRoot = path.resolve(scriptDir, "..");
 let repoRoot = "";
 let config!: WritingConfig;
 
-main();
+void main();
 
-function main(): void {
+async function main(): Promise<void> {
   const { command, options } = parseArgs(process.argv.slice(2));
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
@@ -237,7 +250,7 @@ function main(): void {
   try {
     switch (command) {
       case "init":
-        initWorkspace({ force: readBooleanOption(options, "force") });
+        await initWorkspace({ force: readBooleanOption(options, "force") });
         return;
       case "list-projects":
         activateWorkspace(options);
@@ -245,7 +258,7 @@ function main(): void {
         return;
       case "new-project":
         activateWorkspace(options);
-        createProject(readStringOption(options, "project"), readStringOption(options, "title"));
+        await createProject(readStringOption(options, "project"), readStringOption(options, "title"));
         return;
       case "validate": {
         activateWorkspace(options);
@@ -769,7 +782,7 @@ function findNearestFileUpward(startPath: string, filename: string): string | nu
   }
 }
 
-function initWorkspace(options: { force: boolean }): void {
+async function initWorkspace(options: { force: boolean }): Promise<void> {
   const targetRoot = process.cwd();
   const entries = fs
     .readdirSync(targetRoot, { withFileTypes: true })
@@ -792,6 +805,10 @@ function initWorkspace(options: { force: boolean }): void {
   copyTemplateAsset(path.join(".vscode", "extensions.json"), targetRoot, copiedPaths, { optional: true });
 
   rewriteTemplateProjectPackageScripts(targetRoot);
+  const enableProseFont = await promptYesNo(PROSE_FONT_PROMPT, true);
+  if (enableProseFont) {
+    writeProjectProseEditorSettings(targetRoot, copiedPaths);
+  }
   writeInitRootPackageJson(targetRoot);
 
   logLine(`Initialized Stego workspace in ${targetRoot}`);
@@ -804,6 +821,36 @@ function initWorkspace(options: { force: boolean }): void {
   logLine("  npm install");
   logLine("  npm run list-projects");
   logLine("  npm run validate -- --project plague-demo");
+}
+
+async function promptYesNo(question: string, defaultYes: boolean): Promise<boolean> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    return defaultYes;
+  }
+
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  const suffix = defaultYes ? " [Y/n] " : " [y/N] ";
+
+  try {
+    while (true) {
+      const answer = (await rl.question(`${question}${suffix}`)).trim().toLowerCase();
+      if (!answer) {
+        return defaultYes;
+      }
+      if (answer === "y" || answer === "yes") {
+        return true;
+      }
+      if (answer === "n" || answer === "no") {
+        return false;
+      }
+      console.log("Please answer y or n.");
+    }
+  } finally {
+    rl.close();
+  }
 }
 
 function copyTemplateAsset(
@@ -943,6 +990,60 @@ function ensureProjectExtensionsRecommendations(projectRoot: string): void {
   fs.writeFileSync(extensionsPath, `${JSON.stringify(extensionsConfig, null, 2)}\n`, "utf8");
 }
 
+function writeProjectProseEditorSettings(targetRoot: string, copiedPaths: string[]): void {
+  const projectsRoot = path.join(targetRoot, "projects");
+  if (!fs.existsSync(projectsRoot)) {
+    return;
+  }
+
+  for (const entry of fs.readdirSync(projectsRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const projectRoot = path.join(projectsRoot, entry.name);
+    const settingsPath = writeProseEditorSettingsForProject(projectRoot);
+    copiedPaths.push(path.relative(targetRoot, settingsPath));
+  }
+}
+
+function writeProseEditorSettingsForProject(projectRoot: string): string {
+  const vscodeDir = path.join(projectRoot, ".vscode");
+  const settingsPath = path.join(vscodeDir, "settings.json");
+  fs.mkdirSync(vscodeDir, { recursive: true });
+
+  let existingSettings: Record<string, unknown> = {};
+  if (fs.existsSync(settingsPath)) {
+    try {
+      const parsed = readJson<Record<string, unknown>>(settingsPath);
+      if (isPlainObject(parsed)) {
+        existingSettings = parsed;
+      }
+    } catch {
+      existingSettings = {};
+    }
+  }
+
+  const proseMarkdownSettings = isPlainObject(PROSE_MARKDOWN_EDITOR_SETTINGS["[markdown]"])
+    ? (PROSE_MARKDOWN_EDITOR_SETTINGS["[markdown]"] as Record<string, unknown>)
+    : {};
+  const existingMarkdownSettings = isPlainObject(existingSettings["[markdown]"])
+    ? (existingSettings["[markdown]"] as Record<string, unknown>)
+    : {};
+
+  const nextSettings: Record<string, unknown> = {
+    ...existingSettings,
+    "[markdown]": {
+      ...existingMarkdownSettings,
+      ...proseMarkdownSettings
+    },
+    "markdown.preview.fontFamily": PROSE_MARKDOWN_EDITOR_SETTINGS["markdown.preview.fontFamily"]
+  };
+
+  fs.writeFileSync(settingsPath, `${JSON.stringify(nextSettings, null, 2)}\n`, "utf8");
+  return settingsPath;
+}
+
 function writeInitRootPackageJson(targetRoot: string): void {
   const cliPackage = readJson<Record<string, unknown>>(path.join(packageRoot, "package.json"));
   const cliVersion = typeof cliPackage.version === "string" ? cliPackage.version : "0.1.0";
@@ -992,7 +1093,7 @@ function listProjects(): void {
   }
 }
 
-function createProject(projectIdOption?: string, titleOption?: string): void {
+async function createProject(projectIdOption?: string, titleOption?: string): Promise<void> {
   const projectId = (projectIdOption || "").trim();
   if (!projectId) {
     throw new Error("Project id is required. Use --project <project-id>.");
@@ -1059,11 +1160,19 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
   fs.writeFileSync(charactersNotesPath, "# Characters\n\n", "utf8");
   const projectExtensionsPath = path.join(projectRoot, ".vscode", "extensions.json");
   ensureProjectExtensionsRecommendations(projectRoot);
+  let projectSettingsPath: string | null = null;
+  const enableProseFont = await promptYesNo(PROSE_FONT_PROMPT, true);
+  if (enableProseFont) {
+    projectSettingsPath = writeProseEditorSettingsForProject(projectRoot);
+  }
   logLine(`Created project: ${path.relative(repoRoot, projectRoot)}`);
   logLine(`- ${path.relative(repoRoot, projectJsonPath)}`);
   logLine(`- ${path.relative(repoRoot, projectPackagePath)}`);
   logLine(`- ${path.relative(repoRoot, charactersNotesPath)}`);
   logLine(`- ${path.relative(repoRoot, projectExtensionsPath)}`);
+  if (projectSettingsPath) {
+    logLine(`- ${path.relative(repoRoot, projectSettingsPath)}`);
+  }
 }
 
 function getProjectIds(): string[] {
