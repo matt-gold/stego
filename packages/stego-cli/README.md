@@ -1,9 +1,12 @@
 # Stego
 
-This workspace is a Markdown-first creative writing pipeline for short stories through novels.
+Stego is a Markdown-first creative writing workflow packaged as an installable CLI: `stego-cli`.
+
+This repository is the source for the CLI and the example/template content that `stego init` scaffolds into a new workspace.
 
 ## What this includes
 
+- Installable CLI (`stego`) for creating and operating Stego workspaces
 - Project-per-folder structure inside one monorepo.
 - Flexible manuscript files with per-project metadata requirements.
 - Configurable manuscript grouping via `compileStructure.levels` (for example `part` + `chapter`).
@@ -11,23 +14,77 @@ This workspace is a Markdown-first creative writing pipeline for short stories t
 - Deterministic build into one manuscript Markdown file.
 - Stage-based quality gates (`draft` -> `final`).
 - Export abstraction (`md` always, `docx`/`pdf` via optional `pandoc`).
-- TypeScript-based tooling executed directly by Node (`--experimental-strip-types`).
+- Example/demo projects (`docs-demo`, `plague-demo`) included in `stego init`.
 
-## Quick start
+## Getting started (from npm)
 
 ```bash
-cd ~/Code/stego
+npm install -g stego-cli
+
+mkdir my-stego-workspace
+cd my-stego-workspace
+stego init
+
+npm install
 npm run list-projects
-npm run new-project -- --project my-new-project --title "My New Project"
 npm run validate -- --project plague-demo
 npm run build -- --project plague-demo
 npm run check-stage -- --project plague-demo --stage revise
 npm run export -- --project plague-demo --format md
 ```
 
-`npm run new-project` scaffolds `manuscript/`, `spine/`, `notes/`, and `dist/`, and seeds `stego-project.json` with a default `characters` category plus `spine/characters.md`.
-It also creates `projects/<project-id>/.vscode/settings.json` so markdown font settings apply when opening the project folder directly.
-It also creates a project-local `package.json` so you can run `npm run validate`, `npm run build`, etc. from inside that project directory without `--project`.
+`stego init` scaffolds a new workspace in the current directory (it must be empty unless you pass `--force`).
+
+Create another project in the workspace:
+
+```bash
+stego new-project --project my-new-project --title "My New Project"
+```
+
+`stego new-project` scaffolds `manuscript/`, `spine/`, `notes/`, and `dist/`, seeds `stego-project.json`, creates a project-local `package.json`, and writes `.vscode/extensions.json` recommendations (Stego + Saurus) for that project.
+
+## Running commands for a specific project
+
+From the workspace root, target a project with `--project`:
+
+```bash
+npm run validate -- --project plague-demo
+npm run build -- --project plague-demo
+npm run check-stage -- --project plague-demo --stage proof
+npm run export -- --project plague-demo --format md
+```
+
+Each project also has local scripts, so you can work from inside the project directory:
+
+```bash
+cd projects/plague-demo
+npm run validate
+npm run build
+npm run check-stage -- --stage proof
+npm run export -- --format md
+```
+
+## VS Code workflow
+
+When you are actively working on one project, open that project directory directly in VS Code (for example `projects/plague-demo`) rather than the whole workspace.
+
+This keeps editor context focused and applies the project's recommended extensions via `projects/<project-id>/.vscode/extensions.json`.
+
+## Developing `stego-cli` (this repo)
+
+If you are working on the CLI itself (this repository), use the local development scripts:
+
+```bash
+npm install
+npm run list-projects
+npm run validate -- --project docs-demo
+npm run build -- --project plague-demo
+npm run test:compile-structure
+npm run build:cli
+npm run pack:dry-run
+```
+
+These source-repo scripts run the TypeScript CLI directly with Node (`--experimental-strip-types`) for local development.
 
 ## Export requirements (DOCX/PDF)
 
@@ -63,14 +120,22 @@ npm run export -- --project plague-demo --format docx
 npm run export -- --project plague-demo --format pdf
 ```
 
-## Project layout
+## Scaffolded workspace layout
 
 - `projects/<project-id>/manuscript/` source manuscript files
 - `projects/<project-id>/spine/` canonical spine category files (`spineCategories[*].notesFile`)
 - `projects/<project-id>/notes/` regular notes and planning docs
 - `projects/<project-id>/dist/` generated outputs only
+- `stego.config.json` workspace configuration
 - `docs/` workflow and conventions
-- `tools/` build, checks, export CLI
+- `.vscode/tasks.json` root VS Code tasks for common Stego commands
+
+## This repo layout (`stego-cli` source)
+
+- `tools/` CLI source code and exporters
+- `projects/` template/demo projects bundled by `stego init`
+- `docs/` user-facing docs copied into scaffolded workspaces
+- `.github/workflows/` CI + Changesets release automation
 
 ## Project spine categories
 

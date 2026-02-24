@@ -165,6 +165,56 @@ projects/*/dist/*
 projects/*/.vscode/settings.json
 .vscode/settings.json
 `;
+const SCAFFOLD_README_CONTENT = `# Stego Workspace
+
+This directory is a Stego writing workspace (a monorepo for one or more writing projects).
+
+## What was scaffolded
+
+- \`stego.config.json\` workspace configuration
+- \`projects/\` demo projects (\`docs-demo\` and \`plague-demo\`)
+- \`docs/\` workflow and conventions docs
+- root \`package.json\` scripts for Stego commands
+- root \`.vscode/tasks.json\` tasks for common workflows
+
+## First run
+
+\`\`\`bash
+npm install
+npm run list-projects
+\`\`\`
+
+## Run commands for a specific project (from workspace root)
+
+\`\`\`bash
+npm run validate -- --project plague-demo
+npm run build -- --project plague-demo
+npm run check-stage -- --project plague-demo --stage revise
+npm run export -- --project plague-demo --format md
+\`\`\`
+
+## Work inside one project
+
+Each project also has local scripts, so you can run commands from inside a project directory:
+
+\`\`\`bash
+cd projects/plague-demo
+npm run validate
+npm run build
+\`\`\`
+
+## VS Code recommendation
+
+When you are actively working on one project, open that project directory directly in VS Code (for example \`projects/plague-demo\`).
+
+This keeps your editor context focused and applies the project's recommended extensions (including Stego + Saurus) for that project.
+
+## Create a new project
+
+\`\`\`bash
+stego new-project --project my-book --title "My Book"
+\`\`\`
+`;
 const PROJECT_EXTENSION_RECOMMENDATIONS = [
   "matt-gold.stego-extension",
   "matt-gold.saurus-extension"
@@ -732,6 +782,7 @@ function initWorkspace(options: { force: boolean }): void {
   const copiedPaths: string[] = [];
 
   writeScaffoldGitignore(targetRoot, copiedPaths);
+  writeScaffoldReadme(targetRoot, copiedPaths);
   copyTemplateAsset(".markdownlint.json", targetRoot, copiedPaths);
   copyTemplateAsset(".cspell.json", targetRoot, copiedPaths);
   copyTemplateAsset(ROOT_CONFIG_FILENAME, targetRoot, copiedPaths);
@@ -791,6 +842,12 @@ function writeScaffoldGitignore(targetRoot: string, copiedPaths: string[]): void
   const destinationPath = path.join(targetRoot, ".gitignore");
   fs.writeFileSync(destinationPath, SCAFFOLD_GITIGNORE_CONTENT, "utf8");
   copiedPaths.push(".gitignore");
+}
+
+function writeScaffoldReadme(targetRoot: string, copiedPaths: string[]): void {
+  const destinationPath = path.join(targetRoot, "README.md");
+  fs.writeFileSync(destinationPath, SCAFFOLD_README_CONTENT, "utf8");
+  copiedPaths.push("README.md");
 }
 
 function shouldCopyTemplatePath(currentSourcePath: string): boolean {
