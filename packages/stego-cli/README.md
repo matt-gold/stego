@@ -1,6 +1,8 @@
-# Stego
+# Stego CLI
 
-Stego is a Markdown-first creative writing workflow packaged as an installable CLI: `stego-cli`.
+Give your manuscript plot armor.
+
+`stego-cli` turns VS Code into a stage-aware writing environment with Git-backed drafts, structured “spine” knowledge, and workflow validation built for long-form projects.
 
 This repository is the source for the CLI and the example/template content that `stego init` scaffolds into a new workspace.
 
