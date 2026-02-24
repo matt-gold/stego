@@ -1,7 +1,7 @@
 {
   "name": "stego-extension",
-  "displayName": "Stego Spine Links",
-  "description": "Auto-link Spine identifiers like LOC-ASDF in Markdown manuscripts.",
+  "displayName": "Stego",
+  "description": "Project-aware manuscript tooling for Spine plates, comments, validation, and compile workflows in VS Code.",
   "version": "0.1.1",
   "publisher": "matt-gold",
   "license": "Apache-2.0",
@@ -39,7 +39,7 @@
       "stegoSpine": [
         {
           "id": "stegoSpine.metadataView",
-          "name": "Metadata",
+          "name": "Stego",
           "type": "webview",
           "icon": "assets/stego.svg"
         }
