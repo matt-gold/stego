@@ -156,6 +156,15 @@ const STATUS_RANK: Record<StageName, number> = {
 };
 const RESERVED_COMMENT_PREFIX = "CMT";
 const ROOT_CONFIG_FILENAME = "stego.config.json";
+const SCAFFOLD_GITIGNORE_CONTENT = `node_modules/
+/dist/
+.DS_Store
+*.log
+projects/*/dist/*
+!projects/*/dist/.gitkeep
+projects/*/.vscode/settings.json
+.vscode/settings.json
+`;
 const PROJECT_EXTENSION_RECOMMENDATIONS = [
   "matt-gold.stego-extension",
   "matt-gold.saurus-extension"
@@ -722,7 +731,7 @@ function initWorkspace(options: { force: boolean }): void {
 
   const copiedPaths: string[] = [];
 
-  copyTemplateAsset(".gitignore", targetRoot, copiedPaths);
+  writeScaffoldGitignore(targetRoot, copiedPaths);
   copyTemplateAsset(".markdownlint.json", targetRoot, copiedPaths);
   copyTemplateAsset(".cspell.json", targetRoot, copiedPaths);
   copyTemplateAsset(ROOT_CONFIG_FILENAME, targetRoot, copiedPaths);
@@ -776,6 +785,12 @@ function copyTemplateAsset(
   }
 
   copiedPaths.push(sourceRelativePath);
+}
+
+function writeScaffoldGitignore(targetRoot: string, copiedPaths: string[]): void {
+  const destinationPath = path.join(targetRoot, ".gitignore");
+  fs.writeFileSync(destinationPath, SCAFFOLD_GITIGNORE_CONTENT, "utf8");
+  copiedPaths.push(".gitignore");
 }
 
 function shouldCopyTemplatePath(currentSourcePath: string): boolean {
