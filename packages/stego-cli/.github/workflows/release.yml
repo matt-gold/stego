@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-master
+  cancel-in-progress: false
+
+jobs:
+  changesets:
+    name: changesets
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    outputs:
+      has_changesets: ${{ steps.changesets.outputs.hasChangesets }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run Changesets action
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: npm run release:version
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    needs: changesets
+    if: ${{ needs.changesets.outputs.has_changesets == 'false' }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Resolve release metadata
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          RELEASE_TAG="stego-cli-v${VERSION}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+
+          git fetch --force --tags
+          if git show-ref --tags --verify --quiet "refs/tags/${RELEASE_TAG}"; then
+            echo "SHOULD_PUBLISH=false" >> "$GITHUB_ENV"
+            echo "Tag ${RELEASE_TAG} already exists; skipping publish."
+          else
+            echo "SHOULD_PUBLISH=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install deps
+        if: ${{ env.SHOULD_PUBLISH == 'true' }}
+        run: npm ci
+
+      - name: Test
+        if: ${{ env.SHOULD_PUBLISH == 'true' }}
+        run: npm test
+
+      - name: Package npm tarball
+        if: ${{ env.SHOULD_PUBLISH == 'true' }}
+        run: npm pack
+
+      - name: Resolve tarball path
+        if: ${{ env.SHOULD_PUBLISH == 'true' }}
+        run: |
+          TGZ_PATH="$(ls -1t *.tgz | head -n 1)"
+          if [ -z "$TGZ_PATH" ]; then
+            echo "No npm tarball found after packaging."
+            exit 1
+          fi
+          echo "TGZ_PATH=$TGZ_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload tarball to GitHub Release
+        if: ${{ env.SHOULD_PUBLISH == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          files: ${{ env.TGZ_PATH }}
+
+      - name: Validate npm token
+        if: ${{ env.SHOULD_PUBLISH == 'true' }}
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "Missing NPM_TOKEN secret. Add it in repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Publish to npm
+        if: ${{ env.SHOULD_PUBLISH == 'true' }}
+        run: npm publish "${{ env.TGZ_PATH }}" --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

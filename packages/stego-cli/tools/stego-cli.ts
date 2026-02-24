@@ -156,6 +156,10 @@ const STATUS_RANK: Record<StageName, number> = {
 };
 const RESERVED_COMMENT_PREFIX = "CMT";
 const ROOT_CONFIG_FILENAME = "stego.config.json";
+const PROJECT_EXTENSION_RECOMMENDATIONS = [
+  "matt-gold.stego-extension",
+  "matt-gold.saurus-extension"
+] as const;
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(scriptDir, "..");
 let repoRoot = "";
@@ -810,6 +814,7 @@ function rewriteTemplateProjectPackageScripts(targetRoot: string): void {
       continue;
     }
 
+    const projectRoot = path.join(projectsRoot, entry.name);
     const packageJsonPath = path.join(projectsRoot, entry.name, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
       continue;
@@ -831,7 +836,35 @@ function rewriteTemplateProjectPackageScripts(targetRoot: string): void {
 
     projectPackage.scripts = scripts;
     fs.writeFileSync(packageJsonPath, `${JSON.stringify(projectPackage, null, 2)}\n`, "utf8");
+    ensureProjectExtensionsRecommendations(projectRoot);
   }
+}
+
+function ensureProjectExtensionsRecommendations(projectRoot: string): void {
+  const vscodeDir = path.join(projectRoot, ".vscode");
+  const extensionsPath = path.join(vscodeDir, "extensions.json");
+  fs.mkdirSync(vscodeDir, { recursive: true });
+
+  let existingRecommendations: string[] = [];
+  if (fs.existsSync(extensionsPath)) {
+    try {
+      const parsed = readJson<Record<string, unknown>>(extensionsPath);
+      if (Array.isArray(parsed.recommendations)) {
+        existingRecommendations = parsed.recommendations.filter((value): value is string => typeof value === "string");
+      }
+    } catch {
+      existingRecommendations = [];
+    }
+  }
+
+  const mergedRecommendations = [
+    ...new Set<string>([...PROJECT_EXTENSION_RECOMMENDATIONS, ...existingRecommendations])
+  ];
+  const extensionsConfig = {
+    recommendations: mergedRecommendations
+  };
+
+  fs.writeFileSync(extensionsPath, `${JSON.stringify(extensionsConfig, null, 2)}\n`, "utf8");
 }
 
 function writeInitRootPackageJson(targetRoot: string): void {
@@ -948,10 +981,13 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
 
   const charactersNotesPath = path.join(spineDir, "characters.md");
   fs.writeFileSync(charactersNotesPath, "# Characters\n\n", "utf8");
+  const projectExtensionsPath = path.join(projectRoot, ".vscode", "extensions.json");
+  ensureProjectExtensionsRecommendations(projectRoot);
   logLine(`Created project: ${path.relative(repoRoot, projectRoot)}`);
   logLine(`- ${path.relative(repoRoot, projectJsonPath)}`);
   logLine(`- ${path.relative(repoRoot, projectPackagePath)}`);
   logLine(`- ${path.relative(repoRoot, charactersNotesPath)}`);
+  logLine(`- ${path.relative(repoRoot, projectExtensionsPath)}`);
 }
 
 function getProjectIds(): string[] {

@@ -2,43 +2,43 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Writing: List Projects",
+			"label": "Stego: List Projects",
 			"type": "shell",
 			"command": "npm run list-projects",
 			"problemMatcher": []
 		},
 		{
-			"label": "Writing: Validate Project",
+			"label": "Stego: Validate Project",
 			"type": "shell",
 			"command": "npm run validate -- --project ${input:projectId}",
 			"problemMatcher": []
 		},
 		{
-			"label": "Writing: Build Project",
+			"label": "Stego: Build Project",
 			"type": "shell",
 			"command": "npm run build -- --project ${input:projectId}",
 			"problemMatcher": []
 		},
 		{
-			"label": "Writing: Check Stage",
+			"label": "Stego: Check Stage",
 			"type": "shell",
 			"command": "npm run check-stage -- --project ${input:projectId} --stage ${input:stageName}",
 			"problemMatcher": []
 		},
 		{
-			"label": "Writing: Export Markdown",
+			"label": "Stego: Export Markdown",
 			"type": "shell",
 			"command": "npm run export -- --project ${input:projectId} --format md",
 			"problemMatcher": []
 		},
 		{
-			"label": "Writing: Export DOCX",
+			"label": "Stego: Export DOCX",
 			"type": "shell",
 			"command": "npm run export -- --project ${input:projectId} --format docx",
 			"problemMatcher": []
 		},
 		{
-			"label": "npm: test:compile-structure",
+			"label": "Stego: Test Compile Structure",
 			"type": "shell",
 			"command": "npm",
 			"args": [

@@ -25,17 +25,22 @@
   ],
   "scripts": {
     "build:cli": "tsc -p tsconfig.build.json",
+    "compile": "npm run build:cli",
     "prepack": "npm run build:cli",
     "pack:dry-run": "npm pack --dry-run",
+    "changeset": "changeset",
+    "release:version": "changeset version",
     "list-projects": "node --experimental-strip-types tools/stego-cli.ts list-projects",
     "new-project": "node --experimental-strip-types tools/stego-cli.ts new-project",
     "validate": "node --experimental-strip-types tools/stego-cli.ts validate",
     "build": "node --experimental-strip-types tools/stego-cli.ts build",
     "check-stage": "node --experimental-strip-types tools/stego-cli.ts check-stage",
     "export": "node --experimental-strip-types tools/stego-cli.ts export",
-    "test:compile-structure": "node --test tools/test/compile-structure.test.mjs"
+    "test:compile-structure": "node --test tools/test/compile-structure.test.mjs",
+    "test": "npm run test:compile-structure"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.8",
     "@types/node": "^25.2.3",
     "cspell": "^9.6.4",
     "markdownlint-cli": "^0.47.0",
