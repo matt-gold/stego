@@ -141,6 +141,12 @@ interface SpineSchema {
   inlineIdRegex: RegExp | null;
 }
 
+interface WorkspaceContext {
+  repoRoot: string;
+  configPath: string;
+  config: WritingConfig;
+}
+
 const STATUS_RANK: Record<StageName, number> = {
   draft: 0,
   revise: 1,
@@ -149,10 +155,11 @@ const STATUS_RANK: Record<StageName, number> = {
   final: 4
 };
 const RESERVED_COMMENT_PREFIX = "CMT";
+const ROOT_CONFIG_FILENAME = "stego.config.json";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(scriptDir, "..");
-const configPath = path.join(repoRoot, "writing.config.json");
-const config = readJson<WritingConfig>(configPath);
+const packageRoot = path.resolve(scriptDir, "..");
+let repoRoot = "";
+let config!: WritingConfig;
 
 main();
 
@@ -166,13 +173,19 @@ function main(): void {
 
   try {
     switch (command) {
+      case "init":
+        initWorkspace({ force: readBooleanOption(options, "force") });
+        return;
       case "list-projects":
+        activateWorkspace(options);
         listProjects();
         return;
       case "new-project":
+        activateWorkspace(options);
         createProject(readStringOption(options, "project"), readStringOption(options, "title"));
         return;
       case "validate": {
+        activateWorkspace(options);
         const project = resolveProject(readStringOption(options, "project"));
         const report = inspectProject(project, config, { onlyFile: readStringOption(options, "file") });
         printReport(report.issues);
@@ -185,6 +198,7 @@ function main(): void {
         return;
       }
       case "build": {
+        activateWorkspace(options);
         const project = resolveProject(readStringOption(options, "project"));
         const report = inspectProject(project, config);
         printReport(report.issues);
@@ -194,6 +208,7 @@ function main(): void {
         return;
       }
       case "check-stage": {
+        activateWorkspace(options);
         const project = resolveProject(readStringOption(options, "project"));
         const stage = readStringOption(options, "stage") || "draft";
         const requestedFile = readStringOption(options, "file");
@@ -208,6 +223,7 @@ function main(): void {
         return;
       }
       case "export": {
+        activateWorkspace(options);
         const project = resolveProject(readStringOption(options, "project"));
         const format = (readStringOption(options, "format") || "md").toLowerCase();
         const report = inspectProject(project, config);
@@ -234,6 +250,17 @@ function main(): void {
 function readStringOption(options: ParsedOptions, key: string): string | undefined {
   const value = options[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function readBooleanOption(options: ParsedOptions, key: string): boolean {
+  return options[key] === true;
+}
+
+function activateWorkspace(options: ParsedOptions): WorkspaceContext {
+  const workspace = resolveWorkspaceContext(readStringOption(options, "root"));
+  repoRoot = workspace.repoRoot;
+  config = workspace.config;
+  return workspace;
 }
 
 function isStageName(value: string): value is StageName {
@@ -607,8 +634,240 @@ function parseArgs(argv: string[]): ParseArgsResult {
   return { command, options };
 }
 
+function resolveWorkspaceContext(rootOption?: string): WorkspaceContext {
+  if (rootOption) {
+    const explicitRoot = path.resolve(process.cwd(), rootOption);
+    if (!fs.existsSync(explicitRoot) || !fs.statSync(explicitRoot).isDirectory()) {
+      throw new Error(`Workspace root does not exist or is not a directory: ${explicitRoot}`);
+    }
+
+    const explicitConfigPath = path.join(explicitRoot, ROOT_CONFIG_FILENAME);
+    if (!fs.existsSync(explicitConfigPath)) {
+      const legacyConfigPath = path.join(explicitRoot, "writing.config.json");
+      if (fs.existsSync(legacyConfigPath)) {
+        throw new Error(
+          `Found legacy 'writing.config.json' at '${explicitRoot}'. Rename it to '${ROOT_CONFIG_FILENAME}'.`
+        );
+      }
+      throw new Error(
+        `No Stego workspace found at '${explicitRoot}'. Expected '${ROOT_CONFIG_FILENAME}'.`
+      );
+    }
+
+    return {
+      repoRoot: explicitRoot,
+      configPath: explicitConfigPath,
+      config: readJson<WritingConfig>(explicitConfigPath)
+    };
+  }
+
+  const discoveredConfigPath = findNearestFileUpward(process.cwd(), ROOT_CONFIG_FILENAME);
+  if (!discoveredConfigPath) {
+    const legacyConfigPath = findNearestFileUpward(process.cwd(), "writing.config.json");
+    if (legacyConfigPath) {
+      throw new Error(
+        `Found legacy '${path.basename(legacyConfigPath)}' at '${path.dirname(legacyConfigPath)}'. Rename it to '${ROOT_CONFIG_FILENAME}'.`
+      );
+    }
+    throw new Error(
+      `No Stego workspace found from '${process.cwd()}'. Run 'stego init' or pass --root <path>.`
+    );
+  }
+
+  const discoveredRoot = path.dirname(discoveredConfigPath);
+  return {
+    repoRoot: discoveredRoot,
+    configPath: discoveredConfigPath,
+    config: readJson<WritingConfig>(discoveredConfigPath)
+  };
+}
+
+function findNearestFileUpward(startPath: string, filename: string): string | null {
+  let current = path.resolve(startPath);
+  if (!fs.existsSync(current)) {
+    return null;
+  }
+
+  if (!fs.statSync(current).isDirectory()) {
+    current = path.dirname(current);
+  }
+
+  while (true) {
+    const candidate = path.join(current, filename);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
+function initWorkspace(options: { force: boolean }): void {
+  const targetRoot = process.cwd();
+  const entries = fs
+    .readdirSync(targetRoot, { withFileTypes: true })
+    .filter((entry) => entry.name !== "." && entry.name !== "..");
+
+  if (entries.length > 0 && !options.force) {
+    throw new Error(`Target directory is not empty: ${targetRoot}. Re-run with --force to continue.`);
+  }
+
+  const copiedPaths: string[] = [];
+
+  copyTemplateAsset(".gitignore", targetRoot, copiedPaths);
+  copyTemplateAsset(".markdownlint.json", targetRoot, copiedPaths);
+  copyTemplateAsset(".cspell.json", targetRoot, copiedPaths);
+  copyTemplateAsset(ROOT_CONFIG_FILENAME, targetRoot, copiedPaths);
+  copyTemplateAsset("docs", targetRoot, copiedPaths);
+  copyTemplateAsset("projects", targetRoot, copiedPaths);
+  copyTemplateAsset(path.join(".vscode", "tasks.json"), targetRoot, copiedPaths);
+  copyTemplateAsset(path.join(".vscode", "extensions.json"), targetRoot, copiedPaths, { optional: true });
+
+  rewriteTemplateProjectPackageScripts(targetRoot);
+  writeInitRootPackageJson(targetRoot);
+
+  logLine(`Initialized Stego workspace in ${targetRoot}`);
+  for (const relativePath of copiedPaths) {
+    logLine(`- ${relativePath}`);
+  }
+  logLine("- package.json");
+  logLine("");
+  logLine("Next steps:");
+  logLine("  npm install");
+  logLine("  npm run list-projects");
+  logLine("  npm run validate -- --project plague-demo");
+}
+
+function copyTemplateAsset(
+  sourceRelativePath: string,
+  targetRoot: string,
+  copiedPaths: string[],
+  options?: { optional?: boolean }
+): void {
+  const sourcePath = path.join(packageRoot, sourceRelativePath);
+  if (!fs.existsSync(sourcePath)) {
+    if (options?.optional) {
+      return;
+    }
+    throw new Error(`Template asset is missing from stego-cli package: ${sourceRelativePath}`);
+  }
+
+  const destinationPath = path.join(targetRoot, sourceRelativePath);
+  const stats = fs.statSync(sourcePath);
+
+  if (stats.isDirectory()) {
+    fs.mkdirSync(destinationPath, { recursive: true });
+    fs.cpSync(sourcePath, destinationPath, {
+      recursive: true,
+      force: true,
+      filter: (currentSourcePath) => shouldCopyTemplatePath(currentSourcePath)
+    });
+  } else {
+    fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+    fs.copyFileSync(sourcePath, destinationPath);
+  }
+
+  copiedPaths.push(sourceRelativePath);
+}
+
+function shouldCopyTemplatePath(currentSourcePath: string): boolean {
+  const relativePath = path.relative(packageRoot, currentSourcePath);
+  if (!relativePath || relativePath.startsWith("..")) {
+    return true;
+  }
+
+  const parts = relativePath.split(path.sep);
+  const name = parts[parts.length - 1] || "";
+
+  if (name === ".DS_Store") {
+    return false;
+  }
+
+  if (parts[0] === "projects") {
+    const distIndex = parts.indexOf("dist");
+    if (distIndex >= 0) {
+      const isDistRoot = distIndex === parts.length - 1;
+      const isGitkeep = name === ".gitkeep";
+      return isDistRoot || isGitkeep;
+    }
+  }
+
+  return true;
+}
+
+function rewriteTemplateProjectPackageScripts(targetRoot: string): void {
+  const projectsRoot = path.join(targetRoot, "projects");
+  if (!fs.existsSync(projectsRoot)) {
+    return;
+  }
+
+  for (const entry of fs.readdirSync(projectsRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const packageJsonPath = path.join(projectsRoot, entry.name, "package.json");
+    if (!fs.existsSync(packageJsonPath)) {
+      continue;
+    }
+
+    const projectPackage = readJson<Record<string, unknown>>(packageJsonPath);
+    const scripts = isPlainObject(projectPackage.scripts)
+      ? { ...projectPackage.scripts }
+      : {};
+
+    if (typeof projectPackage.name === "string" && projectPackage.name.startsWith("writing-project-")) {
+      projectPackage.name = projectPackage.name.replace(/^writing-project-/, "stego-project-");
+    }
+
+    scripts.validate = "npx --no-install stego validate";
+    scripts.build = "npx --no-install stego build";
+    scripts["check-stage"] = "npx --no-install stego check-stage";
+    scripts.export = "npx --no-install stego export";
+
+    projectPackage.scripts = scripts;
+    fs.writeFileSync(packageJsonPath, `${JSON.stringify(projectPackage, null, 2)}\n`, "utf8");
+  }
+}
+
+function writeInitRootPackageJson(targetRoot: string): void {
+  const cliPackage = readJson<Record<string, unknown>>(path.join(packageRoot, "package.json"));
+  const cliVersion = typeof cliPackage.version === "string" ? cliPackage.version : "0.1.0";
+
+  const manifest: Record<string, unknown> = {
+    name: path.basename(targetRoot) || "stego-workspace",
+    private: true,
+    type: "module",
+    description: "Stego writing workspace",
+    engines: {
+      node: ">=20"
+    },
+    scripts: {
+      "list-projects": "stego list-projects",
+      "new-project": "stego new-project",
+      validate: "stego validate",
+      build: "stego build",
+      "check-stage": "stego check-stage",
+      export: "stego export"
+    },
+    devDependencies: {
+      "stego-cli": `^${cliVersion}`,
+      cspell: "^9.6.4",
+      "markdownlint-cli": "^0.47.0"
+    }
+  };
+
+  fs.writeFileSync(path.join(targetRoot, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+}
+
 function printUsage() {
-  console.log(`Writing CLI\n\nCommands:\n  list-projects\n  new-project --project <project-id> [--title <title>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>]\n  build --project <project-id>\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>]\n`);
+  console.log(
+    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n`
+  );
 }
 
 function listProjects(): void {
@@ -675,13 +934,13 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
   fs.writeFileSync(projectJsonPath, `${JSON.stringify(projectJson, null, 2)}\n`, "utf8");
 
   const projectPackage: Record<string, unknown> = {
-    name: `writing-project-${projectId}`,
+    name: `stego-project-${projectId}`,
     private: true,
     scripts: {
-      validate: "node --experimental-strip-types ../../tools/stego-cli.ts validate",
-      build: "node --experimental-strip-types ../../tools/stego-cli.ts build",
-      "check-stage": "node --experimental-strip-types ../../tools/stego-cli.ts check-stage",
-      export: "node --experimental-strip-types ../../tools/stego-cli.ts export"
+      validate: "npx --no-install stego validate",
+      build: "npx --no-install stego build",
+      "check-stage": "npx --no-install stego check-stage",
+      export: "npx --no-install stego export"
     }
   };
   const projectPackagePath = path.join(projectRoot, "package.json");
@@ -713,6 +972,7 @@ function resolveProject(explicitProjectId?: string): ProjectContext {
   const ids = getProjectIds();
   const projectId =
     explicitProjectId ||
+    process.env.STEGO_PROJECT ||
     process.env.WRITING_PROJECT ||
     inferProjectIdFromCwd(process.cwd()) ||
     (ids.length === 1 ? ids[0] : null);

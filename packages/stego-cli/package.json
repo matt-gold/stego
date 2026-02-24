@@ -1,10 +1,32 @@
 {
-  "name": "stego",
+  "name": "stego-cli",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "description": "Creative writing monorepo workflow with Markdown build, staged quality gates, and export abstraction.",
+  "description": "Installable CLI for the Stego writing monorepo workflow.",
+  "bin": {
+    "stego": "dist/stego-cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist/**",
+    "docs/**",
+    "projects/**",
+    "!projects/*/dist/*.md",
+    "!projects/*/dist/exports/**",
+    ".vscode/tasks.json",
+    ".vscode/extensions.json",
+    ".gitignore",
+    ".markdownlint.json",
+    ".cspell.json",
+    "stego.config.json",
+    "README.md"
+  ],
   "scripts": {
+    "build:cli": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build:cli",
+    "pack:dry-run": "npm pack --dry-run",
     "list-projects": "node --experimental-strip-types tools/stego-cli.ts list-projects",
     "new-project": "node --experimental-strip-types tools/stego-cli.ts new-project",
     "validate": "node --experimental-strip-types tools/stego-cli.ts validate",
