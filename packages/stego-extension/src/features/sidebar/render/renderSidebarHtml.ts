@@ -131,6 +131,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const runStageLabel = 'Run Stage Check';
   const runBuildLabel = 'Run Build';
   const runBuildIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.75 1h4.19c.46 0 .9.18 1.22.5l2.34 2.34c.32.32.5.76.5 1.22v6.19A1.75 1.75 0 0 1 10.25 13h-6.5A1.75 1.75 0 0 1 2 11.25v-8.5A1.75 1.75 0 0 1 3.75 1zm0 1.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.06a.25.25 0 0 0-.07-.18L8.09 2.57a.25.25 0 0 0-.18-.07H3.75z"></path></svg>';
+  const runMenuChevronIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.4 5.4L8 10l4.6-4.6 1 1L8 12 2.4 6.4z"></path></svg>';
   const pinAllFromFileLabel = 'Pin All From File';
   const unpinAllLabel = 'Unpin All';
 
@@ -209,7 +210,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
   const renderExplorerIdentifierBody = (
     page: SidebarExplorerIdentifierPage,
-    options: { mode: 'active' | 'pinned'; filterValue: string; pinnedId?: string }
+    options: { mode: 'active' | 'pinned'; filterValue: string; pinnedId?: string; cardActionHtml?: string }
   ): string => {
     const entry = page.entry;
     const toggleAction = options.mode === 'pinned' ? 'togglePinnedExplorerBacklinks' : 'toggleExplorerBacklinks';
@@ -259,12 +260,13 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         : ''}`
       + `</div>`
       + `</div>`
+      + `${options.cardActionHtml ? `<div class="item-actions explorer-card-actions">${options.cardActionHtml}</div>` : ''}`
       + `</article>`;
   };
 
   const renderExplorerBody = (
     page: SidebarExplorerPage | undefined,
-    options: { mode: 'active' | 'pinned'; collapsed: boolean; filterValue: string; pinnedId?: string }
+    options: { mode: 'active' | 'pinned'; collapsed: boolean; filterValue: string; pinnedId?: string; cardActionHtml?: string }
   ): string => {
     if (!page) {
       return `<div class="empty">Click an identifier to inspect it here.</div>`;
@@ -316,7 +318,6 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     : '';
 
   const activeExplorerNav = `<div class="explorer-nav">`
-    + `${pinButtonHtml}`
     + `<button class="btn subtle btn-icon" data-action="explorerBack"${state.explorerCanGoBack ? '' : ' disabled'} aria-label="Back" title="Back">${backIcon}</button>`
     + `<button class="btn subtle btn-icon" data-action="explorerForward"${state.explorerCanGoForward ? '' : ' disabled'} aria-label="Forward" title="Forward">${forwardIcon}</button>`
     + `<button class="btn subtle btn-icon" data-action="explorerHome"${state.explorerCanGoHome ? '' : ' disabled'} aria-label="Home" title="Home">${homeIcon}</button>`
@@ -328,7 +329,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     + `${activeExplorerNav}`
     + `</div>`
     + `${renderExplorerBreadcrumbs(state.explorer, false)}`
-    + `${renderExplorerBody(state.explorer, { mode: 'active', collapsed: false, filterValue: state.backlinkFilter })}`
+    + `${renderExplorerBody(state.explorer, { mode: 'active', collapsed: false, filterValue: state.backlinkFilter, cardActionHtml: pinButtonHtml })}`
     + `</section>`;
 
   const renderPinnedExplorerPanel = (panel: SidebarPinnedExplorerPanel): string => {
@@ -465,23 +466,38 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `<div class="title-structure">Last updated ${escapeHtml(dayjs(state.overview.generatedAt).fromNow())}</div>`
       + `</div>`
       + `<div class="actions">`
-      + `<button class="btn subtle btn-icon" data-action="runGateStageWorkflow" aria-label="${escapeAttribute(runStageLabel)}" title="${escapeAttribute(runStageLabel)}">${runLocalChecksIcon}</button>`
-      + `<button class="btn subtle btn-icon" data-action="runBuildWorkflow" aria-label="${escapeAttribute(runBuildLabel)}" title="${escapeAttribute(runBuildLabel)}">${runBuildIcon}</button>`
+      + `<details class="run-menu">`
+      + `<summary class="btn subtle run-menu-summary">Run${runMenuChevronIcon}</summary>`
+      + `<div class="run-menu-panel">`
+      + `<button class="run-menu-item" data-action="runBuildWorkflow" aria-label="${escapeAttribute('Compile Full Manuscript')}" title="${escapeAttribute(runBuildLabel)}">`
+      + `<span class="run-menu-item-icon">${runBuildIcon}</span>`
+      + `<span class="run-menu-item-label">Compile Full Manuscript</span>`
+      + `</button>`
+      + `<button class="run-menu-item" data-action="runGateStageWorkflow" aria-label="${escapeAttribute(runStageLabel)}" title="${escapeAttribute(runStageLabel)}">`
+      + `<span class="run-menu-item-icon">${runLocalChecksIcon}</span>`
+      + `<span class="run-menu-item-label">Run Stage Check</span>`
+      + `</button>`
+      + `</div>`
+      + `</details>`
       + `</div>`
       + `</div>`
       + `<div class="overview-stage">`
       + `<div class="overview-stage-list">`
       + `<div class="overview-gate-item">`
-      + `<div class="overview-stage-row"><span>Stage Check</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.stageCheck.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.stageCheck.state))}</span></div></div>`
+      + `<div class="overview-stage-row"><span>Stage Check Result</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.stageCheck.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.stageCheck.state))}</span></div></div>`
       + `${state.overview.gateSnapshot.stageCheck.stage ? `<div class="item-subtext tiny">Stage: ${escapeHtml(state.overview.gateSnapshot.stageCheck.stage)}</div>` : ''}`
       + `${state.overview.gateSnapshot.stageCheck.updatedAt ? `<div class="item-subtext tiny">${escapeHtml(dayjs(state.overview.gateSnapshot.stageCheck.updatedAt).fromNow())}</div>` : ''}`
-      + `${state.overview.gateSnapshot.stageCheck.state === 'failed' && state.overview.gateSnapshot.stageCheck.detail ? `<div class="status-note warn overview-gate-error">${escapeHtml(state.overview.gateSnapshot.stageCheck.detail)}</div>` : ''}`
+      + `${state.overview.gateSnapshot.stageCheck.detail && (state.overview.gateSnapshot.stageCheck.detailKind === 'warning' || state.overview.gateSnapshot.stageCheck.detailKind === 'error')
+        ? `<div class="status-note ${state.overview.gateSnapshot.stageCheck.detailKind === 'error' ? 'error' : 'warn'} overview-gate-error">${escapeHtml(state.overview.gateSnapshot.stageCheck.detail)}</div>`
+        : ''}`
       + `</div>`
       + `<div class="overview-gate-item">`
-      + `<div class="overview-stage-row"><span>Build</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.build.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.build.state))}</span></div></div>`
-      + `${state.overview.gateSnapshot.build.state === 'success' && state.overview.gateSnapshot.build.detail ? `<div class="item-subtext tiny">Output: ${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>` : ''}`
+      + `<div class="overview-stage-row"><span>Compile Result</span><div class="overview-status-actions"><span class="badge ${gateStateBadgeClass(state.overview.gateSnapshot.build.state)}">${escapeHtml(gateStateLabel(state.overview.gateSnapshot.build.state))}</span></div></div>`
+      + `${state.overview.gateSnapshot.build.detail && state.overview.gateSnapshot.build.detailKind === 'output' ? `<div class="item-subtext tiny">Output: ${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>` : ''}`
       + `${state.overview.gateSnapshot.build.updatedAt ? `<div class="item-subtext tiny">${escapeHtml(dayjs(state.overview.gateSnapshot.build.updatedAt).fromNow())}</div>` : ''}`
-      + `${state.overview.gateSnapshot.build.state === 'failed' && state.overview.gateSnapshot.build.detail ? `<div class="status-note warn overview-gate-error">${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>` : ''}`
+      + `${state.overview.gateSnapshot.build.detail && (state.overview.gateSnapshot.build.detailKind === 'warning' || state.overview.gateSnapshot.build.detailKind === 'error')
+        ? `<div class="status-note ${state.overview.gateSnapshot.build.detailKind === 'error' ? 'error' : 'warn'} overview-gate-error">${escapeHtml(state.overview.gateSnapshot.build.detail)}</div>`
+        : ''}`
       + `</div>`
       + `</div>`
       + `</div>`

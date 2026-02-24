@@ -1780,7 +1780,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     const issueCount = projectContext?.issues.length ?? 0;
     if (issueCount > 0) {
       warnings.push(
-        `project.json has ${issueCount} issue${issueCount === 1 ? '' : 's'}. `
+        `stego-project.json has ${issueCount} issue${issueCount === 1 ? '' : 's'}. `
         + `Using safe defaults where needed. See "${PROJECT_HEALTH_CHANNEL}" output.`
       );
     }
@@ -1841,7 +1841,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       } catch (error) {
         skippedFiles += 1;
         logProjectHealthIssue('overview', 'Skipped manuscript file (stat failed).', {
-          projectFilePath: path.join(projectContext.projectDir, 'project.json'),
+          projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
           filePath,
           detail: errorToMessage(error)
         });
@@ -1868,7 +1868,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           skippedFiles += 1;
           cache.delete(filePath);
           logProjectHealthIssue('overview', 'Skipped manuscript file (read failed).', {
-            projectFilePath: path.join(projectContext.projectDir, 'project.json'),
+            projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
             filePath,
             detail: errorToMessage(error)
           });
@@ -1903,7 +1903,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           skippedFiles += 1;
           cache.delete(filePath);
           logProjectHealthIssue('overview', 'Skipped manuscript file (parse failed).', {
-            projectFilePath: path.join(projectContext.projectDir, 'project.json'),
+            projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
             filePath,
             detail: errorToMessage(error)
           });
@@ -2058,12 +2058,37 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     const snapshot = this.getGateSnapshot(projectDir);
+    const normalizedDetail = detail?.trim();
+    const warningOnly = state === 'failed' && normalizedDetail ? this.isWarningOnlyGateDetail(normalizedDetail) : false;
+    const nextState: 'success' | 'failed' = warningOnly ? 'success' : state;
     snapshot[key] = {
-      state,
+      state: nextState,
       updatedAt: new Date().toISOString(),
-      detail,
+      detail: normalizedDetail,
+      detailKind: normalizedDetail
+        ? (warningOnly
+          ? 'warning'
+          : (nextState === 'failed'
+            ? 'error'
+            : (key === 'build' ? 'output' : undefined)))
+        : undefined,
       stage: key === 'stageCheck' && stage ? stage : undefined
     };
+  }
+
+  private isWarningOnlyGateDetail(detail: string): boolean {
+    const text = detail.trim().toLowerCase();
+    if (!text) {
+      return false;
+    }
+
+    const hasWarning = /\bwarn(?:ing|ings)?\b/.test(text);
+    if (!hasWarning) {
+      return false;
+    }
+
+    const hasError = /\berr(?:or|ors)?\b|\bfailed?\b|\bfailure\b|\bexception\b/.test(text);
+    return !hasError;
   }
 
   private async getCurrentProjectContext(): Promise<{ projectDir: string } | undefined> {

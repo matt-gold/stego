@@ -30,7 +30,7 @@ export async function resolveAllowedStatuses(document: vscode.TextDocument): Pro
     return [...DEFAULT_ALLOWED_STATUSES];
   }
 
-  const configPath = await findNearestFileUpward(document.uri.fsPath, folder.uri.fsPath, 'writing.config.json');
+  const configPath = await findNearestFileUpward(document.uri.fsPath, folder.uri.fsPath, 'stego.config.json');
   if (!configPath) {
     return [...DEFAULT_ALLOWED_STATUSES];
   }

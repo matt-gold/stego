@@ -94,7 +94,7 @@ function validateProjectJsonSchema(parsed: unknown): { record?: Record<string, u
   const issues: ProjectConfigIssue[] = [];
   const record = asObject(parsed);
   if (!record) {
-    issues.push(issue('$', 'Expected project.json to be a JSON object.'));
+    issues.push(issue('$', 'Expected stego-project.json to be a JSON object.'));
     return { issues };
   }
 
@@ -211,7 +211,7 @@ export async function findNearestProjectConfig(
   const root = path.resolve(workspaceRoot);
 
   while (true) {
-    const candidate = path.join(current, 'project.json');
+    const candidate = path.join(current, 'stego-project.json');
     const context = await readProjectConfig(candidate);
     if (context) {
       return context;
@@ -256,14 +256,14 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
       issues.push(...validation.issues);
     } catch (error) {
       issues.push(issue('$', 'Invalid JSON.'));
-      logProjectHealthIssue('project-config', 'Failed to parse project.json as JSON.', {
+      logProjectHealthIssue('project-config', 'Failed to parse stego-project.json as JSON.', {
         projectFilePath,
         detail: error instanceof Error ? error.message : String(error)
       });
     }
   } catch (error) {
-    issues.push(issue('$', 'Could not read project.json.'));
-    logProjectHealthIssue('project-config', 'Failed to read project.json.', {
+    issues.push(issue('$', 'Could not read stego-project.json.'));
+    logProjectHealthIssue('project-config', 'Failed to read stego-project.json.', {
       projectFilePath,
       detail: error instanceof Error ? error.message : String(error)
     });
@@ -607,5 +607,5 @@ export async function findNearestFileUpward(
 }
 
 export function isProjectFile(uri: vscode.Uri): boolean {
-  return uri.scheme === 'file' && path.basename(uri.fsPath).toLowerCase() === 'project.json';
+  return uri.scheme === 'file' && path.basename(uri.fsPath).toLowerCase() === 'stego-project.json';
 }

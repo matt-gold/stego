@@ -94,6 +94,7 @@ export type SidebarOverviewGateStatus = {
   state: 'never' | 'success' | 'failed';
   updatedAt?: string;
   detail?: string;
+  detailKind?: 'output' | 'warning' | 'error';
   stage?: string;
 };
 

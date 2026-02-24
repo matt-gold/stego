@@ -5,6 +5,10 @@
   "version": "0.0.1",
   "publisher": "matt-gold",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matt-gold/stego-extension.git"
+  },
   "engines": {
     "vscode": "^1.92.0"
   },
@@ -103,7 +107,7 @@
         "stego.spine.indexFile": {
           "type": "string",
           "default": ".stego/spine-index.json",
-          "description": "Path to the workspace JSON file containing indexed identifiers. If missing or partial, Stego also infers plates from project.json spine category prefixes and markdown headings."
+          "description": "Path to the workspace JSON file containing indexed identifiers. If missing or partial, Stego also infers plates from stego-project.json spine category prefixes and markdown headings."
         },
         "stego.spine.definitionBaseUrl": {
           "type": "string",
@@ -147,13 +151,19 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "npm run compile",
-    "test:pure": "npm run compile && node --test out/test/pure/*.js"
+    "test": "npm run test:pure",
+    "test:pure": "npm run compile && node --test out/test/pure/*.js",
+    "package": "vsce package",
+    "changeset": "changeset",
+    "release:version": "changeset version"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.8",
     "@types/js-yaml": "^4.0.9",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^20.14.10",
     "@types/vscode": "^1.92.0",
+    "@vscode/vsce": "^3.7.1",
     "typescript": "^5.6.3"
   },
   "dependencies": {

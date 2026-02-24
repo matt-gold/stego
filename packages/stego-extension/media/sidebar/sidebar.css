@@ -331,6 +331,77 @@ h2 {
   gap: 8px;
   margin-bottom: 8px;
 }
+.run-menu {
+  position: relative;
+  margin: 0;
+}
+.run-menu-summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  user-select: none;
+}
+.run-menu-summary::-webkit-details-marker {
+  display: none;
+}
+.run-menu-summary::marker {
+  content: '';
+}
+.run-menu-summary .nav-icon {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+.run-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 8px;
+  background: var(--vscode-editorWidget-background);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--vscode-editorWidget-shadow, #000) 35%, transparent);
+  padding: 4px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.run-menu-item {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  text-align: left;
+  padding: 6px 8px;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+.run-menu-item:hover {
+  background: color-mix(in srgb, var(--vscode-list-hoverBackground) 80%, transparent);
+}
+.run-menu-item-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.run-menu-item-icon .nav-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.run-menu-item-label {
+  min-width: 0;
+}
 .status-editor {
   border: 1px solid var(--vscode-panel-border);
   border-radius: 8px;
@@ -370,6 +441,9 @@ h2 {
 }
 .status-note.warn {
   color: var(--vscode-editorWarning-foreground);
+}
+.status-note.error {
+  color: var(--vscode-editorError-foreground);
 }
 .toc-item {
   border: 1px solid var(--vscode-panel-border);
@@ -810,6 +884,7 @@ code {
 }
 .btn:focus-visible,
 .sidebar-tab:focus-visible,
+.run-menu-item:focus-visible,
 .id-link:focus-visible,
 .explorer-crumb-link:focus-visible,
 .toc-link:focus-visible,

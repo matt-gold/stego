@@ -1,7 +1,13 @@
 .vscode/**
+.vscode-test/**
+.github/**
+.changeset/**
 src/**
-tsconfig.json
-README.md
-CHANGELOG.md
+out/test/**
 examples/**
+**/*.ts
+**/*.map
+**/*.vsix
+.gitignore
+tsconfig.json
 node_modules/**/.bin/**

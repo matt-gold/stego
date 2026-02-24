@@ -9,7 +9,7 @@ Stego Spine Links turns inline identifiers like `LOC-ASDF` into clickable links 
 - Show definition previews on hover
 - Warn when identifiers are missing from your index (`stego.spine.reportUnknownIdentifiers`)
 - Ignore fenced code blocks by default
-- Auto-build index entries from `project.json` spine category prefixes by scanning `#`/`##`/`###` headings like `CHAR-...`, `LOC-...`, `SRC-...`
+- Auto-build index entries from `stego-project.json` spine category prefixes by scanning `#`/`##`/`###` headings like `CHAR-...`, `LOC-...`, `SRC-...`
 - Mode-driven sidebar:
 - Manuscript files (`/manuscript` or `/manuscripts`) show a rich metadata editor, with identifier links/previews for spine category keys
 - Manuscript files also show TOC when there is more than one heading (H1-H3)
@@ -48,7 +48,7 @@ Each identifier value can be:
 - `path` (workspace-relative file path target)
 - `anchor` (optional fragment appended to `url` or `path` target)
 
-If the JSON index is missing or incomplete, the extension also infers entries from your nearest `project.json` by reading `spineCategories[].prefix` and scanning headings in project markdown files.
+If the JSON index is missing or incomplete, the extension also infers entries from your nearest `stego-project.json` by reading `spineCategories[].prefix` and scanning headings in project markdown files.
 
 ## Settings
 

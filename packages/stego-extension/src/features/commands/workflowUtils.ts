@@ -83,7 +83,7 @@ export async function resolveProjectScriptContext(requiredScripts: string[]): Pr
 
   const project = await findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath);
   if (!project) {
-    void vscode.window.showWarningMessage('Could not find a project.json for this file.');
+    void vscode.window.showWarningMessage('Could not find a stego-project.json for this file.');
     return undefined;
   }
 
