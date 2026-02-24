@@ -19,7 +19,7 @@ status: draft
 ---
 ```
 
-Per-project metadata preferences can be set in `project.json`:
+Per-project metadata preferences can be set in `stego-project.json`:
 
 ```json
 {
@@ -33,24 +33,28 @@ Manuscript files can omit metadata blocks.
 Optional metadata:
 
 - `title`: optional override for display heading; default is derived from filename
-- `chapter`: optional numeric chapter grouping key
-- `chapter_title`: recommended on the first file in a chapter when using chapter grouping
-- category arrays defined by your project's `bibleCategories` config (example: `cast`, `places`, `incidents`, `ordinances`)
+- grouping keys/titles defined by your project's `compileStructure.levels` (for example `part`, `part_title`, `chapter`, `chapter_title`)
+- category arrays defined by your project's `spineCategories` config (example: `cast`, `places`, `incidents`, `ordinances`)
 
 Rules:
 
 - Filename must start with a numeric prefix followed by `-` or `_` (example: `100-scene.md`).
 - Use three-digit prefixes and leave gaps (`100`, `200`, `300`) to make reordering easy.
-- If present, `chapter` must be a positive integer.
 - `status` must be one of: `draft`, `revise`, `line-edit`, `proof`, `final`.
 - Build sorts by filename prefix order.
-- Chapter breaks are inferred when `chapter` changes between ordered files.
+- Group headings/page breaks are driven by `compileStructure.levels` key changes across ordered files.
 - Canon references belong in metadata arrays defined by project configuration.
 - Do not place canon IDs directly in prose.
 
-## 2) Project-defined bible categories
+Compile structure rules:
 
-Bible categories are configured per project in `project.json`.
+- `compileStructure.levels` is optional; when omitted, build emits entry sections only (no structural group headings).
+- Each level defines: `key`, `label`, optional `titleKey`, optional `injectHeading`, optional `headingTemplate`, optional `pageBreak` (`none` or `between-groups`).
+- Missing group key/title values inherit from the previous manuscript file, so only boundary files need explicit group metadata.
+
+## 2) Project-defined spine categories
+
+Spine categories are configured per project in `stego-project.json`.
 
 Example:
 
@@ -58,7 +62,7 @@ Example:
 {
   "id": "my-project",
   "title": "My Project",
-  "bibleCategories": [
+  "spineCategories": [
     { "key": "cast", "prefix": "CHAR", "notesFile": "characters.md" },
     { "key": "places", "prefix": "LOC", "notesFile": "locations.md" },
     { "key": "incidents", "prefix": "EVENT", "notesFile": "timeline.md" },
@@ -71,20 +75,20 @@ Category rules:
 
 - `key`: lowercase metadata field name used in manuscript files
 - `prefix`: uppercase ID prefix used in references (example: `STATUTE`)
-- `notesFile`: markdown filename resolved in `story-bible/` containing canonical entries
-- `bibleCategories` may be omitted or empty for projects that do not need continuity entity tracking
+- `notesFile`: markdown filename resolved in `spine/` containing canonical entries
+- `spineCategories` may be omitted or empty for projects that do not need continuity entity tracking
 
-## 3) Story bible governance
+## 3) Spine governance
 
 Every project keeps canonical story facts in:
 
-`/Users/mattgold/Code/writing/projects/<project-id>/story-bible/`
+`/Users/mattgold/Code/writing/projects/<project-id>/spine/`
 
-Required bible files are determined by `bibleCategories[*].notesFile`.
+Required spine files are determined by `spineCategories[*].notesFile`.
 
 Governance rule:
 
-- If manuscript facts change, update the relevant bible file in the same branch before merge.
+- If manuscript facts change, update the relevant spine file in the same branch before merge.
 - Canon IDs are referenced from manuscript metadata, not inline prose.
 
 ## 4) Editorial states
@@ -100,9 +104,9 @@ Governance rule:
 Blocking checks:
 
 - malformed or missing metadata
+- invalid `compileStructure` schema in `stego-project.json`
 - invalid required metadata
 - duplicate filename numeric prefixes
-- invalid chapter numbering or chapter sequence regression (when chapter metadata is used)
 - invalid category reference metadata (bad format or wrong field type)
 - inline canon IDs in prose (metadata-only policy)
 - broken local links/images (strict in `proof` and `final`)
@@ -112,7 +116,7 @@ Advisory checks:
 
 - heading-level jumps
 - long paragraphs/sentences
-- unknown story bible IDs referenced in metadata
+- unknown spine IDs referenced in metadata
 - optional external lint/spell tool feedback
 
 ## 6) Build contract
@@ -124,9 +128,9 @@ Contract:
 - Input: `manuscript/*.md`
 - Pre-step: metadata and structure validation
 - Ordering: filename numeric prefix
-- Chapter headers: inserted when ordered files change `chapter`
+- Structural headers/page breaks: inserted when configured `compileStructure.levels` keys change
 - Output: `dist/<project-id>.md`
-- Output includes generated title header, table of contents, chapter sections, and per-file subsections
+- Output includes generated title header, table of contents, structural sections (if configured), and per-file subsections
 - Generated files in `dist/` are never hand-edited
 
 ## 7) Release outputs
@@ -162,7 +166,7 @@ Policy:
 
 - no force-push to `main`
 - merge only when stage checks pass for the intended stage
-- manuscript fact changes require matching story bible updates
+- manuscript fact changes require matching spine updates
 
 ## 9) Backup and resilience
 

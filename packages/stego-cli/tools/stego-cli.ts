@@ -34,16 +34,17 @@ interface ParseArgsResult {
 
 interface StagePolicy {
   minimumChapterStatus: StageName;
-  requireStoryBible: boolean;
+  requireSpine: boolean;
   enforceMarkdownlint: boolean;
   enforceCSpell: boolean;
   enforceLocalLinks: boolean;
+  requireResolvedComments?: boolean;
 }
 
 interface WritingConfig {
   projectsDir: string;
   chapterDir: string;
-  storyBibleDir: string;
+  spineDir: string;
   notesDir: string;
   distDir: string;
   requiredMetadata: string[];
@@ -57,11 +58,23 @@ interface ProjectMeta {
   subtitle?: string;
   author?: string;
   requiredMetadata?: unknown;
-  bibleCategories?: unknown;
+  spineCategories?: unknown;
+  compileStructure?: unknown;
   [key: string]: unknown;
 }
 
-interface BibleCategory {
+type PageBreakMode = "none" | "between-groups";
+
+interface CompileStructureLevel {
+  key: string;
+  label: string;
+  titleKey?: string;
+  injectHeading: boolean;
+  headingTemplate: string;
+  pageBreak: PageBreakMode;
+}
+
+interface SpineCategory {
   key: string;
   prefix: string;
   notesFile: string;
@@ -72,7 +85,7 @@ interface ProjectContext {
   id: string;
   root: string;
   manuscriptDir: string;
-  storyBibleDir: string;
+  spineDir: string;
   notesDir: string;
   distDir: string;
   meta: ProjectMeta;
@@ -85,16 +98,16 @@ interface ChapterEntry {
   relativePath: string;
   title: string;
   order: number | null;
-  chapterNumber: number | null;
-  chapterTitle: string;
   status: string;
   referenceIds: string[];
+  groupValues: Record<string, string>;
   metadata: Metadata;
   body: string;
+  comments: ParsedCommentThread[];
   issues: Issue[];
 }
 
-interface StoryBibleState {
+interface SpineState {
   ids: Set<string>;
   issues: Issue[];
 }
@@ -102,7 +115,8 @@ interface StoryBibleState {
 interface ProjectInspection {
   chapters: ChapterEntry[];
   issues: Issue[];
-  bibleState: StoryBibleState;
+  spineState: SpineState;
+  compileStructureLevels: CompileStructureLevel[];
 }
 
 interface InspectProjectOptions {
@@ -112,17 +126,18 @@ interface InspectProjectOptions {
 interface ParseMetadataResult {
   metadata: Metadata;
   body: string;
+  comments: ParsedCommentThread[];
   issues: Issue[];
 }
 
-interface ChapterSection {
-  chapterNumber: number | null;
-  chapterTitle: string;
-  entries: ChapterEntry[];
+interface ParsedCommentThread {
+  id: string;
+  resolved: boolean;
+  thread: string[];
 }
 
-interface BibleSchema {
-  categories: BibleCategory[];
+interface SpineSchema {
+  categories: SpineCategory[];
   inlineIdRegex: RegExp | null;
 }
 
@@ -133,6 +148,7 @@ const STATUS_RANK: Record<StageName, number> = {
   proof: 3,
   final: 4
 };
+const RESERVED_COMMENT_PREFIX = "CMT";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
 const configPath = path.join(repoRoot, "writing.config.json");
@@ -173,7 +189,7 @@ function main(): void {
         const report = inspectProject(project, config);
         printReport(report.issues);
         exitIfErrors(report.issues);
-        const outputPath = buildManuscript(project, report.chapters);
+        const outputPath = buildManuscript(project, report.chapters, report.compileStructureLevels);
         logLine(`Build output: ${outputPath}`);
         return;
       }
@@ -197,7 +213,7 @@ function main(): void {
         const report = inspectProject(project, config);
         printReport(report.issues);
         exitIfErrors(report.issues);
-        const inputPath = buildManuscript(project, report.chapters);
+        const inputPath = buildManuscript(project, report.chapters, report.compileStructureLevels);
         const outputPath = runExport(project, format, inputPath, readStringOption(options, "output"));
         logLine(`Export output: ${outputPath}`);
         return;
@@ -228,10 +244,10 @@ function isExportFormat(value: string): value is ExportFormat {
   return value === "md" || value === "docx" || value === "pdf" || value === "epub";
 }
 
-function resolveBibleSchema(project: ProjectContext): { schema: BibleSchema; issues: Issue[] } {
+function resolveSpineSchema(project: ProjectContext): { schema: SpineSchema; issues: Issue[] } {
   const issues: Issue[] = [];
-  const projectFile = path.relative(repoRoot, path.join(project.root, "project.json"));
-  const rawCategories = project.meta.bibleCategories;
+  const projectFile = path.relative(repoRoot, path.join(project.root, "stego-project.json"));
+  const rawCategories = project.meta.spineCategories;
 
   if (rawCategories == null) {
     return { schema: { categories: [], inlineIdRegex: null }, issues };
@@ -242,14 +258,14 @@ function resolveBibleSchema(project: ProjectContext): { schema: BibleSchema; iss
       makeIssue(
         "error",
         "metadata",
-        "Project 'bibleCategories' must be an array when defined.",
+        "Project 'spineCategories' must be an array when defined.",
         projectFile
       )
     );
     return { schema: { categories: [], inlineIdRegex: null }, issues };
   }
 
-  const categories: BibleCategory[] = [];
+  const categories: SpineCategory[] = [];
   const keySet = new Set<string>();
   const prefixSet = new Set<string>();
   const notesSet = new Set<string>();
@@ -260,7 +276,7 @@ function resolveBibleSchema(project: ProjectContext): { schema: BibleSchema; iss
         makeIssue(
           "error",
           "metadata",
-          `Invalid bibleCategories entry at index ${index}. Expected object with key, prefix, notesFile.`,
+          `Invalid spineCategories entry at index ${index}. Expected object with key, prefix, notesFile.`,
           projectFile
         )
       );
@@ -276,7 +292,7 @@ function resolveBibleSchema(project: ProjectContext): { schema: BibleSchema; iss
         makeIssue(
           "error",
           "metadata",
-          `Invalid bible category key '${key || "<empty>"}'. Use lowercase key names like 'cast' or 'incidents'.`,
+          `Invalid spine category key '${key || "<empty>"}'. Use lowercase key names like 'cast' or 'incidents'.`,
           projectFile
         )
       );
@@ -288,7 +304,19 @@ function resolveBibleSchema(project: ProjectContext): { schema: BibleSchema; iss
         makeIssue(
           "error",
           "metadata",
-          `Invalid bible category prefix '${prefix || "<empty>"}'. Use uppercase prefixes like 'CHAR' or 'STATUTE'.`,
+          `Invalid spine category prefix '${prefix || "<empty>"}'. Use uppercase prefixes like 'CHAR' or 'STATUTE'.`,
+          projectFile
+        )
+      );
+      continue;
+    }
+
+    if (prefix.toUpperCase() === RESERVED_COMMENT_PREFIX) {
+      issues.push(
+        makeIssue(
+          "error",
+          "metadata",
+          `Invalid spine category prefix '${prefix}'. '${RESERVED_COMMENT_PREFIX}' is reserved for Stego comment IDs (e.g. CMT-0001).`,
           projectFile
         )
       );
@@ -300,7 +328,7 @@ function resolveBibleSchema(project: ProjectContext): { schema: BibleSchema; iss
         makeIssue(
           "error",
           "metadata",
-          `Invalid notesFile '${notesFile || "<empty>"}'. Use markdown filenames like 'characters.md' (resolved in story-bible/).`,
+          `Invalid notesFile '${notesFile || "<empty>"}'. Use markdown filenames like 'characters.md' (resolved in spine/).`,
           projectFile
         )
       );
@@ -308,15 +336,15 @@ function resolveBibleSchema(project: ProjectContext): { schema: BibleSchema; iss
     }
 
     if (keySet.has(key)) {
-      issues.push(makeIssue("error", "metadata", `Duplicate bible category key '${key}'.`, projectFile));
+      issues.push(makeIssue("error", "metadata", `Duplicate spine category key '${key}'.`, projectFile));
       continue;
     }
     if (prefixSet.has(prefix)) {
-      issues.push(makeIssue("error", "metadata", `Duplicate bible category prefix '${prefix}'.`, projectFile));
+      issues.push(makeIssue("error", "metadata", `Duplicate spine category prefix '${prefix}'.`, projectFile));
       continue;
     }
     if (notesSet.has(notesFile)) {
-      issues.push(makeIssue("error", "metadata", `Duplicate bible category notesFile '${notesFile}'.`, projectFile));
+      issues.push(makeIssue("error", "metadata", `Duplicate spine category notesFile '${notesFile}'.`, projectFile));
       continue;
     }
 
@@ -345,7 +373,7 @@ function resolveRequiredMetadata(
   runtimeConfig: WritingConfig
 ): { requiredMetadata: string[]; issues: Issue[] } {
   const issues: Issue[] = [];
-  const projectFile = path.relative(repoRoot, path.join(project.root, "project.json"));
+  const projectFile = path.relative(repoRoot, path.join(project.root, "stego-project.json"));
   const raw = project.meta.requiredMetadata;
 
   if (raw == null) {
@@ -403,7 +431,140 @@ function resolveRequiredMetadata(
   return { requiredMetadata, issues };
 }
 
-function buildInlineIdRegex(categories: BibleCategory[]): RegExp | null {
+function resolveCompileStructure(project: ProjectContext): { levels: CompileStructureLevel[]; issues: Issue[] } {
+  const issues: Issue[] = [];
+  const projectFile = path.relative(repoRoot, path.join(project.root, "stego-project.json"));
+  const raw = project.meta.compileStructure;
+
+  if (raw == null) {
+    return { levels: [], issues };
+  }
+
+  if (!isPlainObject(raw)) {
+    issues.push(
+      makeIssue(
+        "error",
+        "metadata",
+        "Project 'compileStructure' must be an object.",
+        projectFile
+      )
+    );
+    return { levels: [], issues };
+  }
+
+  const rawLevels = raw.levels;
+  if (!Array.isArray(rawLevels)) {
+    issues.push(
+      makeIssue(
+        "error",
+        "metadata",
+        "Project 'compileStructure.levels' must be an array.",
+        projectFile
+      )
+    );
+    return { levels: [], issues };
+  }
+
+  const levels: CompileStructureLevel[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const [index, entry] of rawLevels.entries()) {
+    if (!isPlainObject(entry)) {
+      issues.push(
+        makeIssue(
+          "error",
+          "metadata",
+          `Invalid compileStructure level at index ${index}. Expected object.`,
+          projectFile
+        )
+      );
+      continue;
+    }
+
+    const key = typeof entry.key === "string" ? entry.key.trim() : "";
+    const label = typeof entry.label === "string" ? entry.label.trim() : "";
+    const titleKeyRaw = typeof entry.titleKey === "string" ? entry.titleKey.trim() : "";
+    const headingTemplateRaw = typeof entry.headingTemplate === "string" ? entry.headingTemplate.trim() : "";
+
+    if (!key || !/^[a-z][a-z0-9_-]*$/.test(key)) {
+      issues.push(
+        makeIssue(
+          "error",
+          "metadata",
+          `compileStructure.levels[${index}].key must match /^[a-z][a-z0-9_-]*$/.`,
+          projectFile
+        )
+      );
+      continue;
+    }
+
+    if (!label) {
+      issues.push(
+        makeIssue(
+          "error",
+          "metadata",
+          `compileStructure.levels[${index}].label is required.`,
+          projectFile
+        )
+      );
+      continue;
+    }
+
+    if (seenKeys.has(key)) {
+      issues.push(
+        makeIssue(
+          "error",
+          "metadata",
+          `Duplicate compileStructure level key '${key}'.`,
+          projectFile
+        )
+      );
+      continue;
+    }
+
+    if (titleKeyRaw && !/^[a-z][a-z0-9_-]*$/.test(titleKeyRaw)) {
+      issues.push(
+        makeIssue(
+          "error",
+          "metadata",
+          `compileStructure.levels[${index}].titleKey must match /^[a-z][a-z0-9_-]*$/.`,
+          projectFile
+        )
+      );
+      continue;
+    }
+
+    const pageBreakRaw = typeof entry.pageBreak === "string" ? entry.pageBreak.trim() : "none";
+    if (pageBreakRaw !== "none" && pageBreakRaw !== "between-groups") {
+      issues.push(
+        makeIssue(
+          "error",
+          "metadata",
+          `compileStructure.levels[${index}].pageBreak must be 'none' or 'between-groups'.`,
+          projectFile
+        )
+      );
+      continue;
+    }
+
+    const injectHeading = typeof entry.injectHeading === "boolean" ? entry.injectHeading : true;
+    const headingTemplate = headingTemplateRaw || "{label} {value}: {title}";
+
+    seenKeys.add(key);
+    levels.push({
+      key,
+      label,
+      titleKey: titleKeyRaw || undefined,
+      injectHeading,
+      headingTemplate,
+      pageBreak: pageBreakRaw
+    });
+  }
+
+  return { levels, issues };
+}
+
+function buildInlineIdRegex(categories: SpineCategory[]): RegExp | null {
   if (categories.length === 0) {
     return null;
   }
@@ -479,8 +640,8 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
   }
 
   fs.mkdirSync(path.join(projectRoot, config.chapterDir), { recursive: true });
-  const storyBibleDir = path.join(projectRoot, config.storyBibleDir);
-  fs.mkdirSync(storyBibleDir, { recursive: true });
+  const spineDir = path.join(projectRoot, config.spineDir);
+  fs.mkdirSync(spineDir, { recursive: true });
   const notesDir = path.join(projectRoot, config.notesDir);
   fs.mkdirSync(notesDir, { recursive: true });
   fs.mkdirSync(path.join(projectRoot, config.distDir), { recursive: true });
@@ -489,7 +650,19 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
     id: projectId,
     title: titleOption?.trim() || toDisplayTitle(projectId),
     requiredMetadata: ["status"],
-    bibleCategories: [
+    compileStructure: {
+      levels: [
+        {
+          key: "chapter",
+          label: "Chapter",
+          titleKey: "chapter_title",
+          injectHeading: true,
+          headingTemplate: "{label} {value}: {title}",
+          pageBreak: "none"
+        }
+      ]
+    },
+    spineCategories: [
       {
         key: "characters",
         prefix: "CHAR",
@@ -498,23 +671,23 @@ function createProject(projectIdOption?: string, titleOption?: string): void {
     ]
   };
 
-  const projectJsonPath = path.join(projectRoot, "project.json");
+  const projectJsonPath = path.join(projectRoot, "stego-project.json");
   fs.writeFileSync(projectJsonPath, `${JSON.stringify(projectJson, null, 2)}\n`, "utf8");
 
   const projectPackage: Record<string, unknown> = {
     name: `writing-project-${projectId}`,
     private: true,
     scripts: {
-      validate: "node --experimental-strip-types ../../tools/writing-cli.ts validate",
-      build: "node --experimental-strip-types ../../tools/writing-cli.ts build",
-      "check-stage": "node --experimental-strip-types ../../tools/writing-cli.ts check-stage",
-      export: "node --experimental-strip-types ../../tools/writing-cli.ts export"
+      validate: "node --experimental-strip-types ../../tools/stego-cli.ts validate",
+      build: "node --experimental-strip-types ../../tools/stego-cli.ts build",
+      "check-stage": "node --experimental-strip-types ../../tools/stego-cli.ts check-stage",
+      export: "node --experimental-strip-types ../../tools/stego-cli.ts export"
     }
   };
   const projectPackagePath = path.join(projectRoot, "package.json");
   fs.writeFileSync(projectPackagePath, `${JSON.stringify(projectPackage, null, 2)}\n`, "utf8");
 
-  const charactersNotesPath = path.join(storyBibleDir, "characters.md");
+  const charactersNotesPath = path.join(spineDir, "characters.md");
   fs.writeFileSync(charactersNotesPath, "# Characters\n\n", "utf8");
   logLine(`Created project: ${path.relative(repoRoot, projectRoot)}`);
   logLine(`- ${path.relative(repoRoot, projectJsonPath)}`);
@@ -532,7 +705,7 @@ function getProjectIds(): string[] {
     .readdirSync(projectsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .filter((id) => fs.existsSync(path.join(projectsDir, id, "project.json")))
+    .filter((id) => fs.existsSync(path.join(projectsDir, id, "stego-project.json")))
     .sort();
 }
 
@@ -557,10 +730,10 @@ function resolveProject(explicitProjectId?: string): ProjectContext {
     id: projectId,
     root: projectRoot,
     manuscriptDir: path.join(projectRoot, config.chapterDir),
-    storyBibleDir: path.join(projectRoot, config.storyBibleDir),
+    spineDir: path.join(projectRoot, config.spineDir),
     notesDir: path.join(projectRoot, config.notesDir),
     distDir: path.join(projectRoot, config.distDir),
-    meta: readJson<ProjectMeta>(path.join(projectRoot, "project.json"))
+    meta: readJson<ProjectMeta>(path.join(projectRoot, "stego-project.json"))
   };
 }
 
@@ -576,7 +749,7 @@ function inferProjectIdFromCwd(cwd: string): string | null {
     return null;
   }
 
-  const projectJsonPath = path.join(projectsRoot, projectId, "project.json");
+  const projectJsonPath = path.join(projectsRoot, projectId, "stego-project.json");
   if (!fs.existsSync(projectJsonPath)) {
     return null;
   }
@@ -590,11 +763,13 @@ function inspectProject(
   options: InspectProjectOptions = {}
 ): ProjectInspection {
   const issues: Issue[] = [];
-  const emptyBibleState: StoryBibleState = { ids: new Set<string>(), issues: [] };
-  const bibleSchema = resolveBibleSchema(project);
+  const emptySpineState: SpineState = { ids: new Set<string>(), issues: [] };
+  const spineSchema = resolveSpineSchema(project);
   const requiredMetadataState = resolveRequiredMetadata(project, runtimeConfig);
-  issues.push(...bibleSchema.issues);
+  const compileStructureState = resolveCompileStructure(project);
+  issues.push(...spineSchema.issues);
   issues.push(...requiredMetadataState.issues);
+  issues.push(...compileStructureState.issues);
 
   let chapterFiles: string[] = [];
   const onlyFile = options.onlyFile?.trim();
@@ -605,17 +780,17 @@ function inspectProject(
       issues.push(
         makeIssue("error", "structure", `Requested file is outside the project: ${onlyFile}`, null)
       );
-      return { chapters: [], issues, bibleState: emptyBibleState };
+      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
     }
 
     if (!fs.existsSync(resolvedPath)) {
       issues.push(makeIssue("error", "structure", `Requested file does not exist: ${onlyFile}`, null));
-      return { chapters: [], issues, bibleState: emptyBibleState };
+      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
     }
 
     if (!fs.statSync(resolvedPath).isFile() || !resolvedPath.endsWith(".md")) {
       issues.push(makeIssue("error", "structure", `Requested file must be a markdown file: ${onlyFile}`, null));
-      return { chapters: [], issues, bibleState: emptyBibleState };
+      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
     }
 
     const relativeToManuscript = path.relative(project.manuscriptDir, resolvedPath);
@@ -628,14 +803,14 @@ function inspectProject(
           null
         )
       );
-      return { chapters: [], issues, bibleState: emptyBibleState };
+      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
     }
 
     chapterFiles = [resolvedPath];
   } else {
     if (!fs.existsSync(project.manuscriptDir)) {
       issues.push(makeIssue("error", "structure", `Missing manuscript directory: ${project.manuscriptDir}`));
-      return { chapters: [], issues, bibleState: emptyBibleState };
+      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
     }
 
     chapterFiles = fs
@@ -646,7 +821,7 @@ function inspectProject(
 
     if (chapterFiles.length === 0) {
       issues.push(makeIssue("error", "structure", `No manuscript files found in ${project.manuscriptDir}`));
-      return { chapters: [], issues, bibleState: emptyBibleState };
+      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
     }
   }
 
@@ -655,8 +830,9 @@ function inspectProject(
       chapterPath,
       runtimeConfig,
       requiredMetadataState.requiredMetadata,
-      bibleSchema.schema.categories,
-      bibleSchema.schema.inlineIdRegex
+      spineSchema.schema.categories,
+      spineSchema.schema.inlineIdRegex,
+      compileStructureState.levels
     )
   );
   for (const chapter of chapters) {
@@ -696,28 +872,33 @@ function inspectProject(
     }
     return a.order - b.order;
   });
-  issues.push(...validateChapterProgression(chapters));
 
-  const bibleState = readStoryBible(project.storyBibleDir, bibleSchema.schema.categories, bibleSchema.schema.inlineIdRegex);
-  issues.push(...bibleState.issues);
+  const spineState = readSpine(project.spineDir, spineSchema.schema.categories, spineSchema.schema.inlineIdRegex);
+  issues.push(...spineState.issues);
 
   for (const chapter of chapters) {
-    issues.push(...findUnknownBibleIds(chapter.referenceIds, bibleState.ids, chapter.relativePath));
+    issues.push(...findUnknownSpineIds(chapter.referenceIds, spineState.ids, chapter.relativePath));
   }
 
-  return { chapters, issues, bibleState };
+  return {
+    chapters,
+    issues,
+    spineState,
+    compileStructureLevels: compileStructureState.levels
+  };
 }
 
 function parseChapter(
   chapterPath: string,
   runtimeConfig: WritingConfig,
   requiredMetadata: string[],
-  bibleCategories: BibleCategory[],
-  inlineIdRegex: RegExp | null
+  spineCategories: SpineCategory[],
+  inlineIdRegex: RegExp | null,
+  compileStructureLevels: CompileStructureLevel[]
 ): ChapterEntry {
   const relativePath = path.relative(repoRoot, chapterPath);
   const raw = fs.readFileSync(chapterPath, "utf8");
-  const { metadata, body, issues } = parseMetadata(raw, chapterPath, false);
+  const { metadata, body, comments, issues } = parseMetadata(raw, chapterPath, false);
 
   const chapterIssues = [...issues];
 
@@ -755,29 +936,27 @@ function parseChapter(
       makeIssue(
         "error",
         "metadata",
-        `Invalid chapter status '${status}'. Allowed: ${runtimeConfig.allowedStatuses.join(", ")}.`,
+        `Invalid file status '${status}'. Allowed: ${runtimeConfig.allowedStatuses.join(", ")}.`,
         relativePath
       )
     );
   }
 
-  let chapterNumber: number | null = null;
-  if (typeof metadata.chapter === "number") {
-    chapterNumber = metadata.chapter;
-  } else if (typeof metadata.chapter === "string" && /^\d+$/.test(metadata.chapter)) {
-    chapterNumber = Number(metadata.chapter);
+  const groupValues: Record<string, string> = {};
+  for (const level of compileStructureLevels) {
+    const groupValue = normalizeGroupingValue(metadata[level.key], relativePath, chapterIssues, level.key);
+    if (groupValue) {
+      groupValues[level.key] = groupValue;
+    }
+
+    if (level.titleKey) {
+      void normalizeGroupingValue(metadata[level.titleKey], relativePath, chapterIssues, level.titleKey);
+    }
   }
 
-  if (chapterNumber != null && (!Number.isInteger(chapterNumber) || chapterNumber < 1)) {
-    chapterIssues.push(
-      makeIssue("error", "metadata", "Metadata 'chapter' must be a positive integer.", relativePath)
-    );
-  }
-
-  const chapterTitle = normalizeChapterTitle(metadata.chapter_title, relativePath, chapterIssues);
-  const referenceValidation = extractReferenceIds(metadata, relativePath, bibleCategories);
+  const referenceValidation = extractReferenceIds(metadata, relativePath, spineCategories);
   chapterIssues.push(...referenceValidation.issues);
-  chapterIssues.push(...findInlineBibleIdMentions(body, relativePath, inlineIdRegex));
+  chapterIssues.push(...findInlineSpineIdMentions(body, relativePath, inlineIdRegex));
   chapterIssues.push(...validateMarkdownBody(body, chapterPath));
 
   return {
@@ -785,27 +964,33 @@ function parseChapter(
     relativePath,
     title,
     order,
-    chapterNumber,
-    chapterTitle,
     status,
     referenceIds: referenceValidation.ids,
+    groupValues,
     metadata,
     body,
+    comments,
     issues: chapterIssues
   };
 }
 
-function normalizeChapterTitle(rawChapterTitle: MetadataValue | undefined, relativePath: string, issues: Issue[]): string {
-  if (rawChapterTitle == null || rawChapterTitle === "") {
-    return "";
+function normalizeGroupingValue(
+  rawValue: MetadataValue | undefined,
+  relativePath: string,
+  issues: Issue[],
+  key: string
+): string | undefined {
+  if (rawValue == null || rawValue === "") {
+    return undefined;
   }
 
-  if (typeof rawChapterTitle !== "string") {
-    issues.push(makeIssue("error", "metadata", "Metadata 'chapter_title' must be a string.", relativePath));
-    return "";
+  if (Array.isArray(rawValue)) {
+    issues.push(makeIssue("error", "metadata", `Metadata '${key}' must be a scalar value.`, relativePath));
+    return undefined;
   }
 
-  return rawChapterTitle.trim();
+  const normalized = String(rawValue).trim();
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function deriveEntryTitle(rawTitle: MetadataValue | undefined, chapterPath: string): string {
@@ -854,12 +1039,12 @@ function parseOrderFromFilename(chapterPath: string, relativePath: string, issue
 function extractReferenceIds(
   metadata: Metadata,
   relativePath: string,
-  bibleCategories: BibleCategory[]
+  spineCategories: SpineCategory[]
 ): { ids: string[]; issues: Issue[] } {
   const issues: Issue[] = [];
   const ids = new Set<string>();
 
-  for (const category of bibleCategories) {
+  for (const category of spineCategories) {
     const rawValue = metadata[category.key];
     if (rawValue == null || rawValue === "") {
       continue;
@@ -904,7 +1089,7 @@ function extractReferenceIds(
   return { ids: [...ids], issues };
 }
 
-function findInlineBibleIdMentions(body: string, relativePath: string, inlineIdRegex: RegExp | null): Issue[] {
+function findInlineSpineIdMentions(body: string, relativePath: string, inlineIdRegex: RegExp | null): Issue[] {
   const issues: Issue[] = [];
   if (!inlineIdRegex) {
     return issues;
@@ -936,16 +1121,26 @@ function findInlineBibleIdMentions(body: string, relativePath: string, inlineIdR
 
 function parseMetadata(raw: string, chapterPath: string, required: boolean): ParseMetadataResult {
   const relativePath = path.relative(repoRoot, chapterPath);
-  const issues = [];
+  const issues: Issue[] = [];
 
   if (!raw.startsWith("---\n") && !raw.startsWith("---\r\n")) {
+    const commentsResult = parseStegoCommentsAppendix(raw, relativePath, 1);
     if (!required) {
-      return { metadata: {}, body: raw, issues: [] };
+      return {
+        metadata: {},
+        body: commentsResult.bodyWithoutComments,
+        comments: commentsResult.comments,
+        issues: commentsResult.issues
+      };
     }
     return {
       metadata: {},
-      body: raw,
-      issues: [makeIssue("error", "metadata", "Missing metadata block at top of file.", relativePath)]
+      body: commentsResult.bodyWithoutComments,
+      comments: commentsResult.comments,
+      issues: [
+        makeIssue("error", "metadata", "Missing metadata block at top of file.", relativePath),
+        ...commentsResult.issues
+      ]
     };
   }
 
@@ -954,6 +1149,7 @@ function parseMetadata(raw: string, chapterPath: string, required: boolean): Par
     return {
       metadata: {},
       body: raw,
+      comments: [],
       issues: [makeIssue("error", "metadata", "Metadata opening delimiter found, but closing delimiter is missing.", relativePath)]
     };
   }
@@ -1048,7 +1244,444 @@ function parseMetadata(raw: string, chapterPath: string, required: boolean): Par
     metadata[key] = coerceMetadataValue(value);
   }
 
-  return { metadata, body, issues };
+  const bodyStartLine = match[0].split(/\r?\n/).length;
+  const commentsResult = parseStegoCommentsAppendix(body, relativePath, bodyStartLine);
+  issues.push(...commentsResult.issues);
+
+  return {
+    metadata,
+    body: commentsResult.bodyWithoutComments,
+    comments: commentsResult.comments,
+    issues
+  };
+}
+
+function parseStegoCommentsAppendix(
+  body: string,
+  relativePath: string,
+  bodyStartLine: number
+): { bodyWithoutComments: string; comments: ParsedCommentThread[]; issues: Issue[] } {
+  const lineEnding = body.includes("\r\n") ? "\r\n" : "\n";
+  const lines = body.split(/\r?\n/);
+  const startMarker = "<!-- stego-comments:start -->";
+  const endMarker = "<!-- stego-comments:end -->";
+  const issues: Issue[] = [];
+
+  const startIndexes = findTrimmedLineIndexes(lines, startMarker);
+  const endIndexes = findTrimmedLineIndexes(lines, endMarker);
+
+  if (startIndexes.length === 0 && endIndexes.length === 0) {
+    return { bodyWithoutComments: body, comments: [], issues };
+  }
+
+  if (startIndexes.length !== 1 || endIndexes.length !== 1) {
+    if (startIndexes.length !== 1) {
+      issues.push(
+        makeIssue(
+          "error",
+          "comments",
+          `Expected exactly one '${startMarker}' marker.`,
+          relativePath
+        )
+      );
+    }
+    if (endIndexes.length !== 1) {
+      issues.push(
+        makeIssue(
+          "error",
+          "comments",
+          `Expected exactly one '${endMarker}' marker.`,
+          relativePath
+        )
+      );
+    }
+    return { bodyWithoutComments: body, comments: [], issues };
+  }
+
+  const start = startIndexes[0];
+  const end = endIndexes[0];
+  if (end <= start) {
+    issues.push(
+      makeIssue(
+        "error",
+        "comments",
+        `'${endMarker}' must appear after '${startMarker}'.`,
+        relativePath,
+        bodyStartLine + end
+      )
+    );
+    return { bodyWithoutComments: body, comments: [], issues };
+  }
+
+  const blockLines = lines.slice(start + 1, end);
+  const comments = parseStegoCommentThreads(blockLines, relativePath, bodyStartLine + start + 1, issues);
+
+  let removeStart = start;
+  if (removeStart > 0 && lines[removeStart - 1].trim().length === 0) {
+    removeStart -= 1;
+  }
+
+  const kept = [...lines.slice(0, removeStart), ...lines.slice(end + 1)];
+  while (kept.length > 0 && kept[kept.length - 1].trim().length === 0) {
+    kept.pop();
+  }
+
+  return {
+    bodyWithoutComments: kept.join(lineEnding),
+    comments,
+    issues
+  };
+}
+
+function parseStegoCommentThreads(
+  lines: string[],
+  relativePath: string,
+  baseLine: number,
+  issues: Issue[]
+): ParsedCommentThread[] {
+  const comments: ParsedCommentThread[] = [];
+
+  let index = 0;
+  while (index < lines.length) {
+    const trimmed = lines[index].trim();
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^###\s+(CMT-\d{4})\s*$/);
+    if (!headingMatch) {
+      issues.push(
+        makeIssue(
+          "error",
+          "comments",
+          "Invalid comments appendix line. Expected heading like '### CMT-0001'.",
+          relativePath,
+          baseLine + index
+        )
+      );
+      index += 1;
+      continue;
+    }
+
+    const id = headingMatch[1];
+    index += 1;
+    const rowLines: string[] = [];
+    const rowLineNumbers: number[] = [];
+    while (index < lines.length) {
+      const nextTrimmed = lines[index].trim();
+      if (/^###\s+CMT-\d{4}\s*$/.test(nextTrimmed)) {
+        break;
+      }
+      rowLines.push(lines[index]);
+      rowLineNumbers.push(baseLine + index);
+      index += 1;
+    }
+
+    let resolved: boolean | undefined;
+    let sawMeta64 = false;
+    const thread: string[] = [];
+    let rowIndex = 0;
+
+    while (rowIndex < rowLines.length) {
+      const rawRow = rowLines[rowIndex];
+      const lineNumber = rowLineNumbers[rowIndex];
+      const trimmedRow = rawRow.trim();
+      if (!trimmedRow) {
+        rowIndex += 1;
+        continue;
+      }
+
+      if (thread.length > 0) {
+        issues.push(
+          makeIssue(
+            "error",
+            "comments",
+            `Multiple message blocks found for ${id}. Create a new CMT id for each reply.`,
+            relativePath,
+            lineNumber
+          )
+        );
+        break;
+      }
+
+      if (!sawMeta64) {
+        const metaMatch = trimmedRow.match(/^<!--\s*meta64:\s*(\S+)\s*-->\s*$/);
+        if (!metaMatch) {
+          issues.push(
+            makeIssue(
+              "error",
+              "comments",
+              `Invalid comment metadata row '${trimmedRow}'. Expected '<!-- meta64: <base64url-json> -->'.`,
+              relativePath,
+              lineNumber
+            )
+          );
+          rowIndex += 1;
+          continue;
+        }
+
+        sawMeta64 = true;
+        const decoded = decodeCommentMeta64(metaMatch[1], id, relativePath, lineNumber, issues);
+        if (decoded) {
+          resolved = decoded.resolved;
+        }
+        rowIndex += 1;
+        continue;
+      }
+
+      const headerQuote = extractQuotedLine(rawRow);
+      if (headerQuote === undefined) {
+        issues.push(
+          makeIssue(
+            "error",
+            "comments",
+            `Invalid thread header '${trimmedRow}'. Expected blockquote header like '> _timestamp | author_'.`,
+            relativePath,
+            lineNumber
+          )
+        );
+        rowIndex += 1;
+        continue;
+      }
+
+      const header = parseThreadHeader(headerQuote);
+      if (!header) {
+        issues.push(
+          makeIssue(
+            "error",
+            "comments",
+            `Invalid thread header '${headerQuote.trim()}'. Expected '> _timestamp | author_'.`,
+            relativePath,
+            lineNumber
+          )
+        );
+        rowIndex += 1;
+        continue;
+      }
+
+      rowIndex += 1;
+      while (rowIndex < rowLines.length) {
+        const separatorRaw = rowLines[rowIndex];
+        const separatorTrimmed = separatorRaw.trim();
+        if (!separatorTrimmed) {
+          rowIndex += 1;
+          continue;
+        }
+
+        const separatorQuote = extractQuotedLine(separatorRaw);
+        if (separatorQuote !== undefined && separatorQuote.trim().length === 0) {
+          rowIndex += 1;
+        }
+        break;
+      }
+
+      const messageLines: string[] = [];
+      while (rowIndex < rowLines.length) {
+        const messageRaw = rowLines[rowIndex];
+        const messageLineNumber = rowLineNumbers[rowIndex];
+        const messageTrimmed = messageRaw.trim();
+        if (!messageTrimmed) {
+          rowIndex += 1;
+          if (messageLines.length > 0) {
+            break;
+          }
+          continue;
+        }
+
+        const messageQuote = extractQuotedLine(messageRaw);
+        if (messageQuote === undefined) {
+          issues.push(
+            makeIssue(
+              "error",
+              "comments",
+              `Invalid thread line '${messageTrimmed}'. Expected blockquote content starting with '>'.`,
+              relativePath,
+              messageLineNumber
+            )
+          );
+          rowIndex += 1;
+          if (messageLines.length > 0) {
+            break;
+          }
+          continue;
+        }
+
+        if (parseThreadHeader(messageQuote)) {
+          break;
+        }
+
+        messageLines.push(messageQuote);
+        rowIndex += 1;
+      }
+
+      while (messageLines.length > 0 && messageLines[messageLines.length - 1].trim().length === 0) {
+        messageLines.pop();
+      }
+
+      if (messageLines.length === 0) {
+        issues.push(
+          makeIssue(
+            "error",
+            "comments",
+            `Thread entry for comment ${id} is missing message text.`,
+            relativePath,
+            lineNumber
+          )
+        );
+        continue;
+      }
+
+      const message = messageLines.join("\n").trim();
+      thread.push(`${header.timestamp} | ${header.author} | ${message}`);
+    }
+
+    if (!sawMeta64) {
+      issues.push(
+        makeIssue(
+          "error",
+          "comments",
+          `Comment ${id} is missing metadata row ('<!-- meta64: <base64url-json> -->').`,
+          relativePath
+        )
+      );
+      resolved = false;
+    }
+
+    if (thread.length === 0) {
+      issues.push(
+        makeIssue(
+          "error",
+          "comments",
+          `Comment ${id} is missing valid blockquote thread entries.`,
+          relativePath
+        )
+      );
+    }
+
+    comments.push({ id, resolved: Boolean(resolved), thread });
+  }
+
+  return comments;
+}
+
+function decodeCommentMeta64(
+  encoded: string,
+  commentId: string,
+  relativePath: string,
+  lineNumber: number,
+  issues: Issue[]
+): { resolved: boolean } | undefined {
+  let rawJson = "";
+  try {
+    rawJson = Buffer.from(encoded, "base64url").toString("utf8");
+  } catch {
+    issues.push(
+      makeIssue(
+        "error",
+        "comments",
+        `Invalid meta64 payload for comment ${commentId}; expected base64url-encoded JSON.`,
+        relativePath,
+        lineNumber
+      )
+    );
+    return undefined;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    issues.push(
+      makeIssue(
+        "error",
+        "comments",
+        `Invalid meta64 JSON for comment ${commentId}.`,
+        relativePath,
+        lineNumber
+      )
+    );
+    return undefined;
+  }
+
+  if (!isPlainObject(parsed)) {
+    issues.push(
+      makeIssue(
+        "error",
+        "comments",
+        `Invalid meta64 object for comment ${commentId}.`,
+        relativePath,
+        lineNumber
+      )
+    );
+    return undefined;
+  }
+
+  const allowedKeys = new Set(["status", "anchor", "paragraph_index", "signature", "excerpt"]);
+  for (const key of Object.keys(parsed)) {
+    if (!allowedKeys.has(key)) {
+      issues.push(
+        makeIssue(
+          "error",
+          "comments",
+          `meta64 for comment ${commentId} contains unsupported key '${key}'.`,
+          relativePath,
+          lineNumber
+        )
+      );
+      return undefined;
+    }
+  }
+
+  const status = typeof parsed.status === "string" ? parsed.status.trim().toLowerCase() : "";
+  if (status !== "open" && status !== "resolved") {
+    issues.push(
+      makeIssue(
+        "error",
+        "comments",
+        `meta64 for comment ${commentId} must include status 'open' or 'resolved'.`,
+        relativePath,
+        lineNumber
+      )
+    );
+    return undefined;
+  }
+
+  return { resolved: status === "resolved" };
+}
+
+function extractQuotedLine(raw: string): string | undefined {
+  const quoteMatch = raw.match(/^\s*>\s?(.*)$/);
+  if (!quoteMatch) {
+    return undefined;
+  }
+
+  return quoteMatch[1];
+}
+
+function parseThreadHeader(value: string): { timestamp: string; author: string } | undefined {
+  const match = value.trim().match(/^_(.+?)\s*\|\s*(.+?)_\s*$/);
+  if (!match) {
+    return undefined;
+  }
+
+  const timestamp = match[1].trim();
+  const author = match[2].trim();
+  if (!timestamp || !author) {
+    return undefined;
+  }
+
+  return { timestamp, author };
+}
+
+function findTrimmedLineIndexes(lines: string[], marker: string): number[] {
+  const indexes: number[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index].trim() === marker) {
+      indexes.push(index);
+    }
+  }
+  return indexes;
 }
 
 function coerceMetadataValue(value: string): MetadataValue {
@@ -1236,69 +1869,25 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function validateChapterProgression(chapters: ChapterEntry[]): Issue[] {
-  const issues: Issue[] = [];
-  let previousChapter: number | null = null;
-  const chapterTitles = new Map<number, string>();
-
-  for (const chapter of chapters) {
-    const chapterNumber = chapter.chapterNumber;
-    if (chapterNumber == null || !Number.isInteger(chapterNumber) || chapterNumber < 1) {
-      continue;
-    }
-
-    if (previousChapter != null && chapterNumber < previousChapter) {
-      issues.push(
-        makeIssue(
-          "error",
-          "ordering",
-          `Chapter number moves backward from ${previousChapter} to ${chapterNumber}.`,
-          chapter.relativePath
-        )
-      );
-    }
-    previousChapter = chapterNumber;
-
-    const existingTitle = chapterTitles.get(chapterNumber);
-    if (!existingTitle) {
-      chapterTitles.set(chapterNumber, chapter.chapterTitle || chapter.title);
-      continue;
-    }
-
-    if (chapter.chapterTitle && chapter.chapterTitle !== existingTitle) {
-      issues.push(
-        makeIssue(
-          "warning",
-          "metadata",
-          `Chapter ${chapterNumber} has conflicting chapter_title values ('${existingTitle}' vs '${chapter.chapterTitle}').`,
-          chapter.relativePath
-        )
-      );
-    }
-  }
-
-  return issues;
-}
-
-function readStoryBible(
-  storyBibleDir: string,
-  bibleCategories: BibleCategory[],
+function readSpine(
+  spineDir: string,
+  spineCategories: SpineCategory[],
   inlineIdRegex: RegExp | null
-): StoryBibleState {
+): SpineState {
   const issues: Issue[] = [];
   const ids = new Set<string>();
 
-  if (bibleCategories.length === 0) {
+  if (spineCategories.length === 0) {
     return { ids, issues };
   }
 
-  if (!fs.existsSync(storyBibleDir)) {
-    issues.push(makeIssue("warning", "continuity", `Missing story-bible directory: ${storyBibleDir}`));
+  if (!fs.existsSync(spineDir)) {
+    issues.push(makeIssue("warning", "continuity", `Missing spine directory: ${spineDir}`));
     return { ids, issues };
   }
 
-  for (const category of bibleCategories) {
-    const fullPath = path.join(storyBibleDir, category.notesFile);
+  for (const category of spineCategories) {
+    const fullPath = path.join(spineDir, category.notesFile);
     const relativePath = path.relative(repoRoot, fullPath);
 
     if (!fs.existsSync(fullPath)) {
@@ -1306,7 +1895,7 @@ function readStoryBible(
         makeIssue(
           "warning",
           "continuity",
-          `Missing story bible file '${category.notesFile}' for category '${category.key}'.`,
+          `Missing spine file '${category.notesFile}' for category '${category.key}'.`,
           relativePath
         )
       );
@@ -1326,13 +1915,13 @@ function readStoryBible(
   return { ids, issues };
 }
 
-function findUnknownBibleIds(referenceIds: string[], knownIds: Set<string>, relativePath: string): Issue[] {
+function findUnknownSpineIds(referenceIds: string[], knownIds: Set<string>, relativePath: string): Issue[] {
   const issues: Issue[] = [];
 
   for (const id of referenceIds) {
     if (!knownIds.has(id)) {
       issues.push(
-        makeIssue("warning", "continuity", `Metadata reference '${id}' does not exist in the story bible files.`, relativePath)
+        makeIssue("warning", "continuity", `Metadata reference '${id}' does not exist in the spine files.`, relativePath)
       );
     }
   }
@@ -1371,7 +1960,7 @@ function runStageCheck(
         makeIssue(
           "error",
           "stage",
-          `Chapter status '${chapter.status}' is below required stage '${policy.minimumChapterStatus}'.`,
+          `File status '${chapter.status}' is below required stage '${policy.minimumChapterStatus}'.`,
           chapter.relativePath
         )
       );
@@ -1380,12 +1969,28 @@ function runStageCheck(
     if (stage === "final" && chapter.status !== "final") {
       issues.push(makeIssue("error", "stage", "Final stage requires all chapters to be status 'final'.", chapter.relativePath));
     }
+
+    if (policy.requireResolvedComments) {
+      const unresolvedComments = chapter.comments.filter((comment) => !comment.resolved);
+      if (unresolvedComments.length > 0) {
+        const unresolvedLabel = unresolvedComments.slice(0, 5).map((comment) => comment.id).join(", ");
+        const remainder = unresolvedComments.length > 5 ? ` (+${unresolvedComments.length - 5} more)` : "";
+        issues.push(
+          makeIssue(
+            "error",
+            "comments",
+            `Unresolved comments (${unresolvedComments.length}): ${unresolvedLabel}${remainder}. Resolve or clear comments before stage '${stage}'.`,
+            chapter.relativePath
+          )
+        );
+      }
+    }
   }
 
-  if (policy.requireStoryBible) {
-    for (const bibleIssue of report.issues.filter((issue) => issue.category === "continuity")) {
-      if (bibleIssue.message.startsWith("Missing story bible file")) {
-        issues.push({ ...bibleIssue, level: "error" });
+  if (policy.requireSpine) {
+    for (const spineIssue of report.issues.filter((issue) => issue.category === "continuity")) {
+      if (spineIssue.message.startsWith("Missing spine file")) {
+        issues.push({ ...spineIssue, level: "error" });
       }
     }
   }
@@ -1398,24 +2003,24 @@ function runStageCheck(
   }
 
   const chapterPaths = report.chapters.map((chapter) => chapter.path);
-  const storyBibleWords = collectStoryBibleWordsForSpellcheck(report.bibleState.ids);
+  const spineWords = collectSpineWordsForSpellcheck(report.spineState.ids);
 
   if (policy.enforceMarkdownlint) {
-    issues.push(...runMarkdownlint(chapterPaths, true));
+    issues.push(...runMarkdownlint(project, chapterPaths, true));
   } else {
-    issues.push(...runMarkdownlint(chapterPaths, false));
+    issues.push(...runMarkdownlint(project, chapterPaths, false));
   }
 
   if (policy.enforceCSpell) {
-    issues.push(...runCSpell(chapterPaths, true, storyBibleWords));
+    issues.push(...runCSpell(chapterPaths, true, spineWords));
   } else {
-    issues.push(...runCSpell(chapterPaths, false, storyBibleWords));
+    issues.push(...runCSpell(chapterPaths, false, spineWords));
   }
 
   return { chapters: report.chapters, issues };
 }
 
-function runMarkdownlint(files: string[], required: boolean): Issue[] {
+function runMarkdownlint(project: ProjectContext, files: string[], required: boolean): Issue[] {
   const markdownlintCommand = resolveCommand("markdownlint");
   if (!markdownlintCommand) {
     if (required) {
@@ -1430,24 +2035,34 @@ function runMarkdownlint(files: string[], required: boolean): Issue[] {
     return [];
   }
 
-  const result = spawnSync(
-    markdownlintCommand,
-    ["--config", path.join(repoRoot, ".markdownlint.json"), ...files],
-    {
-      cwd: repoRoot,
-      encoding: "utf8"
+  const projectConfigPath = path.join(project.root, ".markdownlint.json");
+  const markdownlintConfigPath = fs.existsSync(projectConfigPath)
+    ? projectConfigPath
+    : path.join(repoRoot, ".markdownlint.json");
+
+  const prepared = prepareFilesWithoutComments(files);
+  try {
+    const result = spawnSync(
+      markdownlintCommand,
+      ["--config", markdownlintConfigPath, ...prepared.files],
+      {
+        cwd: repoRoot,
+        encoding: "utf8"
+      }
+    );
+
+    if (result.status === 0) {
+      return [];
     }
-  );
 
-  if (result.status === 0) {
-    return [];
+    const details = remapToolOutputPaths(compactToolOutput(result.stdout, result.stderr), prepared.pathMap);
+    return [makeIssue(required ? "error" : "warning", "lint", `markdownlint reported issues. ${details}`)];
+  } finally {
+    prepared.cleanup();
   }
-
-  const details = compactToolOutput(result.stdout, result.stderr);
-  return [makeIssue(required ? "error" : "warning", "lint", `markdownlint reported issues. ${details}`)];
 }
 
-function collectStoryBibleWordsForSpellcheck(ids: Set<string>): string[] {
+function collectSpineWordsForSpellcheck(ids: Set<string>): string[] {
   const words = new Set<string>();
 
   for (const id of ids) {
@@ -1499,31 +2114,104 @@ function runCSpell(files: string[], required: boolean, extraWords: string[] = []
     );
   }
 
-  const result = spawnSync(
-    cspellCommand,
-    ["--no-progress", "--no-summary", "--config", cspellConfigPath, ...files],
-    {
-      cwd: repoRoot,
-      encoding: "utf8"
+  const prepared = prepareFilesWithoutComments(files);
+  try {
+    const result = spawnSync(
+      cspellCommand,
+      ["--no-progress", "--no-summary", "--config", cspellConfigPath, ...prepared.files],
+      {
+        cwd: repoRoot,
+        encoding: "utf8"
+      }
+    );
+
+    if (result.status === 0) {
+      return [];
     }
-  );
 
-  if (tempConfigDir) {
-    fs.rmSync(tempConfigDir, { recursive: true, force: true });
+    const details = remapToolOutputPaths(compactToolOutput(result.stdout, result.stderr), prepared.pathMap);
+    return [
+      makeIssue(
+        required ? "error" : "warning",
+        "spell",
+        `cspell reported issues. ${details} Words from spine identifiers are auto-whitelisted. For additional terms, add them to '.cspell.json' under the 'words' array.`
+      )
+    ];
+  } finally {
+    prepared.cleanup();
+    if (tempConfigDir) {
+      fs.rmSync(tempConfigDir, { recursive: true, force: true });
+    }
+  }
+}
+
+function prepareFilesWithoutComments(files: string[]): {
+  files: string[];
+  pathMap: Map<string, string>;
+  cleanup: () => void;
+} {
+  if (files.length === 0) {
+    return {
+      files,
+      pathMap: new Map<string, string>(),
+      cleanup: () => undefined
+    };
   }
 
-  if (result.status === 0) {
-    return [];
+  const tempDir = fs.mkdtempSync(path.join(repoRoot, ".stego-tooling-"));
+  const pathMap = new Map<string, string>();
+  const preparedFiles: string[] = [];
+
+  for (let index = 0; index < files.length; index += 1) {
+    const filePath = files[index];
+    const raw = fs.readFileSync(filePath, "utf8");
+    const relativePath = path.relative(repoRoot, filePath);
+    const parsed = parseStegoCommentsAppendix(raw, relativePath, 1);
+    const sanitized = parsed.bodyWithoutComments.endsWith("\n")
+      ? parsed.bodyWithoutComments
+      : `${parsed.bodyWithoutComments}\n`;
+
+    const relativeTarget = relativePath.startsWith("..")
+      ? `external/file-${index + 1}-${path.basename(filePath)}`
+      : relativePath;
+    const targetPath = path.join(tempDir, relativeTarget);
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    fs.writeFileSync(targetPath, sanitized, "utf8");
+
+    preparedFiles.push(targetPath);
+    pathMap.set(targetPath, filePath);
   }
 
-  const details = compactToolOutput(result.stdout, result.stderr);
-  return [
-    makeIssue(
-      required ? "error" : "warning",
-      "spell",
-      `cspell reported issues. ${details} Words from story-bible identifiers are auto-whitelisted. For additional terms, add them to '.cspell.json' under the 'words' array.`
-    )
-  ];
+  return {
+    files: preparedFiles,
+    pathMap,
+    cleanup: () => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  };
+}
+
+function remapToolOutputPaths(output: string, pathMap: Map<string, string>): string {
+  if (!output || pathMap.size === 0) {
+    return output;
+  }
+
+  let mapped = output;
+  for (const [preparedPath, originalPath] of pathMap.entries()) {
+    if (preparedPath === originalPath) {
+      continue;
+    }
+    mapped = mapped.split(preparedPath).join(originalPath);
+
+    const preparedRelative = path.relative(repoRoot, preparedPath);
+    const originalRelative = path.relative(repoRoot, originalPath);
+    const preparedRelativeNormalized = preparedRelative.split(path.sep).join("/");
+    const originalRelativeNormalized = originalRelative.split(path.sep).join("/");
+    mapped = mapped.split(preparedRelative).join(originalRelative);
+    mapped = mapped.split(preparedRelativeNormalized).join(originalRelativeNormalized);
+  }
+
+  return mapped;
 }
 
 function resolveCommand(command: string): string | null {
@@ -1553,14 +2241,21 @@ function compactToolOutput(stdout: string | null, stderr: string | null): string
     .join(" | ");
 }
 
-function buildManuscript(project: ProjectContext, chapters: ChapterEntry[]): string {
+function buildManuscript(
+  project: ProjectContext,
+  chapters: ChapterEntry[],
+  compileStructureLevels: CompileStructureLevel[]
+): string {
   fs.mkdirSync(project.distDir, { recursive: true });
 
   const generatedAt = new Date().toISOString();
   const title = project.meta.title || project.id;
   const subtitle = project.meta.subtitle || "";
   const author = project.meta.author || "";
-  const chapterSections = buildChapterSections(chapters);
+  const tocEntries: Array<{ level: number; heading: string }> = [];
+  const previousGroupValues = new Map<string, string | undefined>();
+  const previousGroupTitles = new Map<string, string | undefined>();
+  const entryHeadingLevel = Math.min(6, 2 + compileStructureLevels.length);
 
   const lines: string[] = [];
   lines.push(`<!-- generated: ${generatedAt} -->`);
@@ -1583,31 +2278,68 @@ function buildManuscript(project: ProjectContext, chapters: ChapterEntry[]): str
   lines.push("## Table of Contents");
   lines.push("");
 
-  for (let index = 0; index < chapterSections.length; index += 1) {
-    const sectionHeading = getSectionHeading(chapterSections[index], index, chapterSections.length);
-    lines.push(`- [${sectionHeading}](#${slugify(sectionHeading)})`);
+  if (compileStructureLevels.length === 0) {
+    lines.push(`- [Manuscript](#${slugify("Manuscript")})`);
   }
 
   lines.push("");
 
-  for (let index = 0; index < chapterSections.length; index += 1) {
-    const chapterSection = chapterSections[index];
-    const chapterHeading = getSectionHeading(chapterSection, index, chapterSections.length);
-    lines.push("---");
-    lines.push("");
-    lines.push(`## ${chapterHeading}`);
-    lines.push("");
+  for (let chapterIndex = 0; chapterIndex < chapters.length; chapterIndex += 1) {
+    const entry = chapters[chapterIndex];
+    let insertedBreakForEntry = false;
+    const levelChanged: boolean[] = [];
 
-    for (const entry of chapterSection.entries) {
-      lines.push(`### ${entry.title}`);
-      lines.push("");
-      lines.push(`<!-- source: ${entry.relativePath} | order: ${entry.order} | status: ${entry.status} -->`);
-      lines.push("");
-      lines.push(entry.body.trim());
-      lines.push("");
+    for (let levelIndex = 0; levelIndex < compileStructureLevels.length; levelIndex += 1) {
+      const level = compileStructureLevels[levelIndex];
+      const explicitValue = entry.groupValues[level.key];
+      const previousValue = previousGroupValues.get(level.key);
+      const currentValue = explicitValue ?? previousValue;
+      const explicitTitle = level.titleKey ? toScalarMetadataString(entry.metadata[level.titleKey]) : undefined;
+      const previousTitle = previousGroupTitles.get(level.key);
+      const currentTitle = explicitTitle ?? previousTitle;
+      const parentChanged = levelIndex > 0 && levelChanged[levelIndex - 1] === true;
+      const changed = parentChanged || currentValue !== previousValue;
+      levelChanged.push(changed);
+
+      if (!changed || !currentValue) {
+        previousGroupValues.set(level.key, currentValue);
+        previousGroupTitles.set(level.key, currentTitle);
+        continue;
+      }
+
+      if (level.pageBreak === "between-groups" && chapterIndex > 0 && !insertedBreakForEntry) {
+        lines.push("\\newpage");
+        lines.push("");
+        insertedBreakForEntry = true;
+      }
+
+      if (level.injectHeading) {
+        const heading = formatCompileStructureHeading(level, currentValue, currentTitle);
+        tocEntries.push({ level: levelIndex, heading });
+        const headingLevel = Math.min(6, 2 + levelIndex);
+        lines.push(`${"#".repeat(headingLevel)} ${heading}`);
+        lines.push("");
+      }
+
+      previousGroupValues.set(level.key, currentValue);
+      previousGroupTitles.set(level.key, currentTitle);
     }
 
+    lines.push(`${"#".repeat(entryHeadingLevel)} ${entry.title}`);
     lines.push("");
+    lines.push(`<!-- source: ${entry.relativePath} | order: ${entry.order} | status: ${entry.status} -->`);
+    lines.push("");
+    lines.push(entry.body.trim());
+    lines.push("");
+  }
+
+  if (tocEntries.length > 0) {
+    const tocStart = lines.indexOf("## Table of Contents");
+    if (tocStart >= 0) {
+      const insertAt = tocStart + 2;
+      const tocLines = tocEntries.map((entry) => `${"  ".repeat(entry.level)}- [${entry.heading}](#${slugify(entry.heading)})`);
+      lines.splice(insertAt, 0, ...tocLines);
+    }
   }
 
   const outputPath = path.join(project.distDir, `${project.id}.md`);
@@ -1615,66 +2347,32 @@ function buildManuscript(project: ProjectContext, chapters: ChapterEntry[]): str
   return outputPath;
 }
 
-function buildChapterSections(chapters: ChapterEntry[]): ChapterSection[] {
-  const sections: ChapterSection[] = [];
-  const hasChapterNumbers = chapters.some((chapter) => chapter.chapterNumber != null);
-
-  if (!hasChapterNumbers) {
-    return [
-      {
-        chapterNumber: null,
-        chapterTitle: "Manuscript",
-        entries: chapters
-      }
-    ];
+function formatCompileStructureHeading(
+  level: CompileStructureLevel,
+  value: string,
+  title: string | undefined
+): string {
+  const resolvedTitle = title || "";
+  if (!resolvedTitle && level.headingTemplate === "{label} {value}: {title}") {
+    return `${level.label} ${value}`;
   }
 
-  let currentSection: ChapterSection | null = null;
-
-  for (const chapter of chapters) {
-    if (chapter.chapterNumber == null) {
-      if (!currentSection || currentSection.chapterNumber != null) {
-        currentSection = {
-          chapterNumber: null,
-          chapterTitle: "Ungrouped",
-          entries: []
-        };
-        sections.push(currentSection);
-      }
-      currentSection.entries.push(chapter);
-      continue;
-    }
-
-    if (!currentSection || currentSection.chapterNumber !== chapter.chapterNumber) {
-      currentSection = {
-        chapterNumber: chapter.chapterNumber,
-        chapterTitle: chapter.chapterTitle || chapter.title,
-        entries: []
-      };
-      sections.push(currentSection);
-    } else if (chapter.chapterTitle && !currentSection.chapterTitle) {
-      currentSection.chapterTitle = chapter.chapterTitle;
-    }
-
-    if (!currentSection) {
-      continue;
-    }
-    currentSection.entries.push(chapter);
-  }
-
-  return sections;
+  return level.headingTemplate
+    .replaceAll("{label}", level.label)
+    .replaceAll("{value}", value)
+    .replaceAll("{title}", resolvedTitle)
+    .replace(/\s+/g, " ")
+    .replace(/:\s*$/, "")
+    .trim();
 }
 
-function getSectionHeading(section: ChapterSection, index: number, total: number): string {
-  if (section.chapterNumber != null) {
-    return `Chapter ${section.chapterNumber}: ${section.chapterTitle}`;
+function toScalarMetadataString(rawValue: MetadataValue | undefined): string | undefined {
+  if (rawValue == null || rawValue === "" || Array.isArray(rawValue)) {
+    return undefined;
   }
 
-  if (total === 1) {
-    return section.chapterTitle || "Manuscript";
-  }
-
-  return section.chapterTitle || `Section ${index + 1}`;
+  const normalized = String(rawValue).trim();
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function slugify(value: string): string {

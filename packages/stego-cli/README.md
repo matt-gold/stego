@@ -6,8 +6,8 @@ This workspace is a Markdown-first creative writing pipeline for short stories t
 
 - Project-per-folder structure inside one monorepo.
 - Flexible manuscript files with per-project metadata requirements.
-- Chapter grouping driven by file metadata (`chapter` field).
-- Project-defined bible categories (configured in each `project.json`).
+- Configurable manuscript grouping via `compileStructure.levels` (for example `part` + `chapter`).
+- Project-defined spine categories (configured in each `stego-project.json`).
 - Deterministic build into one manuscript Markdown file.
 - Stage-based quality gates (`draft` -> `final`).
 - Export abstraction (`md` always, `docx`/`pdf` via optional `pandoc`).
@@ -25,7 +25,7 @@ npm run check-stage -- --project plague-demo --stage revise
 npm run export -- --project plague-demo --format md
 ```
 
-`npm run new-project` scaffolds `manuscript/`, `story-bible/`, `notes/`, and `dist/`, and seeds `project.json` with a default `characters` category plus `story-bible/characters.md`.
+`npm run new-project` scaffolds `manuscript/`, `spine/`, `notes/`, and `dist/`, and seeds `stego-project.json` with a default `characters` category plus `spine/characters.md`.
 It also creates `projects/<project-id>/.vscode/settings.json` so markdown font settings apply when opening the project folder directly.
 It also creates a project-local `package.json` so you can run `npm run validate`, `npm run build`, etc. from inside that project directory without `--project`.
 
@@ -66,21 +66,21 @@ npm run export -- --project plague-demo --format pdf
 ## Project layout
 
 - `projects/<project-id>/manuscript/` source manuscript files
-- `projects/<project-id>/story-bible/` canonical story bible category files (`bibleCategories[*].notesFile`)
+- `projects/<project-id>/spine/` canonical spine category files (`spineCategories[*].notesFile`)
 - `projects/<project-id>/notes/` regular notes and planning docs
 - `projects/<project-id>/dist/` generated outputs only
 - `docs/` workflow and conventions
 - `tools/` build, checks, export CLI
 
-## Project bible categories
+## Project spine categories
 
-Bible categories are not fixed. Each project can declare them in `project.json` under `bibleCategories`.
+Spine categories are not fixed. Each project can declare them in `stego-project.json` under `spineCategories`.
 
 Example:
 
 ```json
 {
-  "bibleCategories": [
+  "spineCategories": [
     { "key": "cast", "prefix": "CHAR", "notesFile": "characters.md" },
     { "key": "places", "prefix": "LOC", "notesFile": "locations.md" },
     { "key": "incidents", "prefix": "EVENT", "notesFile": "timeline.md" },
@@ -90,15 +90,15 @@ Example:
 ```
 
 Use those keys as metadata arrays in manuscript files (for example `cast`, `places`, `incidents`, `ordinances`).
-Each `notesFile` is a filename resolved in `story-bible/` (for example `story-bible/characters.md`).
+Each `notesFile` is a filename resolved in `spine/` (for example `spine/characters.md`).
 
-If `bibleCategories` is omitted or empty, category-based continuity validation is disabled.
+If `spineCategories` is omitted or empty, category-based continuity validation is disabled.
 
 ## Project metadata requirements
 
 Base config defaults to `status`.
 
-Each project can override required keys in `project.json`:
+Each project can override required keys in `stego-project.json`:
 
 ```json
 {
@@ -109,10 +109,48 @@ Each project can override required keys in `project.json`:
 These keys are advisory and reported as warnings when missing; they do not block validate/build/export.
 Files may omit metadata entirely.
 
+## Compile structure (grouped manuscript output)
+
+Build grouping is configured per project with `compileStructure.levels`.
+
+Example:
+
+```json
+{
+  "compileStructure": {
+    "levels": [
+      {
+        "key": "part",
+        "label": "Part",
+        "titleKey": "part_title",
+        "injectHeading": true,
+        "headingTemplate": "{label} {value}: {title}",
+        "pageBreak": "between-groups"
+      },
+      {
+        "key": "chapter",
+        "label": "Chapter",
+        "titleKey": "chapter_title",
+        "injectHeading": true,
+        "headingTemplate": "{label} {value}: {title}",
+        "pageBreak": "between-groups"
+      }
+    ]
+  }
+}
+```
+
+Notes:
+
+- `pageBreak` currently supports `none` or `between-groups`.
+- TOC entries are nested by level depth.
+- Missing group key/title values inherit from the previous manuscript file, so you only need to set metadata at structural boundaries.
+- `validate` reports configuration errors for invalid `compileStructure` entries.
+
 ## Included examples
 
-- `plague-demo`: full configuration — rich metadata (`pov`, `timeline`), three bible categories (`characters`, `locations`, `sources`), cross-linked story bible with Wikipedia reference links
-- `docs-demo`: nonfiction documentation configuration — no bible categories, freeform notes only, primarily `status` metadata
+- `plague-demo`: full configuration — rich metadata (`pov`, `timeline`), three spine categories (`characters`, `locations`, `sources`), cross-linked spine with Wikipedia reference links
+- `docs-demo`: nonfiction documentation configuration — no spine categories, freeform notes only, primarily `status` metadata
 
 ## Placeholder edit workflow (`{{...}}` + Cmd+I)
 

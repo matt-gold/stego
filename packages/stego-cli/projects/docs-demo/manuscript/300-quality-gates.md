@@ -21,7 +21,7 @@ Stego separates baseline validation from stage-specific enforcement.
 `check-stage` applies stricter checks as status increases:
 
 - `draft`: structure-first, low friction
-- `revise`: continuity expectations for Story Bible projects
+- `revise`: continuity expectations for Spine projects
 - `line-edit`: spell-check enabled
 - `proof`: markdown lint, spell-check, strict local links
 - `final`: same strictness as proof with final-status expectations

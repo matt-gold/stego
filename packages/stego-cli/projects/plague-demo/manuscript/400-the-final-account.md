@@ -1,6 +1,5 @@
 ---
 status: final
-chapter: 2
 pov: Matthaeus
 timeline: '1348-10-03'
 characters:

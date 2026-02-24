@@ -39,4 +39,4 @@ Use build output for:
 
 ## Practical note for documentation teams
 
-You can document Story Bible features and fiction workflows in a project like this one without enabling Story Bible categories. That keeps docs simple while still covering the full Stego feature set.
+You can document Spine features and fiction workflows in a project like this one without enabling Spine categories. That keeps docs simple while still covering the full Stego feature set.

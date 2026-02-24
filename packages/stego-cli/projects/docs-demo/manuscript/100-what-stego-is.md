@@ -16,7 +16,7 @@ A Stego project has four working areas:
 
 - `manuscript/`: canonical source text
 - `notes/`: planning, references, and process docs
-- `story-bible/`: canonical entity definitions for fiction projects
+- `spine/`: canonical entity definitions for fiction projects
 - `dist/`: generated outputs only
 
 ## What Stego standardizes
@@ -34,4 +34,4 @@ Stego is useful for both narrative and operational writing:
 - technical and product documentation teams
 - internal policy/process authors
 
-This demo project is documentation-first, but the next chapter also documents fiction and Story Bible usage.
+This demo project is documentation-first, but the next chapter also documents fiction and Spine usage.

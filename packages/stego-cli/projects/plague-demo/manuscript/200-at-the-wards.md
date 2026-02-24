@@ -1,6 +1,5 @@
 ---
 status: revise
-chapter: 1
 pov: Matthaeus
 timeline: '1348-09-21'
 characters:
@@ -25,3 +24,15 @@ Her map was simple. Neighborhoods tied to the grain quay sickened first. Adjacen
 At the quay she showed them torn sackcloth from a riverside storehouse and asked what his conjunction tables would have predicted for this street, this month. Matthaeus answered in the terms his system provided: commerce might distribute the material substrate, but the disposition of bodies to receive corruption remained celestial. Agnes said that might be true and still leave the wrong people dead first.
 
 He wrote her observation in the second ledger. He expected to reconcile it later. The framework had room. It had been designed to have room.
+
+<!-- stego-comments:start -->
+
+<!-- comment: CMT-0001 -->
+<!-- meta64: eyJzdGF0dXMiOiJvcGVuIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDItMjFUMDM6MTk6MDUuNDg5WiIsInRpbWV6b25lIjoiQW1lcmljYS9OZXdfWW9yayIsInRpbWV6b25lX29mZnNldF9taW51dGVzIjotMzAwLCJwYXJhZ3JhcGhfaW5kZXgiOjAsImV4Y2VycHRfc3RhcnRfbGluZSI6MTgsImV4Y2VycHRfc3RhcnRfY29sIjoyMzAsImV4Y2VycHRfZW5kX2xpbmUiOjE4LCJleGNlcnB0X2VuZF9jb2wiOjIzOH0 -->
+> _Feb 21, 2026, 3:19 AM — mattgold_
+>
+> > “choosing”
+>
+> dfsf
+
+<!-- stego-comments:end -->

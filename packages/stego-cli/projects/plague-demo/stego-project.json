@@ -9,7 +9,19 @@
     "pov",
     "timeline"
   ],
-  "bibleCategories": [
+  "compileStructure": {
+    "levels": [
+      {
+        "key": "chapter",
+        "label": "Chapter",
+        "titleKey": "chapter_title",
+        "injectHeading": true,
+        "headingTemplate": "{label} {value}: {title}",
+        "pageBreak": "between-groups"
+      }
+    ]
+  },
+  "spineCategories": [
     {
       "key": "characters",
       "prefix": "CHAR",

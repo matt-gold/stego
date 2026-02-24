@@ -5,7 +5,7 @@
 1. Pick project and target manuscript file.
 2. Open the project folder (`projects/<project-id>`).
 3. Write in VS Code in `manuscript/*.md`.
-4. Set file metadata preferred by that project's `project.json` (`requiredMetadata`).
+4. Set file metadata preferred by that project's `stego-project.json` (`requiredMetadata`).
 5. Run validate/build locally.
 6. Run stage check for current milestone.
 7. Commit and push.
@@ -32,21 +32,21 @@ npm run check-stage -- --stage revise
 npm run export -- --format md
 ```
 
-## Chaptering model (file-first)
+## Structural grouping model (file-first)
 
 - Keep one file per writing unit (scene, beat, section, or chapter fragment).
 - Use filename prefixes (`100-...`, `200-...`, `300-...`) for sequencing.
-- Use `chapter` for chapter grouping when your project requires it.
-- Build inserts a chapter heading when grouped by `chapter`; without chapter metadata, output is a single manuscript section.
-- Optional `chapter_title` can be set on the first file in a chapter.
+- Configure `compileStructure.levels` in `stego-project.json` for grouping (for example `part` + `chapter`).
+- Build inserts headings and optional page breaks when configured grouping keys change.
+- Missing group key/title values inherit from the previous manuscript file, so boundary files carry the metadata.
 
-## Bible category model (project-defined)
+## Spine category model (project-defined)
 
-- Configure `bibleCategories` in each project's `project.json`.
+- Configure `spineCategories` in each project's `stego-project.json`.
 - Choose category names and ID prefixes that match your domain.
 - Keep IDs out of prose; use metadata arrays for references.
-- Keep each category's canonical entries in `story-bible/<notesFile>`.
-- Omit `bibleCategories` if a project does not need continuity entity tracking.
+- Keep each category's canonical entries in `spine/<notesFile>`.
+- Omit `spineCategories` if a project does not need continuity entity tracking.
 
 ## Stage progression model
 

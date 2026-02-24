@@ -2,9 +2,9 @@
   "name": "writing-project-plague-demo",
   "private": true,
   "scripts": {
-    "validate": "node --experimental-strip-types ../../tools/writing-cli.ts validate",
-    "build": "node --experimental-strip-types ../../tools/writing-cli.ts build",
-    "check-stage": "node --experimental-strip-types ../../tools/writing-cli.ts check-stage",
-    "export": "node --experimental-strip-types ../../tools/writing-cli.ts export"
+    "validate": "node --experimental-strip-types ../../tools/stego-cli.ts validate",
+    "build": "node --experimental-strip-types ../../tools/stego-cli.ts build",
+    "check-stage": "node --experimental-strip-types ../../tools/stego-cli.ts check-stage",
+    "export": "node --experimental-strip-types ../../tools/stego-cli.ts export"
   }
 }

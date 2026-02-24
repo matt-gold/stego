@@ -6,7 +6,7 @@ Show that Stego works for product docs, procedures, and internal writing systems
 
 ## Demo constraints
 
-- Do not use Story Bible identifiers in manuscript metadata.
+- Do not use Spine identifiers in manuscript metadata.
 - Keep metadata minimal so onboarding stays simple.
 - Keep chapters independently readable.
 

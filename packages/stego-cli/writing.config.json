@@ -1,7 +1,7 @@
 {
   "projectsDir": "projects",
   "chapterDir": "manuscript",
-  "storyBibleDir": "story-bible",
+  "spineDir": "spine",
   "notesDir": "notes",
   "distDir": "dist",
   "requiredMetadata": [
@@ -17,38 +17,40 @@
   "stagePolicies": {
     "draft": {
       "minimumChapterStatus": "draft",
-      "requireStoryBible": false,
+      "requireSpine": false,
       "enforceMarkdownlint": false,
       "enforceCSpell": false,
       "enforceLocalLinks": false
     },
     "revise": {
       "minimumChapterStatus": "revise",
-      "requireStoryBible": true,
+      "requireSpine": true,
       "enforceMarkdownlint": false,
       "enforceCSpell": false,
       "enforceLocalLinks": false
     },
     "line-edit": {
       "minimumChapterStatus": "line-edit",
-      "requireStoryBible": true,
+      "requireSpine": true,
       "enforceMarkdownlint": false,
       "enforceCSpell": true,
       "enforceLocalLinks": false
     },
     "proof": {
       "minimumChapterStatus": "proof",
-      "requireStoryBible": true,
+      "requireSpine": true,
       "enforceMarkdownlint": true,
       "enforceCSpell": true,
-      "enforceLocalLinks": true
+      "enforceLocalLinks": true,
+      "requireResolvedComments": true
     },
     "final": {
       "minimumChapterStatus": "final",
-      "requireStoryBible": true,
+      "requireSpine": true,
       "enforceMarkdownlint": true,
       "enforceCSpell": true,
-      "enforceLocalLinks": true
+      "enforceLocalLinks": true,
+      "requireResolvedComments": true
     }
   }
 }

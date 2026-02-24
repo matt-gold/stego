@@ -5,12 +5,13 @@
   "type": "module",
   "description": "Creative writing monorepo workflow with Markdown build, staged quality gates, and export abstraction.",
   "scripts": {
-    "list-projects": "node --experimental-strip-types tools/writing-cli.ts list-projects",
-    "new-project": "node --experimental-strip-types tools/writing-cli.ts new-project",
-    "validate": "node --experimental-strip-types tools/writing-cli.ts validate",
-    "build": "node --experimental-strip-types tools/writing-cli.ts build",
-    "check-stage": "node --experimental-strip-types tools/writing-cli.ts check-stage",
-    "export": "node --experimental-strip-types tools/writing-cli.ts export"
+    "list-projects": "node --experimental-strip-types tools/stego-cli.ts list-projects",
+    "new-project": "node --experimental-strip-types tools/stego-cli.ts new-project",
+    "validate": "node --experimental-strip-types tools/stego-cli.ts validate",
+    "build": "node --experimental-strip-types tools/stego-cli.ts build",
+    "check-stage": "node --experimental-strip-types tools/stego-cli.ts check-stage",
+    "export": "node --experimental-strip-types tools/stego-cli.ts export",
+    "test:compile-structure": "node --test tools/test/compile-structure.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^25.2.3",

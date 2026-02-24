@@ -7,5 +7,11 @@
     "editor.wordWrapColumn": 72,
     "editor.lineNumbers": "off"
   },
-  "markdown.preview.fontFamily": "Inter, Helvetica Neue, Helvetica, Arial, sans-serif"
+  "markdown.preview.fontFamily": "Inter, Helvetica Neue, Helvetica, Arial, sans-serif",
+  "saurus.ai.provider": "codex",
+  "saurus.ai.path": "codex",
+  "saurus.ai.model": "gpt-5.3-codex",
+  "saurus.thesaurus.enabled": true,
+  "saurus.thesaurus.provider": "merriamWebster",
+  "saurus.thesaurus.apiKey": "29704990-e264-46e5-b96e-639f3b52b2ee"
 }

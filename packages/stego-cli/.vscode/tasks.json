@@ -1,62 +1,72 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Writing: List Projects",
-      "type": "shell",
-      "command": "npm run list-projects",
-      "problemMatcher": []
-    },
-    {
-      "label": "Writing: Validate Project",
-      "type": "shell",
-      "command": "npm run validate -- --project ${input:projectId}",
-      "problemMatcher": []
-    },
-    {
-      "label": "Writing: Build Project",
-      "type": "shell",
-      "command": "npm run build -- --project ${input:projectId}",
-      "problemMatcher": []
-    },
-    {
-      "label": "Writing: Check Stage",
-      "type": "shell",
-      "command": "npm run check-stage -- --project ${input:projectId} --stage ${input:stageName}",
-      "problemMatcher": []
-    },
-    {
-      "label": "Writing: Export Markdown",
-      "type": "shell",
-      "command": "npm run export -- --project ${input:projectId} --format md",
-      "problemMatcher": []
-    },
-    {
-      "label": "Writing: Export DOCX",
-      "type": "shell",
-      "command": "npm run export -- --project ${input:projectId} --format docx",
-      "problemMatcher": []
-    }
-  ],
-  "inputs": [
-    {
-      "id": "projectId",
-      "type": "promptString",
-      "description": "Project id",
-      "default": "plague-demo"
-    },
-    {
-      "id": "stageName",
-      "type": "pickString",
-      "description": "Stage",
-      "options": [
-        "draft",
-        "revise",
-        "line-edit",
-        "proof",
-        "final"
-      ],
-      "default": "draft"
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Writing: List Projects",
+			"type": "shell",
+			"command": "npm run list-projects",
+			"problemMatcher": []
+		},
+		{
+			"label": "Writing: Validate Project",
+			"type": "shell",
+			"command": "npm run validate -- --project ${input:projectId}",
+			"problemMatcher": []
+		},
+		{
+			"label": "Writing: Build Project",
+			"type": "shell",
+			"command": "npm run build -- --project ${input:projectId}",
+			"problemMatcher": []
+		},
+		{
+			"label": "Writing: Check Stage",
+			"type": "shell",
+			"command": "npm run check-stage -- --project ${input:projectId} --stage ${input:stageName}",
+			"problemMatcher": []
+		},
+		{
+			"label": "Writing: Export Markdown",
+			"type": "shell",
+			"command": "npm run export -- --project ${input:projectId} --format md",
+			"problemMatcher": []
+		},
+		{
+			"label": "Writing: Export DOCX",
+			"type": "shell",
+			"command": "npm run export -- --project ${input:projectId} --format docx",
+			"problemMatcher": []
+		},
+		{
+			"label": "npm: test:compile-structure",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"test:compile-structure"
+			],
+			"isBackground": false
+		}
+	],
+	"inputs": [
+		{
+			"id": "projectId",
+			"type": "promptString",
+			"description": "Project id",
+			"default": "plague-demo"
+		},
+		{
+			"id": "stageName",
+			"type": "pickString",
+			"description": "Stage",
+			"options": [
+				"draft",
+				"revise",
+				"line-edit",
+				"proof",
+				"final"
+			],
+			"default": "draft"
+		}
+	]
 }

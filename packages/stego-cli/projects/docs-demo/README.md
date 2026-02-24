@@ -4,9 +4,9 @@ A nonfiction and business-style demo project.
 
 This project intentionally keeps config minimal while documenting the full Stego feature set.
 
-- no `bibleCategories` in this project's `project.json`
-- no Story Bible continuity enforcement in this demo project
-- manuscripts include documentation of fiction and Story Bible capabilities
+- no `spineCategories` in this project's `stego-project.json`
+- no Spine continuity enforcement in this demo project
+- manuscripts include documentation of fiction and Spine capabilities
 - metadata remains lightweight (`status` plus optional chapter grouping)
 
 Use this demo when you want to show Stego as documentation workflow infrastructure while still explaining fiction workflows.
