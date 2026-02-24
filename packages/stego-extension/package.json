@@ -2,7 +2,7 @@
   "name": "stego-extension",
   "displayName": "Stego",
   "description": "Project-aware manuscript tooling for Spine plates, comments, validation, and compile workflows in VS Code.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "matt-gold",
   "license": "Apache-2.0",
   "repository": {

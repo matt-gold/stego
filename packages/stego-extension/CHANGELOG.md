@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+### Patch Changes
+
+- 36ef52e: Update extension metadata and sidebar view naming to reflect the current Stego product (not just Spine links).
+
 ## 0.1.1
 
 ### Patch Changes
