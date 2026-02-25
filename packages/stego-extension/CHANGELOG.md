@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+### Patch Changes
+
+- 109cac6: Rename the user-facing "plates" terminology to "spine entries" across the sidebar UI, messages, configuration descriptions, and docs for clearer, more consistent language.
+
 ## 0.1.2
 
 ### Patch Changes
