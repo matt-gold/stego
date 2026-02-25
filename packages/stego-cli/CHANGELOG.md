@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.1.6
+
+### Patch Changes
+
+- 4deca4d: Consolidate workspace documentation into the `stego-docs` project, rename `plague-demo` to `fiction-example`, and update scaffolded docs and examples.
+
 ## 0.1.5
 
 ### Patch Changes
