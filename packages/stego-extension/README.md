@@ -26,7 +26,7 @@ This extension provides the native UX for stego projects:
 ## Core Concepts
 
 - **Spine**: Your project reference system (characters, locations, sources, etc.)
-- **Plate**: A user-facing term for an entry inside a Spine category (for example `LOC-HOTELDIEU`)
+- **Spine entry**: A reference entry inside a Spine category (for example `LOC-HOTELDIEU`)
 - **Manuscript file**: A Markdown file with frontmatter in your manuscript workflow
 - **Project config**: `stego-project.json`, discovered by walking upward from the active file
 
@@ -37,18 +37,18 @@ Stego adds a **Stego** sidebar panel in the activity bar with a webview UI.
 ### Document tab
 
 - Contextual panels for the current file (for example TOC in standard Markdown files)
-- **Plates** panel when viewing Spine category files (clicking a plate opens it in the Spine browser)
+- **Spine Entries** panel when viewing Spine category files (clicking a spine entry opens it in the Spine browser)
 - Comments panel with unresolved/resolved threads (when comments are enabled)
 
 ### Spine tab
 
-- Project-wide Spine browser (home -> category -> plate)
+- Project-wide Spine browser (home -> category -> spine entry)
 - Back / forward / home navigation
 - Multi-pin workflow:
-  - Pin a plate to keep it visible
+  - Pin a spine entry to keep it visible
   - Continue browsing in a fresh active browser instance below
-  - Unpin individual plates or unpin all
-- "Pin All From File" action to pin all referenced plates found in the current Markdown file
+  - Unpin individual spine entries or unpin all
+- "Pin All From File" action to pin all referenced spine entries found in the current Markdown file
 
 ### Manuscript tab
 
@@ -103,7 +103,7 @@ Stego validates this file and reports non-fatal problems instead of failing hard
 
 Stego can read a JSON identifier index from `.stego/spine-index.json` (configurable via `stego.spine.indexFile`).
 
-If the index is missing or incomplete, Stego also infers plates by scanning Markdown headings using prefixes from `stego-project.json`.
+If the index is missing or incomplete, Stego also infers spine entries by scanning Markdown headings using prefixes from `stego-project.json`.
 
 ### Example `.stego/spine-index.json`
 

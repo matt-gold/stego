@@ -10,7 +10,7 @@
 
 ### Patch Changes
 
-- ddd2204: Rewrite the README to document the current Stego MVP, including the Spine/Plates terminology, sidebar tabs, `stego-project.json` setup, project script hooks, and release workflow.
+- ddd2204: Rewrite the README to document the current Stego MVP, including the Spine entries terminology, sidebar tabs, `stego-project.json` setup, project script hooks, and release workflow.
 
 ## 0.1.0
 

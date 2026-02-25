@@ -300,7 +300,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
               + `${item.description ? `<div class="item-subtext">${escapeHtml(item.description)}</div>` : ''}`
               + `</div>`).join('')
             + `</div>`
-          : '<div class="empty tiny">No plates found for this category.</div>'}`
+          : '<div class="empty tiny">No spine entries found for this category.</div>'}`
         + `</div>`
         + `</article>`;
     }
@@ -385,7 +385,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const tocPanel = state.showToc
     ? `<section class="panel">`
       + `<div class="panel-heading">`
-      + `<h2>${state.isSpineCategoryFile ? 'Plates' : 'Table Of Contents'}</h2>`
+      + `<h2>${state.isSpineCategoryFile ? 'Spine Entries' : 'Table Of Contents'}</h2>`
       + `</div>`
       + `${state.isSpineCategoryFile
         ? `<div class="filter-row"><input class="filter-input" type="text" value="${escapeAttribute(state.backlinkFilter)}" placeholder="Filter references by filename" data-backlink-instance="active" data-backlink-action="setBacklinkFilter" /></div>`
