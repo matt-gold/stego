@@ -938,11 +938,21 @@ code {
   background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, var(--vscode-editorWidget-background));
 }
 .detached-document-banner {
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 8px;
-  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-bottom: 12px;
-  background: color-mix(in srgb, var(--vscode-editorWidget-background) 84%, var(--vscode-input-background));
+  color: var(--vscode-descriptionForeground);
+}
+.detached-document-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.detached-document-arrow .nav-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
 }
 .detached-document-link {
   display: inline;
