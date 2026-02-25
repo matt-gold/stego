@@ -174,25 +174,26 @@ This directory is a Stego writing workspace (a monorepo for one or more writing 
 ## What was scaffolded
 
 - \`stego.config.json\` workspace configuration
-- \`projects/\` demo projects (\`docs-demo\` and \`plague-demo\`)
-- \`docs/\` workflow and conventions docs
+- \`projects/\` demo projects (\`stego-docs\` and \`fiction-example\`)
 - root \`package.json\` scripts for Stego commands
 - root \`.vscode/tasks.json\` tasks for common workflows
+
+Full documentation lives in \`projects/stego-docs\`.
 
 ## First run
 
 \`\`\`bash
 npm install
-npm run list-projects
+stego list-projects
 \`\`\`
 
 ## Run commands for a specific project (from workspace root)
 
 \`\`\`bash
-npm run validate -- --project plague-demo
-npm run build -- --project plague-demo
-npm run check-stage -- --project plague-demo --stage revise
-npm run export -- --project plague-demo --format md
+stego validate --project fiction-example
+stego build --project fiction-example
+stego check-stage --project fiction-example --stage revise
+stego export --project fiction-example --format md
 \`\`\`
 
 ## Work inside one project
@@ -200,14 +201,14 @@ npm run export -- --project plague-demo --format md
 Each project also has local scripts, so you can run commands from inside a project directory:
 
 \`\`\`bash
-cd projects/plague-demo
+cd projects/fiction-example
 npm run validate
 npm run build
 \`\`\`
 
 ## VS Code recommendation
 
-When you are actively working on one project, open that project directory directly in VS Code (for example \`projects/plague-demo\`).
+When you are actively working on one project, open that project directory directly in VS Code (for example \`projects/fiction-example\`).
 
 This keeps your editor context focused and applies the project's recommended extensions (including Stego + Saurus) for that project.
 
@@ -799,7 +800,6 @@ async function initWorkspace(options: { force: boolean }): Promise<void> {
   copyTemplateAsset(".markdownlint.json", targetRoot, copiedPaths);
   copyTemplateAsset(".cspell.json", targetRoot, copiedPaths);
   copyTemplateAsset(ROOT_CONFIG_FILENAME, targetRoot, copiedPaths);
-  copyTemplateAsset("docs", targetRoot, copiedPaths);
   copyTemplateAsset("projects", targetRoot, copiedPaths);
   copyTemplateAsset(path.join(".vscode", "tasks.json"), targetRoot, copiedPaths);
   copyTemplateAsset(path.join(".vscode", "extensions.json"), targetRoot, copiedPaths, { optional: true });
@@ -819,8 +819,9 @@ async function initWorkspace(options: { force: boolean }): Promise<void> {
   logLine("");
   logLine("Next steps:");
   logLine("  npm install");
-  logLine("  npm run list-projects");
-  logLine("  npm run validate -- --project plague-demo");
+  logLine("  stego list-projects");
+  logLine("  stego validate --project fiction-example");
+  logLine("  stego build --project fiction-example");
 }
 
 async function promptYesNo(question: string, defaultYes: boolean): Promise<boolean> {
@@ -947,10 +948,6 @@ function rewriteTemplateProjectPackageScripts(targetRoot: string): void {
     const scripts = isPlainObject(projectPackage.scripts)
       ? { ...projectPackage.scripts }
       : {};
-
-    if (typeof projectPackage.name === "string" && projectPackage.name.startsWith("writing-project-")) {
-      projectPackage.name = projectPackage.name.replace(/^writing-project-/, "stego-project-");
-    }
 
     scripts.validate = "npx --no-install stego validate";
     scripts.build = "npx --no-install stego build";

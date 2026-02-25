@@ -1,5 +1,5 @@
 {
-  "name": "writing-project-plague-demo",
+  "name": "stego-project-stego-docs",
   "private": true,
   "scripts": {
     "validate": "node --experimental-strip-types ../../tools/stego-cli.ts validate",
