@@ -22,6 +22,9 @@ export type ParsedMarkdownDocument = {
 
 export type SidebarState = {
   hasActiveMarkdown: boolean;
+  showDocumentTab?: boolean;
+  activeEditorPath?: string;
+  documentTabDetached?: boolean;
   documentPath: string;
   structureSummary?: string;
   warnings: string[];

@@ -43,6 +43,8 @@ function gateStateLabel(state: 'never' | 'success' | 'failed'): string {
 export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, extensionUri: vscode.Uri): string {
   const nonce = randomNonce();
   const fileTitle = getSidebarFileTitle(state.documentPath);
+  const activeEditorTitle = getSidebarFileTitle(state.activeEditorPath ?? '');
+  const showDocumentTab = state.showDocumentTab ?? state.hasActiveMarkdown;
   const showMetadataEditingControls = state.mode === 'manuscript' && state.metadataEditing;
   const renderReferenceCards = (references: SidebarIdentifierLink[]): string => {
     if (references.length === 0) {
@@ -134,6 +136,22 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const runMenuChevronIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.4 5.4L8 10l4.6-4.6 1 1L8 12 2.4 6.4z"></path></svg>';
   const pinAllFromFileLabel = 'Pin All From File';
   const unpinAllLabel = 'Unpin All';
+  const renderDropdownMenu = (
+    summaryLabel: string,
+    items: Array<{ action: string; label: string; title?: string; icon: string }>
+  ): string => (
+    `<details class="run-menu">`
+    + `<summary class="btn subtle run-menu-summary">${escapeHtml(summaryLabel)}${runMenuChevronIcon}</summary>`
+    + `<div class="run-menu-panel">`
+    + items.map((item) => (
+      `<button class="run-menu-item" data-action="${escapeAttribute(item.action)}" aria-label="${escapeAttribute(item.label)}" title="${escapeAttribute(item.title ?? item.label)}">`
+      + `<span class="run-menu-item-icon">${item.icon}</span>`
+      + `<span class="run-menu-item-label">${escapeHtml(item.label)}</span>`
+      + `</button>`
+    )).join('')
+    + `</div>`
+    + `</details>`
+  );
 
   const statusControlHtml = state.mode === 'manuscript' && state.statusControl
     ? `<div class="status-editor">`
@@ -161,8 +179,20 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `${state.structureSummary ? `<div class="title-structure">${escapeHtml(state.structureSummary)}</div>` : ''}`
       + `</div>`
       + `<div class="actions">`
-      + `<button class="btn subtle btn-icon" data-action="copyCleanManuscript" aria-label="${escapeAttribute(copyCleanManuscriptLabel)}" title="${escapeAttribute(copyCleanManuscriptLabel)}">${copyCleanManuscriptIcon}</button>`
-      + `<button class="btn subtle btn-icon" data-action="runLocalValidate" aria-label="${escapeAttribute(runLocalChecksLabel)}" title="${escapeAttribute(runLocalChecksLabel)}">${runLocalChecksIcon}</button>`
+      + renderDropdownMenu('Actions', [
+        {
+          action: 'copyCleanManuscript',
+          label: copyCleanManuscriptLabel,
+          title: copyCleanManuscriptLabel,
+          icon: copyCleanManuscriptIcon
+        },
+        {
+          action: 'runLocalValidate',
+          label: 'Validate Current File',
+          title: runLocalChecksLabel,
+          icon: runLocalChecksIcon
+        }
+      ])
       + `</div>`
       + `</div>`
       + `${statusControlHtml}`
@@ -425,7 +455,9 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `<span class="badge${item.status === 'resolved' ? '' : ' warn'}">${item.status === 'resolved' ? 'Resolved' : 'Unresolved'}</span>`
       + `${item.degraded ? '<span class="badge warn">Moved</span>' : ''}`
       + `</div>`
-      + `${item.threadPosition && item.threadPosition !== 'first' ? '' : `<div class="item-subtext">${escapeHtml(item.excerpt.length > 100 ? item.excerpt.slice(0, 100) + '…' : item.excerpt)}</div>`}`
+      + `${item.threadPosition && item.threadPosition !== 'first'
+        ? ''
+        : `<div class="item-subtext comment-anchor-excerpt">&quot;${escapeHtml(item.excerpt.length > 100 ? item.excerpt.slice(0, 100) + '…' : item.excerpt)}&quot;</div>`}`
       + `<div class="item-subtext tiny">`
       + `${item.author ? `${escapeHtml(item.author)}` : ''}`
       + `${item.created ? ` • ${escapeHtml(dayjs(item.created).fromNow())}` : ''}`
@@ -466,19 +498,20 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `<div class="title-structure">Last updated ${escapeHtml(dayjs(state.overview.generatedAt).fromNow())}</div>`
       + `</div>`
       + `<div class="actions">`
-      + `<details class="run-menu">`
-      + `<summary class="btn subtle run-menu-summary">Run${runMenuChevronIcon}</summary>`
-      + `<div class="run-menu-panel">`
-      + `<button class="run-menu-item" data-action="runBuildWorkflow" aria-label="${escapeAttribute('Compile Full Manuscript')}" title="${escapeAttribute(runBuildLabel)}">`
-      + `<span class="run-menu-item-icon">${runBuildIcon}</span>`
-      + `<span class="run-menu-item-label">Compile Full Manuscript</span>`
-      + `</button>`
-      + `<button class="run-menu-item" data-action="runGateStageWorkflow" aria-label="${escapeAttribute(runStageLabel)}" title="${escapeAttribute(runStageLabel)}">`
-      + `<span class="run-menu-item-icon">${runLocalChecksIcon}</span>`
-      + `<span class="run-menu-item-label">Run Stage Check</span>`
-      + `</button>`
-      + `</div>`
-      + `</details>`
+      + renderDropdownMenu('Actions', [
+        {
+          action: 'runBuildWorkflow',
+          label: 'Compile Full Manuscript',
+          title: runBuildLabel,
+          icon: runBuildIcon
+        },
+        {
+          action: 'runGateStageWorkflow',
+          label: 'Run Stage Check',
+          title: runStageLabel,
+          icon: runLocalChecksIcon
+        }
+      ])
       + `</div>`
       + `</div>`
       + `<div class="overview-stage">`
@@ -549,7 +582,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
   const tabRow = `<div class="sidebar-tabs">`
     + `<div class="sidebar-tabs-main">`
-    + `${state.hasActiveMarkdown
+    + `${showDocumentTab
       ? `<button class="sidebar-tab${state.activeTab === 'document' ? ' active' : ''}" data-action="setSidebarTab" data-value="document">Document</button>`
       : ''}`
     + `${state.showExplorer
@@ -568,9 +601,19 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const warningsHtml = state.warnings.length > 0
     ? `<div class="warning-panel">${state.warnings.map((warning) => escapeHtml(warning)).join('<br/>')}</div>`
     : '';
+  const detachedDocumentBanner = state.documentTabDetached && state.documentPath
+    ? `<div class="detached-document-banner">`
+      + `<div class="item-subtext">`
+      + `Viewing Document tab for `
+      + `<button class="backlink-link detached-document-link" data-action="openOverviewFile" data-file-path="${escapeAttribute(state.documentPath)}">${escapeHtml(fileTitle.filename || state.documentPath)}</button>`
+      + `${activeEditorTitle.filename ? ` while editing ${escapeHtml(activeEditorTitle.filename)}.` : '.'}`
+      + `</div>`
+      + `</div>`
+    : '';
 
   const documentContent = `
       ${warningsHtml}
+      ${detachedDocumentBanner}
       ${statusPanel}
       ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
       ${state.mode === 'manuscript' ? metadataPanel : tocPanel}
@@ -593,6 +636,11 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     `
     : state.activeTab === 'spine'
       ? spineContent
+    : state.documentTabDetached
+      ? `
+      ${tabRow}
+      ${documentContent}
+    `
     : !state.hasActiveMarkdown
       ? state.canShowOverview
         ? `

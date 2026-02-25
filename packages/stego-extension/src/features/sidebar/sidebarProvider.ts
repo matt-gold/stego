@@ -106,6 +106,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   }>>();
   private readonly gateSnapshotByProject = new Map<string, SidebarOverviewGateSnapshot>();
   private lastRenderedState?: SidebarState;
+  private lastDocumentTabSnapshot?: SidebarState;
   private refreshInFlight = false;
   private refreshNonce = 0;
   private queuedRefreshMode: RefreshMode | undefined;
@@ -403,6 +404,13 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       }
 
       this.lastRenderedState = state;
+      if (
+        state.activeTab === 'document'
+        && state.hasActiveMarkdown
+        && !state.documentTabDetached
+      ) {
+        this.lastDocumentTabSnapshot = state;
+      }
       this.view.webview.html = renderSidebarHtml(this.view.webview, state, this.extensionUri);
     } finally {
       this.refreshInFlight = false;
@@ -442,6 +450,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       this.activeTab = effectiveTab;
       return {
         ...previous,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         activeTab: effectiveTab,
         explorerCanGoBack: this.canExplorerGoBack(),
         explorerCanGoForward: this.canExplorerGoForward(),
@@ -484,6 +495,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         ...previous,
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         canShowOverview,
         activeTab: effectiveTab,
@@ -509,6 +523,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         ...previous,
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         canShowOverview,
         activeTab: effectiveTab,
@@ -597,6 +614,11 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     const document = getActiveMarkdownDocument(false);
     if (!document) {
       const activeDocument = vscode.window.activeTextEditor?.document;
+      const activeEditorPath = activeDocument?.uri.fsPath ?? '';
+      const detachedDocumentState = this.buildDetachedDocumentTabState(activeEditorPath);
+      if (detachedDocumentState) {
+        return detachedDocumentState;
+      }
       const workspaceFolder = activeDocument ? vscode.workspace.getWorkspaceFolder(activeDocument.uri) : undefined;
       const projectContext = activeDocument && workspaceFolder
         ? await findNearestProjectConfig(activeDocument.uri.fsPath, workspaceFolder.uri.fsPath)
@@ -643,6 +665,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
       return {
         hasActiveMarkdown: false,
+        showDocumentTab: !!this.lastDocumentTabSnapshot,
+        activeEditorPath,
+        documentTabDetached: false,
         documentPath: activeDocument?.uri.fsPath ?? '',
         structureSummary: undefined,
         warnings,
@@ -698,6 +723,12 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
     const tocEntries = collectTocEntries(document);
     const manuscriptMode = isManuscriptPath(document.uri.fsPath);
+    if (!manuscriptMode) {
+      const detachedDocumentState = this.buildDetachedDocumentTabState(document.uri.fsPath);
+      if (detachedDocumentState) {
+        return detachedDocumentState;
+      }
+    }
 
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
     const projectContext = workspaceFolder
@@ -772,6 +803,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     if (!manuscriptMode) {
       return {
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         structureSummary: undefined,
         warnings,
@@ -853,6 +887,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
       return {
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         structureSummary,
         warnings,
@@ -885,6 +922,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       return {
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         structureSummary: undefined,
         warnings,
@@ -1770,6 +1810,45 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     return requestedTab;
+  }
+
+  private buildDetachedDocumentTabState(activeEditorPath: string): SidebarState | undefined {
+    if (this.activeTab !== 'document') {
+      return undefined;
+    }
+
+    const snapshot = this.lastDocumentTabSnapshot;
+    if (!snapshot || !snapshot.documentPath) {
+      return undefined;
+    }
+
+    const sameAsActiveEditor = !!activeEditorPath
+      && path.resolve(activeEditorPath) === path.resolve(snapshot.documentPath);
+    if (sameAsActiveEditor) {
+      return undefined;
+    }
+
+    const effectiveTab = this.resolveEffectiveTab(this.activeTab, snapshot.canShowOverview, snapshot.showExplorer);
+    this.activeTab = effectiveTab;
+    if (effectiveTab !== 'document') {
+      return undefined;
+    }
+
+    return {
+      ...snapshot,
+      hasActiveMarkdown: false,
+      showDocumentTab: true,
+      activeEditorPath,
+      documentTabDetached: true,
+      activeTab: effectiveTab,
+      canPinAllFromFile: false,
+      explorerCanGoBack: this.canExplorerGoBack(),
+      explorerCanGoForward: this.canExplorerGoForward(),
+      globalCanGoBack: this.canGlobalGoBack(),
+      globalCanGoForward: this.canGlobalGoForward(),
+      explorerCanGoHome: this.canExplorerGoHome(),
+      explorerLoadToken: this.explorerLoadToken
+    };
   }
 
   private collectSidebarWarnings(

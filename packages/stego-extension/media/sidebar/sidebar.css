@@ -671,6 +671,9 @@ code {
 .comments-summary {
   margin-bottom: 8px;
 }
+.comment-anchor-excerpt {
+  font-style: italic;
+}
 .overview-metrics {
   display: flex;
   flex-direction: column;
@@ -933,6 +936,16 @@ code {
   margin-bottom: 12px;
   color: var(--vscode-editorWarning-foreground);
   background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, var(--vscode-editorWidget-background));
+}
+.detached-document-banner {
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  background: color-mix(in srgb, var(--vscode-editorWidget-background) 84%, var(--vscode-input-background));
+}
+.detached-document-link {
+  display: inline;
 }
 .empty-panel {
   color: var(--vscode-descriptionForeground);
