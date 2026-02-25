@@ -1111,6 +1111,7 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
   const notesDir = path.join(projectRoot, config.notesDir);
   fs.mkdirSync(notesDir, { recursive: true });
   fs.mkdirSync(path.join(projectRoot, config.distDir), { recursive: true });
+  const manuscriptDir = path.join(projectRoot, config.chapterDir);
 
   const projectJson: Record<string, unknown> = {
     id: projectId,
@@ -1153,6 +1154,22 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
   const projectPackagePath = path.join(projectRoot, "package.json");
   fs.writeFileSync(projectPackagePath, `${JSON.stringify(projectPackage, null, 2)}\n`, "utf8");
 
+  const starterManuscriptPath = path.join(manuscriptDir, "100-hello-world.md");
+  fs.writeFileSync(
+    starterManuscriptPath,
+    `---
+status: draft
+chapter: 1
+chapter_title: Hello World
+---
+
+# Hello World
+
+Start writing here.
+`,
+    "utf8"
+  );
+
   const charactersNotesPath = path.join(spineDir, "characters.md");
   fs.writeFileSync(charactersNotesPath, "# Characters\n\n", "utf8");
   const projectExtensionsPath = path.join(projectRoot, ".vscode", "extensions.json");
@@ -1165,6 +1182,7 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
   logLine(`Created project: ${path.relative(repoRoot, projectRoot)}`);
   logLine(`- ${path.relative(repoRoot, projectJsonPath)}`);
   logLine(`- ${path.relative(repoRoot, projectPackagePath)}`);
+  logLine(`- ${path.relative(repoRoot, starterManuscriptPath)}`);
   logLine(`- ${path.relative(repoRoot, charactersNotesPath)}`);
   logLine(`- ${path.relative(repoRoot, projectExtensionsPath)}`);
   if (projectSettingsPath) {
