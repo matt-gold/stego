@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+### Minor Changes
+
+- a612701: Improve the sidebar workflow with Spine entry labels, inline creation of new spine categories from the Spine tab, and document-tab navigation/history behavior that follows active Markdown files while preserving sidebar-only back/forward history in detached mode.
+
+### Patch Changes
+
+- f951caa: Improve sidebar document/manuscript UX by adding Actions dropdown menus, quoting and italicizing comment anchor excerpts, and keeping the Document tab available with a file link when the active editor is elsewhere.
+
 ## 0.1.3
 
 ### Patch Changes
