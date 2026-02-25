@@ -1,6 +1,7 @@
 # Sources
 
 ## SRC-CONJUNCTION
+label: The Great Conjunction theory
 
 - The Great Conjunction theory
 - Tradition: University astrology ([Paris faculty opinion of 1348](https://en.wikipedia.org/wiki/Black_Death#Medical_knowledge))
@@ -10,6 +11,7 @@
 - Limitation: Explains everything at once, which means it predicts nothing in particular
 
 ## SRC-GALEN
+label: Galenic humoral medicine
 
 - Galenic humoral medicine
 - Tradition: Greco-Arabic medical inheritance
@@ -19,6 +21,7 @@
 - Limitation: Cannot explain why entire neighborhoods fall at once regardless of individual constitution
 
 ## SRC-WARD-DATA
+label: "Agnes's ward observations"
 
 - Agnes's ward observations
 - Tradition: None; empirical record-keeping without institutional backing
