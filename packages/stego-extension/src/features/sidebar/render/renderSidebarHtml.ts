@@ -43,6 +43,7 @@ function gateStateLabel(state: 'never' | 'success' | 'failed'): string {
 export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, extensionUri: vscode.Uri): string {
   const nonce = randomNonce();
   const fileTitle = getSidebarFileTitle(state.documentPath);
+  const showDocumentTab = state.showDocumentTab ?? state.hasActiveMarkdown;
   const showMetadataEditingControls = state.mode === 'manuscript' && state.metadataEditing;
   const renderReferenceCards = (references: SidebarIdentifierLink[]): string => {
     if (references.length === 0) {
@@ -124,16 +125,33 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     : 'stage';
   const runLocalChecksLabel = `Run ${currentStageLabel} check`;
   const runLocalChecksIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.78 3.97a.75.75 0 0 1 0 1.06L6.75 12.06a.75.75 0 0 1-1.06 0L2.22 8.59a.75.75 0 1 1 1.06-1.06l2.94 2.94 6.5-6.5a.75.75 0 0 1 1.06 0z"></path></svg>';
-  const copyCleanManuscriptLabel = 'Copy Without Metadata';
+  const copyCleanManuscriptLabel = 'Copy manuscript text';
   const copyCleanManuscriptIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2.75A1.75 1.75 0 0 1 6.75 1h6.5A1.75 1.75 0 0 1 15 2.75v8.5A1.75 1.75 0 0 1 13.25 13h-6.5A1.75 1.75 0 0 1 5 11.25zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25z"></path><path d="M1 4.75A1.75 1.75 0 0 1 2.75 3h.5a.75.75 0 0 1 0 1.5h-.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-.5a.75.75 0 0 1 1.5 0v.5A1.75 1.75 0 0 1 9.25 15h-6.5A1.75 1.75 0 0 1 1 13.25z"></path></svg>';
   const openMetricTargetLabel = 'Open next file';
   const openMetricTargetIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3L5.4 4.1 9.3 8l-3.9 3.9L6.5 13l5-5z"></path></svg>';
   const runStageLabel = 'Run Stage Check';
   const runBuildLabel = 'Run Build';
   const runBuildIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.75 1h4.19c.46 0 .9.18 1.22.5l2.34 2.34c.32.32.5.76.5 1.22v6.19A1.75 1.75 0 0 1 10.25 13h-6.5A1.75 1.75 0 0 1 2 11.25v-8.5A1.75 1.75 0 0 1 3.75 1zm0 1.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.06a.25.25 0 0 0-.07-.18L8.09 2.57a.25.25 0 0 0-.18-.07H3.75z"></path></svg>';
+  const markdownPreviewIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3C4.37 3 1.4 5.17.2 8c1.2 2.83 4.17 5 7.8 5s6.6-2.17 7.8-5C14.6 5.17 11.63 3 8 3zm0 8.5A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-1.5A2 2 0 1 0 8 6a2 2 0 0 0 0 4z"></path></svg>';
   const runMenuChevronIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.4 5.4L8 10l4.6-4.6 1 1L8 12 2.4 6.4z"></path></svg>';
   const pinAllFromFileLabel = 'Pin All From File';
   const unpinAllLabel = 'Unpin All';
+  const renderDropdownMenu = (
+    summaryLabel: string,
+    items: Array<{ action: string; label: string; title?: string; icon: string }>
+  ): string => (
+    `<details class="run-menu">`
+    + `<summary class="btn subtle run-menu-summary">${escapeHtml(summaryLabel)}${runMenuChevronIcon}</summary>`
+    + `<div class="run-menu-panel">`
+    + items.map((item) => (
+      `<button class="run-menu-item" data-action="${escapeAttribute(item.action)}" aria-label="${escapeAttribute(item.label)}" title="${escapeAttribute(item.title ?? item.label)}">`
+      + `<span class="run-menu-item-icon">${item.icon}</span>`
+      + `<span class="run-menu-item-label">${escapeHtml(item.label)}</span>`
+      + `</button>`
+    )).join('')
+    + `</div>`
+    + `</details>`
+  );
 
   const statusControlHtml = state.mode === 'manuscript' && state.statusControl
     ? `<div class="status-editor">`
@@ -161,8 +179,26 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `${state.structureSummary ? `<div class="title-structure">${escapeHtml(state.structureSummary)}</div>` : ''}`
       + `</div>`
       + `<div class="actions">`
-      + `<button class="btn subtle btn-icon" data-action="copyCleanManuscript" aria-label="${escapeAttribute(copyCleanManuscriptLabel)}" title="${escapeAttribute(copyCleanManuscriptLabel)}">${copyCleanManuscriptIcon}</button>`
-      + `<button class="btn subtle btn-icon" data-action="runLocalValidate" aria-label="${escapeAttribute(runLocalChecksLabel)}" title="${escapeAttribute(runLocalChecksLabel)}">${runLocalChecksIcon}</button>`
+      + renderDropdownMenu('Actions', [
+        {
+          action: 'runLocalValidate',
+          label: 'Run Stage Check',
+          title: runLocalChecksLabel,
+          icon: runLocalChecksIcon
+        },
+        {
+          action: 'openMarkdownPreview',
+          label: 'Open Markdown Preview',
+          title: 'Open Markdown Preview',
+          icon: markdownPreviewIcon
+        },
+        {
+          action: 'copyCleanManuscript',
+          label: copyCleanManuscriptLabel,
+          title: copyCleanManuscriptLabel,
+          icon: copyCleanManuscriptIcon
+        }
+      ])
       + `</div>`
       + `</div>`
       + `${statusControlHtml}`
@@ -204,7 +240,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         ? `<button class="explorer-crumb-link" data-action="openExplorerCategory" data-key="${escapeAttribute(page.category.key)}" data-prefix="${escapeAttribute(page.category.prefix)}">${escapeHtml(page.category.label)}</button>`
           + `<span class="explorer-crumb-separator">/</span>`
         : ''}`
-      + `<span class="explorer-crumb-current">${escapeHtml(page.entry.id)}</span>`
+      + `<span class="explorer-crumb-current">${escapeHtml(page.entry.label)}</span>`
       + `</div>`;
   };
 
@@ -213,6 +249,10 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     options: { mode: 'active' | 'pinned'; filterValue: string; pinnedId?: string; cardActionHtml?: string }
   ): string => {
     const entry = page.entry;
+    const showCanonicalId = entry.label.trim().toUpperCase() !== entry.id.trim().toUpperCase();
+    const showSecondaryTitle = entry.title.trim().length > 0
+      && entry.title.trim().toUpperCase() !== entry.id.trim().toUpperCase()
+      && entry.title.trim().toLocaleUpperCase() !== entry.label.trim().toLocaleUpperCase();
     const toggleAction = options.mode === 'pinned' ? 'togglePinnedExplorerBacklinks' : 'toggleExplorerBacklinks';
     const filterAction = options.mode === 'pinned' ? 'setPinnedBacklinkFilter' : 'setBacklinkFilter';
     const showPinnedSummary = options.mode !== 'pinned';
@@ -226,10 +266,16 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `<div class="item-main">`
       + `${showPinnedSummary
         ? `<div class="item-title-row">`
-          + `<span class="item-title-text">${escapeHtml(entry.title)}</span>`
+          + `<span class="item-title-text">${escapeHtml(entry.label)}</span>`
           + `${!entry.known ? '<span class="badge warn">Missing</span>' : ''}`
           + `</div>`
         : (!entry.known ? `<div class="item-title-row"><span class="badge warn">Missing</span></div>` : '')}`
+      + `${showPinnedSummary && showCanonicalId
+        ? `<div class="item-subtext tiny">${escapeHtml(entry.id)}</div>`
+        : ''}`
+      + `${showPinnedSummary && showSecondaryTitle
+        ? `<div class="item-subtext">${escapeHtml(entry.title)}</div>`
+        : ''}`
       + `${showPinnedSummary && entry.description
         ? `<div class="metadata-value">${renderMarkdownForExplorer(entry.description, entry.sourceFilePath ?? state.documentPath)}</div>`
         : ''}`
@@ -277,7 +323,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     }
 
     if (page.kind === 'home') {
-      return page.categories.length > 0
+      const categoriesHtml = page.categories.length > 0
         ? `<div class="explorer-list">`
           + page.categories.map((category) => `<div class="explorer-list-row">`
             + `<button class="id-link" data-action="openExplorerCategory" data-key="${escapeAttribute(category.key)}" data-prefix="${escapeAttribute(category.prefix)}">${escapeHtml(category.label)}</button>`
@@ -285,6 +331,16 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
             + `</div>`).join('')
           + `</div>`
         : '<div class="empty">No spine categories found in this project.</div>';
+      const canAddCategory = options.mode === 'active';
+
+      return `<article class="item metadata-item explorer-home-card">`
+        + `<div class="item-main">`
+        + `${categoriesHtml}`
+        + `</div>`
+        + `${canAddCategory
+          ? `<div class="item-actions explorer-home-actions"><button class="btn subtle" data-action="addSpineCategory">+ New Category</button></div>`
+          : ''}`
+        + `</article>`;
     }
 
     if (page.kind === 'category') {
@@ -293,12 +349,19 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         + `<div class="item-title-row"><span class="item-title-text">${escapeHtml(page.category.label)}</span><span class="badge">${page.items.length}</span></div>`
         + `${page.items.length > 0
           ? `<div class="explorer-list">`
-            + page.items.map((item) => `<div class="explorer-list-row">`
-              + `<button class="id-link" data-action="openIdentifier" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.id)}</button>`
-              + `${item.title.trim().toUpperCase() !== item.id.toUpperCase() ? `<span class="item-subtext">${escapeHtml(item.title)}</span>` : ''}`
-              + `${!item.known ? '<span class="badge warn">Missing</span>' : ''}`
-              + `${item.description ? `<div class="item-subtext">${escapeHtml(item.description)}</div>` : ''}`
-              + `</div>`).join('')
+            + page.items.map((item) => {
+              const showCanonicalId = item.label.trim().toUpperCase() !== item.id.trim().toUpperCase();
+              const showSecondaryTitle = item.title.trim().length > 0
+                && item.title.trim().toUpperCase() !== item.id.trim().toUpperCase()
+                && item.title.trim().toLocaleUpperCase() !== item.label.trim().toLocaleUpperCase();
+              return `<div class="explorer-list-row">`
+                + `<button class="id-link" data-action="openIdentifier" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.label)}</button>`
+                + `${showCanonicalId ? `<span class="item-subtext tiny">${escapeHtml(item.id)}</span>` : ''}`
+                + `${showSecondaryTitle ? `<span class="item-subtext">${escapeHtml(item.title)}</span>` : ''}`
+                + `${!item.known ? '<span class="badge warn">Missing</span>' : ''}`
+                + `${item.description ? `<div class="item-subtext">${escapeHtml(item.description)}</div>` : ''}`
+                + `</div>`;
+            }).join('')
             + `</div>`
           : '<div class="empty tiny">No spine entries found for this category.</div>'}`
         + `</div>`
@@ -325,7 +388,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
   const activeExplorerPanel = `<section class="panel explorer-panel">`
     + `<div class="panel-heading">`
-    + `<h2>Spine Browser</h2>`
+    + `<h2>Spine</h2>`
     + `${activeExplorerNav}`
     + `</div>`
     + `${renderExplorerBreadcrumbs(state.explorer, false)}`
@@ -333,11 +396,11 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     + `</section>`;
 
   const renderPinnedExplorerPanel = (panel: SidebarPinnedExplorerPanel): string => {
-    const unpinLabel = `Unpin ${panel.id}`;
+    const unpinLabel = `Unpin ${panel.page.entry.label}`;
     const collapseLabel = panel.collapsed ? 'Expand pinned panel' : 'Collapse pinned panel';
     return `<section class="panel explorer-panel explorer-panel-pinned${panel.collapsed ? ' collapsed' : ''}" data-pinned-id="${escapeAttribute(panel.id)}">`
       + `<div class="panel-heading">`
-      + `<h2>${escapeHtml(panel.page.entry.id)}</h2>`
+      + `<h2>${escapeHtml(panel.page.entry.label)}</h2>`
       + `<div class="explorer-nav explorer-nav-pinned">`
       + `<span class="panel-kind-badge">Pinned</span>`
       + `<button class="btn subtle btn-icon" data-action="togglePinnedExplorerCollapse" data-id="${escapeAttribute(panel.id)}" aria-label="${escapeAttribute(collapseLabel)}" title="${escapeAttribute(collapseLabel)}">${panel.collapsed ? expandPanelIcon : collapsePanelIcon}</button>`
@@ -425,7 +488,9 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `<span class="badge${item.status === 'resolved' ? '' : ' warn'}">${item.status === 'resolved' ? 'Resolved' : 'Unresolved'}</span>`
       + `${item.degraded ? '<span class="badge warn">Moved</span>' : ''}`
       + `</div>`
-      + `${item.threadPosition && item.threadPosition !== 'first' ? '' : `<div class="item-subtext">${escapeHtml(item.excerpt.length > 100 ? item.excerpt.slice(0, 100) + '…' : item.excerpt)}</div>`}`
+      + `${item.threadPosition && item.threadPosition !== 'first'
+        ? ''
+        : `<div class="item-subtext comment-anchor-excerpt">&quot;${escapeHtml(item.excerpt.length > 100 ? item.excerpt.slice(0, 100) + '…' : item.excerpt)}&quot;</div>`}`
       + `<div class="item-subtext tiny">`
       + `${item.author ? `${escapeHtml(item.author)}` : ''}`
       + `${item.created ? ` • ${escapeHtml(dayjs(item.created).fromNow())}` : ''}`
@@ -466,19 +531,20 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `<div class="title-structure">Last updated ${escapeHtml(dayjs(state.overview.generatedAt).fromNow())}</div>`
       + `</div>`
       + `<div class="actions">`
-      + `<details class="run-menu">`
-      + `<summary class="btn subtle run-menu-summary">Run${runMenuChevronIcon}</summary>`
-      + `<div class="run-menu-panel">`
-      + `<button class="run-menu-item" data-action="runBuildWorkflow" aria-label="${escapeAttribute('Compile Full Manuscript')}" title="${escapeAttribute(runBuildLabel)}">`
-      + `<span class="run-menu-item-icon">${runBuildIcon}</span>`
-      + `<span class="run-menu-item-label">Compile Full Manuscript</span>`
-      + `</button>`
-      + `<button class="run-menu-item" data-action="runGateStageWorkflow" aria-label="${escapeAttribute(runStageLabel)}" title="${escapeAttribute(runStageLabel)}">`
-      + `<span class="run-menu-item-icon">${runLocalChecksIcon}</span>`
-      + `<span class="run-menu-item-label">Run Stage Check</span>`
-      + `</button>`
-      + `</div>`
-      + `</details>`
+      + renderDropdownMenu('Actions', [
+        {
+          action: 'runBuildWorkflow',
+          label: 'Compile Full Manuscript',
+          title: runBuildLabel,
+          icon: runBuildIcon
+        },
+        {
+          action: 'runGateStageWorkflow',
+          label: 'Run Stage Check',
+          title: runStageLabel,
+          icon: runLocalChecksIcon
+        }
+      ])
       + `</div>`
       + `</div>`
       + `<div class="overview-stage">`
@@ -549,7 +615,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
   const tabRow = `<div class="sidebar-tabs">`
     + `<div class="sidebar-tabs-main">`
-    + `${state.hasActiveMarkdown
+    + `${showDocumentTab
       ? `<button class="sidebar-tab${state.activeTab === 'document' ? ' active' : ''}" data-action="setSidebarTab" data-value="document">Document</button>`
       : ''}`
     + `${state.showExplorer
@@ -568,9 +634,16 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const warningsHtml = state.warnings.length > 0
     ? `<div class="warning-panel">${state.warnings.map((warning) => escapeHtml(warning)).join('<br/>')}</div>`
     : '';
+  const detachedDocumentBanner = state.documentTabDetached && state.documentPath
+    ? `<div class="detached-document-banner">`
+      + `<span class="detached-document-arrow" aria-hidden="true">${backIcon}</span>`
+      + `<button class="backlink-link detached-document-link" data-action="openOverviewFile" data-file-path="${escapeAttribute(state.documentPath)}">${escapeHtml(fileTitle.filename || state.documentPath)}</button>`
+      + `</div>`
+    : '';
 
   const documentContent = `
       ${warningsHtml}
+      ${detachedDocumentBanner}
       ${statusPanel}
       ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
       ${state.mode === 'manuscript' ? metadataPanel : tocPanel}
@@ -593,6 +666,11 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     `
     : state.activeTab === 'spine'
       ? spineContent
+    : state.documentTabDetached
+      ? `
+      ${tabRow}
+      ${documentContent}
+    `
     : !state.hasActiveMarkdown
       ? state.canShowOverview
         ? `

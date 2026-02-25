@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { promises as fs } from 'fs';
-import { DEFAULT_IDENTIFIER_PATTERN } from '../../shared/constants';
+import { DEFAULT_IDENTIFIER_PATTERN, SPINE_DIR } from '../../shared/constants';
 import { errorToMessage } from '../../shared/errors';
 import { asNumber, asRecord } from '../../shared/value';
 import type {
@@ -76,6 +76,7 @@ import {
 
 type RefreshMode = 'full' | 'fast';
 type OverviewBuildResult = { overview?: SidebarOverviewState; skippedFiles: number };
+type MutableProjectCategoryConfig = { key: string; prefix: string; notesFile?: string };
 
 export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private static readonly PIN_LIMIT = SPINE_PIN_LIMIT;
@@ -86,6 +87,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private activeTab: SidebarViewTab = 'document';
   private readonly tabBackStack: SidebarViewTab[] = [];
   private readonly tabForwardStack: SidebarViewTab[] = [];
+  private readonly documentBackStack: SidebarState[] = [];
+  private readonly documentForwardStack: SidebarState[] = [];
+  private lastObservedActiveEditorPath = '';
   private metadataCollapsed = false;
   private selectedCommentId?: string;
   private explorerRoute: ExplorerRoute = { kind: 'home' };
@@ -106,6 +110,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   }>>();
   private readonly gateSnapshotByProject = new Map<string, SidebarOverviewGateSnapshot>();
   private lastRenderedState?: SidebarState;
+  private lastDocumentTabSnapshot?: SidebarState;
   private refreshInFlight = false;
   private refreshNonce = 0;
   private queuedRefreshMode: RefreshMode | undefined;
@@ -167,11 +172,19 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return true;
     }
 
+    if (this.activeTab === 'document' && this.canDocumentGoBack()) {
+      return true;
+    }
+
     return this.canTabGoBack();
   }
 
   private canGlobalGoForward(): boolean {
     if (this.activeTab === 'spine' && this.canExplorerGoForward()) {
+      return true;
+    }
+
+    if (this.activeTab === 'document' && this.canDocumentGoForward()) {
       return true;
     }
 
@@ -181,6 +194,11 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private goGlobalBack(): void {
     if (this.activeTab === 'spine' && this.canExplorerGoBack()) {
       this.goExplorerBack();
+      return;
+    }
+
+    if (this.activeTab === 'document' && this.canDocumentGoBack()) {
+      this.goDocumentBack();
       return;
     }
 
@@ -196,6 +214,11 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private goGlobalForward(): void {
     if (this.activeTab === 'spine' && this.canExplorerGoForward()) {
       this.goExplorerForward();
+      return;
+    }
+
+    if (this.activeTab === 'document' && this.canDocumentGoForward()) {
+      this.goDocumentForward();
       return;
     }
 
@@ -288,6 +311,101 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
   private canExplorerGoHome(): boolean {
     return this.explorerRoute.kind !== 'home';
+  }
+
+  private canDocumentGoBack(): boolean {
+    return this.documentBackStack.length > 0;
+  }
+
+  private canDocumentGoForward(): boolean {
+    return this.documentForwardStack.length > 0;
+  }
+
+  private goDocumentBack(): void {
+    const previous = this.documentBackStack.pop();
+    if (!previous) {
+      return;
+    }
+
+    const current = this.getCurrentDocumentViewSnapshot();
+    if (current && current.documentPath) {
+      this.pushDocumentSnapshot(this.documentForwardStack, current);
+    }
+
+    this.lastDocumentTabSnapshot = previous;
+  }
+
+  private goDocumentForward(): void {
+    const next = this.documentForwardStack.pop();
+    if (!next) {
+      return;
+    }
+
+    const current = this.getCurrentDocumentViewSnapshot();
+    if (current && current.documentPath) {
+      this.pushDocumentSnapshot(this.documentBackStack, current);
+    }
+
+    this.lastDocumentTabSnapshot = next;
+  }
+
+  private getCurrentDocumentViewSnapshot(): SidebarState | undefined {
+    const current = this.lastRenderedState;
+    if (current && current.activeTab === 'document' && current.showDocumentTab && current.documentPath) {
+      return current;
+    }
+
+    return this.lastDocumentTabSnapshot;
+  }
+
+  private maybeHandleActiveEditorNavigation(): boolean {
+    const activeEditorDocument = vscode.window.activeTextEditor?.document;
+    const nextActiveEditorPath = activeEditorDocument?.uri.fsPath ?? '';
+    if (nextActiveEditorPath === this.lastObservedActiveEditorPath) {
+      return false;
+    }
+
+    this.lastObservedActiveEditorPath = nextActiveEditorPath;
+
+    if (!activeEditorDocument || activeEditorDocument.languageId !== 'markdown') {
+      return false;
+    }
+
+    this.followActiveMarkdownDocument(activeEditorDocument.uri.fsPath);
+    return true;
+  }
+
+  private followActiveMarkdownDocument(filePath: string): void {
+    const normalizedTarget = path.resolve(filePath);
+    const currentSnapshot = this.getCurrentDocumentViewSnapshot();
+    const currentPath = currentSnapshot?.documentPath ? path.resolve(currentSnapshot.documentPath) : '';
+
+    const willChangeViewedDocument = !currentPath || currentPath !== normalizedTarget;
+    const willAttachCurrentDocument = !!currentSnapshot?.documentTabDetached && currentPath === normalizedTarget;
+
+    if (willChangeViewedDocument && currentSnapshot && currentSnapshot.documentPath) {
+      this.pushDocumentSnapshot(this.documentBackStack, currentSnapshot);
+      this.documentForwardStack.length = 0;
+    } else if (willAttachCurrentDocument) {
+      this.documentForwardStack.length = 0;
+    }
+
+    this.setActiveTab('document');
+  }
+
+  private pushDocumentSnapshot(stack: SidebarState[], snapshot: SidebarState): void {
+    if (!snapshot.documentPath) {
+      return;
+    }
+
+    const normalizedPath = path.resolve(snapshot.documentPath);
+    const last = stack[stack.length - 1];
+    if (last?.documentPath && path.resolve(last.documentPath) === normalizedPath) {
+      stack[stack.length - 1] = snapshot;
+      return;
+    }
+
+    stack.push(snapshot);
   }
 
   private getProjectPinnedEntries(projectDir: string): PinnedSpineEntryState[] {
@@ -403,6 +521,13 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       }
 
       this.lastRenderedState = state;
+      if (
+        state.activeTab === 'document'
+        && state.hasActiveMarkdown
+        && !state.documentTabDetached
+      ) {
+        this.lastDocumentTabSnapshot = state;
+      }
       this.view.webview.html = renderSidebarHtml(this.view.webview, state, this.extensionUri);
     } finally {
       this.refreshInFlight = false;
@@ -442,6 +567,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       this.activeTab = effectiveTab;
       return {
         ...previous,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         activeTab: effectiveTab,
         explorerCanGoBack: this.canExplorerGoBack(),
         explorerCanGoForward: this.canExplorerGoForward(),
@@ -484,6 +612,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         ...previous,
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         canShowOverview,
         activeTab: effectiveTab,
@@ -509,6 +640,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return {
         ...previous,
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         canShowOverview,
         activeTab: effectiveTab,
@@ -594,9 +728,16 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private async getSidebarStateFull(): Promise<SidebarState> {
+    const autoFollowedActiveMarkdown = this.maybeHandleActiveEditorNavigation();
+
     const document = getActiveMarkdownDocument(false);
     if (!document) {
       const activeDocument = vscode.window.activeTextEditor?.document;
+      const activeEditorPath = activeDocument?.uri.fsPath ?? '';
+      const detachedDocumentState = this.buildDetachedDocumentTabState(activeEditorPath);
+      if (detachedDocumentState) {
+        return detachedDocumentState;
+      }
       const workspaceFolder = activeDocument ? vscode.workspace.getWorkspaceFolder(activeDocument.uri) : undefined;
       const projectContext = activeDocument && workspaceFolder
         ? await findNearestProjectConfig(activeDocument.uri.fsPath, workspaceFolder.uri.fsPath)
@@ -643,6 +784,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
       return {
         hasActiveMarkdown: false,
+        showDocumentTab: !!this.lastDocumentTabSnapshot,
+        activeEditorPath,
+        documentTabDetached: false,
         documentPath: activeDocument?.uri.fsPath ?? '',
         structureSummary: undefined,
         warnings,
@@ -679,6 +823,13 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       };
     }
 
+    if (!autoFollowedActiveMarkdown) {
+      const detachedDocumentState = this.buildDetachedDocumentTabState(document.uri.fsPath);
+      if (detachedDocumentState) {
+        return detachedDocumentState;
+      }
+    }
+
     const enableComments = getConfig('comments', document.uri).get<boolean>('enable', true) !== false;
 
     const emptyComments: SidebarCommentsState = {
@@ -698,7 +849,6 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
     const tocEntries = collectTocEntries(document);
     const manuscriptMode = isManuscriptPath(document.uri.fsPath);
-
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
     const projectContext = workspaceFolder
       ? await findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath)
@@ -772,6 +922,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     if (!manuscriptMode) {
       return {
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         structureSummary: undefined,
         warnings,
@@ -853,6 +1006,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
       return {
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         structureSummary,
         warnings,
@@ -885,6 +1041,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       return {
         hasActiveMarkdown: true,
+        showDocumentTab: true,
+        activeEditorPath: document.uri.fsPath,
+        documentTabDetached: false,
         documentPath: document.uri.fsPath,
         structureSummary: undefined,
         warnings,
@@ -1355,6 +1514,11 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         this.goExplorerForward();
         break;
       }
+      case 'addSpineCategory': {
+        shouldRefreshDiagnostics = false;
+        await this.promptAndAddSpineCategory();
+        break;
+      }
       case 'pinExplorerEntry': {
         shouldRefreshDiagnostics = false;
         if (this.explorerRoute.kind !== 'identifier') {
@@ -1772,6 +1936,45 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     return requestedTab;
   }
 
+  private buildDetachedDocumentTabState(activeEditorPath: string): SidebarState | undefined {
+    if (this.activeTab !== 'document') {
+      return undefined;
+    }
+
+    const snapshot = this.lastDocumentTabSnapshot;
+    if (!snapshot || !snapshot.documentPath) {
+      return undefined;
+    }
+
+    const sameAsActiveEditor = !!activeEditorPath
+      && path.resolve(activeEditorPath) === path.resolve(snapshot.documentPath);
+    if (sameAsActiveEditor) {
+      return undefined;
+    }
+
+    const effectiveTab = this.resolveEffectiveTab(this.activeTab, snapshot.canShowOverview, snapshot.showExplorer);
+    this.activeTab = effectiveTab;
+    if (effectiveTab !== 'document') {
+      return undefined;
+    }
+
+    return {
+      ...snapshot,
+      hasActiveMarkdown: false,
+      showDocumentTab: true,
+      activeEditorPath,
+      documentTabDetached: true,
+      activeTab: effectiveTab,
+      canPinAllFromFile: false,
+      explorerCanGoBack: this.canExplorerGoBack(),
+      explorerCanGoForward: this.canExplorerGoForward(),
+      globalCanGoBack: this.canGlobalGoBack(),
+      globalCanGoForward: this.canGlobalGoForward(),
+      explorerCanGoHome: this.canExplorerGoHome(),
+      explorerLoadToken: this.explorerLoadToken
+    };
+  }
+
   private collectSidebarWarnings(
     projectContext: { issues: ProjectConfigIssue[] } | undefined,
     overviewSkippedFiles: number
@@ -2098,16 +2301,295 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
   private async getCurrentProjectConfigContext(): Promise<ProjectScanContext | undefined> {
     const document = getActiveMarkdownDocument(false);
-    if (!document) {
+    if (document) {
+      const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+      if (!workspaceFolder) {
+        return undefined;
+      }
+
+      return findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath);
+    }
+
+    const fallbackDocumentPath = this.lastRenderedState?.documentPath || this.lastDocumentTabSnapshot?.documentPath;
+    if (!fallbackDocumentPath) {
       return undefined;
     }
 
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-    if (!workspaceFolder) {
+    const fallbackUri = vscode.Uri.file(fallbackDocumentPath);
+    const fallbackWorkspaceFolder = vscode.workspace.getWorkspaceFolder(fallbackUri);
+    if (!fallbackWorkspaceFolder) {
       return undefined;
     }
 
-    return findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath);
+    return findNearestProjectConfig(fallbackDocumentPath, fallbackWorkspaceFolder.uri.fsPath);
+  }
+
+  private async promptAndAddSpineCategory(): Promise<void> {
+    const projectContext = await this.getCurrentProjectConfigContext();
+    if (!projectContext) {
+      void vscode.window.showWarningMessage('Open a project file first to add a spine category.');
+      return;
+    }
+
+    const projectFilePath = path.join(projectContext.projectDir, 'stego-project.json');
+    const parsedConfig = await this.readMutableProjectConfig(projectFilePath);
+    if (!parsedConfig) {
+      return;
+    }
+
+    const existingCategoryKeys = new Set(
+      projectContext.categories.map((category) => category.key.trim().toLowerCase()).filter((value) => value.length > 0)
+    );
+    const existingPrefixes = new Set(
+      projectContext.categories.map((category) => category.prefix.trim().toUpperCase()).filter((value) => value.length > 0)
+    );
+    const existingRequiredMetadata = new Set(this.readStringArray(parsedConfig.record.requiredMetadata).map((key) => key.toLowerCase()));
+
+    const categoryName = await vscode.window.showInputBox({
+      title: 'New Category',
+      prompt: 'Category name',
+      placeHolder: 'Characters',
+      ignoreFocusOut: true,
+      validateInput: (value) => {
+        const key = this.toSpineCategoryKey(value);
+        if (!key) {
+          return 'Enter a category name (letters/numbers) so Stego can derive a metadata key.';
+        }
+        if (!this.isValidMetadataKey(key)) {
+          return `Derived metadata key '${key}' is invalid.`;
+        }
+        if (existingCategoryKeys.has(key.toLowerCase())) {
+          return `Category '${key}' already exists.`;
+        }
+        return undefined;
+      }
+    });
+    if (categoryName === undefined) {
+      return;
+    }
+
+    const key = this.toSpineCategoryKey(categoryName);
+    if (!key || !this.isValidMetadataKey(key)) {
+      void vscode.window.showErrorMessage('Could not derive a valid metadata key from the category name.');
+      return;
+    }
+    if (existingCategoryKeys.has(key.toLowerCase())) {
+      void vscode.window.showWarningMessage(`Spine category '${key}' already exists.`);
+      return;
+    }
+
+    const suggestedPrefix = this.suggestSpinePrefix(categoryName, key, existingPrefixes);
+    const prefixInput = await vscode.window.showInputBox({
+      title: 'New Category',
+      prompt: 'Identifier prefix (uppercase)',
+      placeHolder: 'CHAR',
+      value: suggestedPrefix,
+      ignoreFocusOut: true,
+      validateInput: (value) => {
+        const prefix = value.trim().toUpperCase();
+        if (!prefix) {
+          return 'Prefix is required.';
+        }
+        if (!/^[A-Z][A-Z0-9]*$/.test(prefix)) {
+          return 'Use uppercase letters/numbers only, starting with a letter (for example CHAR).';
+        }
+        if (prefix === 'CMT') {
+          return "Prefix 'CMT' is reserved for comments.";
+        }
+        if (existingPrefixes.has(prefix)) {
+          return `Prefix '${prefix}' is already used in this project.`;
+        }
+        return undefined;
+      }
+    });
+    if (prefixInput === undefined) {
+      return;
+    }
+
+    const prefix = prefixInput.trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9]*$/.test(prefix) || prefix === 'CMT') {
+      void vscode.window.showErrorMessage('Invalid spine category prefix.');
+      return;
+    }
+    if (existingPrefixes.has(prefix)) {
+      void vscode.window.showWarningMessage(`Prefix '${prefix}' is already used in this project.`);
+      return;
+    }
+
+    const requiredChoice = await vscode.window.showQuickPick(
+      [
+        { label: 'No', description: 'Optional metadata field (recommended default)', value: false },
+        { label: 'Yes', description: `Add '${key}' to requiredMetadata`, value: true }
+      ],
+      {
+        title: 'New Category',
+        placeHolder: `Require '${key}' metadata on manuscript files?`,
+        ignoreFocusOut: true
+      }
+    );
+    if (!requiredChoice) {
+      return;
+    }
+
+    const notesFile = `${key}.md`;
+    const nextCategory: MutableProjectCategoryConfig = { key, prefix, notesFile };
+    const nextRecord = this.addCategoryToProjectConfigRecord(parsedConfig.record, nextCategory, requiredChoice.value, existingRequiredMetadata);
+
+    await fs.writeFile(projectFilePath, `${JSON.stringify(nextRecord, null, 2)}\n`, 'utf8');
+    const categoryFilePath = await this.ensureSpineCategoryFile(projectContext.projectDir, notesFile, key);
+
+    this.indexService.clear();
+    this.referenceUsageService.clear();
+
+    this.setActiveTab('spine');
+    this.navigateExplorerToRoute({ kind: 'category', key, prefix }, { trackHistory: true });
+    try {
+      await openBacklinkFile(categoryFilePath, 1);
+    } catch (error) {
+      void vscode.window.showWarningMessage(`Added category, but could not open spine file: ${errorToMessage(error)}`);
+    }
+    void vscode.window.showInformationMessage(
+      `Added spine category '${key}' (${prefix})${requiredChoice.value ? ' and marked it as required metadata.' : '.'}`
+    );
+  }
+
+  private async readMutableProjectConfig(projectFilePath: string): Promise<{ record: Record<string, unknown> } | undefined> {
+    let raw = '';
+    try {
+      raw = await fs.readFile(projectFilePath, 'utf8');
+    } catch (error) {
+      void vscode.window.showErrorMessage(`Could not read stego-project.json: ${errorToMessage(error)}`);
+      return undefined;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch (error) {
+      void vscode.window.showErrorMessage(`Could not parse stego-project.json: ${errorToMessage(error)}`);
+      return undefined;
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      void vscode.window.showErrorMessage('stego-project.json must be a JSON object.');
+      return undefined;
+    }
+
+    return { record: { ...(parsed as Record<string, unknown>) } };
+  }
+
+  private addCategoryToProjectConfigRecord(
+    record: Record<string, unknown>,
+    category: MutableProjectCategoryConfig,
+    isRequiredMetadata: boolean,
+    existingRequiredMetadata: Set<string>
+  ): Record<string, unknown> {
+    const next = { ...record };
+
+    const rawCategories = Array.isArray(next.spineCategories) ? [...next.spineCategories] : [];
+    rawCategories.push({
+      key: category.key,
+      prefix: category.prefix,
+      notesFile: category.notesFile
+    });
+    next.spineCategories = rawCategories;
+
+    if (isRequiredMetadata && !existingRequiredMetadata.has(category.key.toLowerCase())) {
+      const rawRequired = Array.isArray(next.requiredMetadata)
+        ? next.requiredMetadata.filter((value): value is string => typeof value === 'string')
+        : [];
+      rawRequired.push(category.key);
+      next.requiredMetadata = rawRequired;
+    }
+
+    return next;
+  }
+
+  private async ensureSpineCategoryFile(projectDir: string, notesFile: string, categoryKey: string): Promise<string> {
+    const spineDir = path.join(projectDir, SPINE_DIR);
+    const targetPath = path.join(spineDir, notesFile);
+    try {
+      await fs.mkdir(spineDir, { recursive: true });
+      await fs.access(targetPath);
+    } catch {
+      await fs.writeFile(targetPath, `# ${this.toCategoryHeadingFromKey(categoryKey || path.basename(notesFile, '.md'))}\n\n`, 'utf8');
+    }
+
+    return targetPath;
+  }
+
+  private readStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  private isValidMetadataKey(value: string): boolean {
+    return /^[A-Za-z0-9_-]+$/.test(value);
+  }
+
+  private toSpineCategoryKey(name: string): string {
+    return name
+      .trim()
+      .toLowerCase()
+      .replace(/['’]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-{2,}/g, '-');
+  }
+
+  private suggestSpinePrefix(name: string, key: string, existingPrefixes: Set<string>): string {
+    const words = name
+      .trim()
+      .toUpperCase()
+      .split(/[^A-Z0-9]+/)
+      .filter((part) => part.length > 0);
+
+    const candidates: string[] = [];
+    if (words.length > 1) {
+      const initials = words.map((word) => word[0]).join('').slice(0, 6);
+      if (initials.length >= 2) {
+        candidates.push(initials);
+      }
+    }
+
+    const compact = key.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (compact.length >= 3) {
+      candidates.push(compact.slice(0, 4));
+      candidates.push(compact.slice(0, 3));
+    }
+    if (compact.length >= 2) {
+      candidates.push(compact.slice(0, 2));
+    }
+
+    for (const candidate of candidates) {
+      if (!candidate || candidate === 'CMT' || existingPrefixes.has(candidate)) {
+        continue;
+      }
+      if (/^[A-Z][A-Z0-9]*$/.test(candidate)) {
+        return candidate;
+      }
+    }
+
+    let fallback = 'CAT';
+    let suffix = 2;
+    while (existingPrefixes.has(fallback) || fallback === 'CMT') {
+      fallback = `CAT${suffix}`;
+      suffix += 1;
+    }
+    return fallback;
+  }
+
+  private toCategoryHeadingFromKey(key: string): string {
+    const normalized = key.replace(/[_-]+/g, ' ').trim();
+    if (!normalized) {
+      return 'Spine Category';
+    }
+    return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
   }
 
   private compareOverviewStatus(aStatus: string, bStatus: string): number {

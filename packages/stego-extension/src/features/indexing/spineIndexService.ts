@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { slugifyHeading } from '../../shared/markdown';
 import { asString } from '../../shared/value';
 import { toWorkspacePath } from '../../shared/path';
+import { normalizeSpineEntryLabel, parseLeadingSpineEntryLabelLine } from '../../shared/spineEntryMetadata';
 import type { SpineRecord } from '../../shared/types';
 import { buildProjectScanPlan } from '../project/fileScan';
 import { findNearestProjectConfig, getResolvedIndexPath } from '../project/projectConfig';
@@ -112,6 +113,7 @@ export function parseIndexFile(parsed: unknown): Map<string, SpineRecord> {
 
     const record = value as Record<string, unknown>;
     index.set(id, {
+      label: normalizeSpineEntryLabel(asString(record.label)),
       title: asString(record.title),
       description: asString(record.description),
       url: asString(record.url),
@@ -136,6 +138,7 @@ export function mergeIndexes(base: Map<string, SpineRecord>, overrides: Map<stri
 
 export function mergeSpineRecord(base: SpineRecord, override: SpineRecord): SpineRecord {
   return {
+    label: override.label ?? base.label,
     title: override.title ?? base.title,
     description: override.description ?? base.description,
     url: override.url ?? base.url,
@@ -187,11 +190,13 @@ export async function buildIndexFromHeadingScan(
         .slice(idMatch[1].length)
         .trim()
         .replace(/^[-:]\s*/, '');
+      const label = extractHeadingLabel(lines, i + 1);
       const description = extractHeadingDescription(lines, i + 1);
       const anchor = slugifyHeading(headingText);
       const pathValue = toWorkspacePath(workspaceRoot, filePath);
 
       index.set(id, {
+        label,
         title: headingRemainder || id,
         description,
         path: pathValue,
@@ -203,7 +208,7 @@ export async function buildIndexFromHeadingScan(
   return index;
 }
 
-export function extractHeadingDescription(lines: string[], startLine: number): string | undefined {
+export function extractHeadingLabel(lines: string[], startLine: number): string | undefined {
   for (let i = startLine; i < lines.length; i += 1) {
     const raw = lines[i].trim();
     if (!raw) {
@@ -216,6 +221,36 @@ export function extractHeadingDescription(lines: string[], startLine: number): s
 
     if (raw.startsWith('<!--')) {
       continue;
+    }
+
+    return parseLeadingSpineEntryLabelLine(raw);
+  }
+
+  return undefined;
+}
+
+export function extractHeadingDescription(lines: string[], startLine: number): string | undefined {
+  let seenFirstContentLine = false;
+
+  for (let i = startLine; i < lines.length; i += 1) {
+    const raw = lines[i].trim();
+    if (!raw) {
+      continue;
+    }
+
+    if (/^#{1,6}\s/.test(raw)) {
+      break;
+    }
+
+    if (raw.startsWith('<!--')) {
+      continue;
+    }
+
+    if (!seenFirstContentLine) {
+      seenFirstContentLine = true;
+      if (parseLeadingSpineEntryLabelLine(raw)) {
+        continue;
+      }
     }
 
     const cleaned = raw

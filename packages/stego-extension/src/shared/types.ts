@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 export type SpineRecord = {
+  label?: string;
   title?: string;
   description?: string;
   url?: string;
@@ -22,6 +23,9 @@ export type ParsedMarkdownDocument = {
 
 export type SidebarState = {
   hasActiveMarkdown: boolean;
+  showDocumentTab?: boolean;
+  activeEditorPath?: string;
+  documentTabDetached?: boolean;
   documentPath: string;
   structureSummary?: string;
   warnings: string[];
@@ -195,6 +199,7 @@ export type SidebarCommentsState = {
 
 export type SidebarExplorerEntry = {
   id: string;
+  label: string;
   known: boolean;
   title: string;
   description: string;
@@ -216,6 +221,7 @@ export type SidebarExplorerCategorySummary = {
 
 export type SidebarExplorerCategoryItem = {
   id: string;
+  label: string;
   title: string;
   description: string;
   known: boolean;
@@ -255,6 +261,7 @@ export type ExplorerRoute =
 
 export type SpineSectionPreview = {
   heading: string;
+  label?: string;
   body: string;
   filePath: string;
   fileLabel: string;
@@ -347,6 +354,7 @@ export type SidebarMessage =
   | { type: 'explorerHome' }
   | { type: 'explorerBack' }
   | { type: 'explorerForward' }
+  | { type: 'addSpineCategory' }
   | { type: 'pinExplorerEntry' }
   | { type: 'pinAllExplorerEntriesFromFile' }
   | { type: 'unpinExplorerEntry'; id: string }

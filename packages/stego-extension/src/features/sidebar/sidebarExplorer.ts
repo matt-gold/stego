@@ -2,6 +2,7 @@ import * as path from 'path';
 import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { uniqueResolvedPaths } from '../../shared/path';
+import { parseLeadingSpineEntryLabelLine } from '../../shared/spineEntryMetadata';
 import type {
   SpineRecord,
   SpineSectionPreview,
@@ -52,6 +53,7 @@ export function collectExplorerCategoryItems(
 
     items.push({
       id,
+      label: record.label?.trim() || record.title?.trim() || id,
       title: record.title?.trim() || id,
       description: record.description?.trim() || '',
       known: true
@@ -138,13 +140,16 @@ export async function parseIdentifierSectionFromFile(
     }
 
     const level = match[1].length;
-    const body = collectHeadingSectionBody(lines, index + 1, level);
+    const sectionLines = collectHeadingSectionLines(lines, index + 1, level);
+    const { label, bodyLines } = extractLeadingSpineEntryLabel(sectionLines);
+    const body = compactHeadingSectionBody(bodyLines);
     const fileLabel = projectDir
       ? path.relative(projectDir, filePath).split(path.sep).join('/')
       : filePath;
 
     return {
       heading,
+      label,
       body,
       filePath,
       fileLabel,
@@ -156,6 +161,10 @@ export async function parseIdentifierSectionFromFile(
 }
 
 export function collectHeadingSectionBody(lines: string[], startIndex: number, headingLevel: number): string {
+  return compactHeadingSectionBody(collectHeadingSectionLines(lines, startIndex, headingLevel));
+}
+
+function collectHeadingSectionLines(lines: string[], startIndex: number, headingLevel: number): string[] {
   const bodyLines: string[] = [];
 
   for (let index = startIndex; index < lines.length; index += 1) {
@@ -168,6 +177,41 @@ export function collectHeadingSectionBody(lines: string[], startIndex: number, h
     bodyLines.push(line);
   }
 
+  return bodyLines;
+}
+
+function extractLeadingSpineEntryLabel(lines: string[]): { label?: string; bodyLines: string[] } {
+  const bodyLines = [...lines];
+  let firstContentIndex = -1;
+
+  for (let index = 0; index < bodyLines.length; index += 1) {
+    const raw = bodyLines[index].trim();
+    if (!raw || raw.startsWith('<!--')) {
+      continue;
+    }
+    firstContentIndex = index;
+    break;
+  }
+
+  if (firstContentIndex < 0) {
+    return { bodyLines };
+  }
+
+  const label = parseLeadingSpineEntryLabelLine(bodyLines[firstContentIndex]);
+  if (!label) {
+    return { bodyLines };
+  }
+
+  bodyLines.splice(firstContentIndex, 1);
+  if (firstContentIndex < bodyLines.length && !bodyLines[firstContentIndex].trim()) {
+    bodyLines.splice(firstContentIndex, 1);
+  }
+
+  return { label, bodyLines };
+}
+
+function compactHeadingSectionBody(lines: string[]): string {
+  const bodyLines = [...lines];
   while (bodyLines.length > 0 && !bodyLines[0].trim()) {
     bodyLines.shift();
   }

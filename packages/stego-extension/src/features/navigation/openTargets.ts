@@ -151,12 +151,8 @@ export async function openMarkdownPreviewForActiveDocument(document: vscode.Text
   }
 
   try {
-    await vscode.commands.executeCommand('markdown.showPreviewToSide', document.uri);
-  } catch {
-    try {
-      await vscode.commands.executeCommand('markdown.showPreview', document.uri);
-    } catch (error) {
-      void vscode.window.showErrorMessage(`Could not open Markdown preview: ${errorToMessage(error)}`);
-    }
+    await vscode.commands.executeCommand('markdown.showPreview', document.uri);
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Could not open Markdown preview: ${errorToMessage(error)}`);
   }
 }
