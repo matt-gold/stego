@@ -240,7 +240,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         ? `<button class="explorer-crumb-link" data-action="openExplorerCategory" data-key="${escapeAttribute(page.category.key)}" data-prefix="${escapeAttribute(page.category.prefix)}">${escapeHtml(page.category.label)}</button>`
           + `<span class="explorer-crumb-separator">/</span>`
         : ''}`
-      + `<span class="explorer-crumb-current">${escapeHtml(page.entry.id)}</span>`
+      + `<span class="explorer-crumb-current">${escapeHtml(page.entry.label)}</span>`
       + `</div>`;
   };
 
@@ -249,6 +249,10 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     options: { mode: 'active' | 'pinned'; filterValue: string; pinnedId?: string; cardActionHtml?: string }
   ): string => {
     const entry = page.entry;
+    const showCanonicalId = entry.label.trim().toUpperCase() !== entry.id.trim().toUpperCase();
+    const showSecondaryTitle = entry.title.trim().length > 0
+      && entry.title.trim().toUpperCase() !== entry.id.trim().toUpperCase()
+      && entry.title.trim().toLocaleUpperCase() !== entry.label.trim().toLocaleUpperCase();
     const toggleAction = options.mode === 'pinned' ? 'togglePinnedExplorerBacklinks' : 'toggleExplorerBacklinks';
     const filterAction = options.mode === 'pinned' ? 'setPinnedBacklinkFilter' : 'setBacklinkFilter';
     const showPinnedSummary = options.mode !== 'pinned';
@@ -262,10 +266,16 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `<div class="item-main">`
       + `${showPinnedSummary
         ? `<div class="item-title-row">`
-          + `<span class="item-title-text">${escapeHtml(entry.title)}</span>`
+          + `<span class="item-title-text">${escapeHtml(entry.label)}</span>`
           + `${!entry.known ? '<span class="badge warn">Missing</span>' : ''}`
           + `</div>`
         : (!entry.known ? `<div class="item-title-row"><span class="badge warn">Missing</span></div>` : '')}`
+      + `${showPinnedSummary && showCanonicalId
+        ? `<div class="item-subtext tiny">${escapeHtml(entry.id)}</div>`
+        : ''}`
+      + `${showPinnedSummary && showSecondaryTitle
+        ? `<div class="item-subtext">${escapeHtml(entry.title)}</div>`
+        : ''}`
       + `${showPinnedSummary && entry.description
         ? `<div class="metadata-value">${renderMarkdownForExplorer(entry.description, entry.sourceFilePath ?? state.documentPath)}</div>`
         : ''}`
@@ -313,7 +323,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     }
 
     if (page.kind === 'home') {
-      return page.categories.length > 0
+      const categoriesHtml = page.categories.length > 0
         ? `<div class="explorer-list">`
           + page.categories.map((category) => `<div class="explorer-list-row">`
             + `<button class="id-link" data-action="openExplorerCategory" data-key="${escapeAttribute(category.key)}" data-prefix="${escapeAttribute(category.prefix)}">${escapeHtml(category.label)}</button>`
@@ -321,6 +331,16 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
             + `</div>`).join('')
           + `</div>`
         : '<div class="empty">No spine categories found in this project.</div>';
+      const canAddCategory = options.mode === 'active';
+
+      return `<article class="item metadata-item explorer-home-card">`
+        + `<div class="item-main">`
+        + `${categoriesHtml}`
+        + `</div>`
+        + `${canAddCategory
+          ? `<div class="item-actions explorer-home-actions"><button class="btn subtle" data-action="addSpineCategory">+ New Category</button></div>`
+          : ''}`
+        + `</article>`;
     }
 
     if (page.kind === 'category') {
@@ -329,12 +349,19 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         + `<div class="item-title-row"><span class="item-title-text">${escapeHtml(page.category.label)}</span><span class="badge">${page.items.length}</span></div>`
         + `${page.items.length > 0
           ? `<div class="explorer-list">`
-            + page.items.map((item) => `<div class="explorer-list-row">`
-              + `<button class="id-link" data-action="openIdentifier" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.id)}</button>`
-              + `${item.title.trim().toUpperCase() !== item.id.toUpperCase() ? `<span class="item-subtext">${escapeHtml(item.title)}</span>` : ''}`
-              + `${!item.known ? '<span class="badge warn">Missing</span>' : ''}`
-              + `${item.description ? `<div class="item-subtext">${escapeHtml(item.description)}</div>` : ''}`
-              + `</div>`).join('')
+            + page.items.map((item) => {
+              const showCanonicalId = item.label.trim().toUpperCase() !== item.id.trim().toUpperCase();
+              const showSecondaryTitle = item.title.trim().length > 0
+                && item.title.trim().toUpperCase() !== item.id.trim().toUpperCase()
+                && item.title.trim().toLocaleUpperCase() !== item.label.trim().toLocaleUpperCase();
+              return `<div class="explorer-list-row">`
+                + `<button class="id-link" data-action="openIdentifier" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.label)}</button>`
+                + `${showCanonicalId ? `<span class="item-subtext tiny">${escapeHtml(item.id)}</span>` : ''}`
+                + `${showSecondaryTitle ? `<span class="item-subtext">${escapeHtml(item.title)}</span>` : ''}`
+                + `${!item.known ? '<span class="badge warn">Missing</span>' : ''}`
+                + `${item.description ? `<div class="item-subtext">${escapeHtml(item.description)}</div>` : ''}`
+                + `</div>`;
+            }).join('')
             + `</div>`
           : '<div class="empty tiny">No spine entries found for this category.</div>'}`
         + `</div>`
@@ -361,7 +388,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
 
   const activeExplorerPanel = `<section class="panel explorer-panel">`
     + `<div class="panel-heading">`
-    + `<h2>Spine Browser</h2>`
+    + `<h2>Spine</h2>`
     + `${activeExplorerNav}`
     + `</div>`
     + `${renderExplorerBreadcrumbs(state.explorer, false)}`
@@ -369,11 +396,11 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     + `</section>`;
 
   const renderPinnedExplorerPanel = (panel: SidebarPinnedExplorerPanel): string => {
-    const unpinLabel = `Unpin ${panel.id}`;
+    const unpinLabel = `Unpin ${panel.page.entry.label}`;
     const collapseLabel = panel.collapsed ? 'Expand pinned panel' : 'Collapse pinned panel';
     return `<section class="panel explorer-panel explorer-panel-pinned${panel.collapsed ? ' collapsed' : ''}" data-pinned-id="${escapeAttribute(panel.id)}">`
       + `<div class="panel-heading">`
-      + `<h2>${escapeHtml(panel.page.entry.id)}</h2>`
+      + `<h2>${escapeHtml(panel.page.entry.label)}</h2>`
       + `<div class="explorer-nav explorer-nav-pinned">`
       + `<span class="panel-kind-badge">Pinned</span>`
       + `<button class="btn subtle btn-icon" data-action="togglePinnedExplorerCollapse" data-id="${escapeAttribute(panel.id)}" aria-label="${escapeAttribute(collapseLabel)}" title="${escapeAttribute(collapseLabel)}">${panel.collapsed ? expandPanelIcon : collapsePanelIcon}</button>`

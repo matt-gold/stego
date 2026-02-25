@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { normalizeSpineEntryLabel } from '../../shared/spineEntryMetadata';
 import type {
   SpineRecord,
   ProjectSpineCategory,
@@ -135,6 +136,7 @@ export async function buildExplorerState(
   const record = index.get(id);
   const section = await resolveSpineSectionPreview(id, record, document, projectContext);
   const title = (record?.title?.trim() || section?.heading?.trim() || id);
+  const label = normalizeSpineEntryLabel(record?.label) || normalizeSpineEntryLabel(section?.label) || title || id;
   const description = (record?.description?.trim() || section?.body?.trim() || '');
   const prefix = getIdentifierPrefix(id);
   const category = prefix
@@ -156,6 +158,7 @@ export async function buildExplorerState(
     category,
     entry: {
       id,
+      label,
       known: !!record,
       title,
       description,
