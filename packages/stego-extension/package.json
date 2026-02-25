@@ -1,7 +1,7 @@
 {
   "name": "stego-extension",
   "displayName": "Stego",
-  "description": "Project-aware manuscript tooling for Spine plates, comments, validation, and compile workflows in VS Code.",
+  "description": "The official UI companion to Stego CLI, providing a user-friendly sidebar for managing manuscripts, comments, project browsing, validation and export in VS Code.",
   "version": "0.1.2",
   "publisher": "matt-gold",
   "license": "Apache-2.0",
@@ -107,7 +107,7 @@
         "stego.spine.indexFile": {
           "type": "string",
           "default": ".stego/spine-index.json",
-          "description": "Path to the workspace JSON file containing indexed identifiers. If missing or partial, Stego also infers plates from stego-project.json spine category prefixes and markdown headings."
+          "description": "Path to the workspace JSON file containing indexed identifiers. If missing or partial, Stego also infers spine entries from stego-project.json spine category prefixes and markdown headings."
         },
         "stego.spine.definitionBaseUrl": {
           "type": "string",

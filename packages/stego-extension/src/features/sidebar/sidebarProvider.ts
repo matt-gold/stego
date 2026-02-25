@@ -1396,7 +1396,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         const candidateIds = this.collectReferencedSpineIdsInDocument(document, projectContext, pattern);
 
         if (candidateIds.length === 0) {
-          void vscode.window.showInformationMessage('No spine plates referenced in the current file.');
+          void vscode.window.showInformationMessage('No spine entries referenced in the current file.');
           break;
         }
 
@@ -1420,7 +1420,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           if (hitLimit) {
             void vscode.window.showWarningMessage(`Pin limit reached (${MetadataSidebarProvider.PIN_LIMIT}). Unpin an entry before pinning another.`);
           } else {
-            void vscode.window.showInformationMessage('No new spine plates to pin from the current file.');
+            void vscode.window.showInformationMessage('No new spine entries to pin from the current file.');
           }
           break;
         }
@@ -1429,11 +1429,11 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         this.resetActiveExplorerInstance();
         if (hitLimit) {
           void vscode.window.showWarningMessage(
-            `Pinned ${addedCount} plate${addedCount === 1 ? '' : 's'} from the current file. Pin limit reached (${MetadataSidebarProvider.PIN_LIMIT}).`
+            `Pinned ${addedCount} spine entr${addedCount === 1 ? 'y' : 'ies'} from the current file. Pin limit reached (${MetadataSidebarProvider.PIN_LIMIT}).`
           );
         } else {
           void vscode.window.showInformationMessage(
-            `Pinned ${addedCount} plate${addedCount === 1 ? '' : 's'} from the current file.`
+            `Pinned ${addedCount} spine entr${addedCount === 1 ? 'y' : 'ies'} from the current file.`
           );
         }
         break;
