@@ -1,4 +1,4 @@
-# Under Saturn's Breath (Demo)
+# Under Saturn's Breath (Fiction Example)
 
 A full-configuration demo with rich metadata, three spine categories, cross-linked spine entries, and external reference links.
 
@@ -12,8 +12,8 @@ A full-configuration demo with rich metadata, three spine categories, cross-link
 Run from `/Users/mattgold/Code/stego`:
 
 ```bash
-npm run validate -- --project plague-demo
-npm run build -- --project plague-demo
-npm run check-stage -- --project plague-demo --stage draft
-npm run export -- --project plague-demo --format md
+npm run validate -- --project fiction-example
+npm run build -- --project fiction-example
+npm run check-stage -- --project fiction-example --stage draft
+npm run export -- --project fiction-example --format md
 ```

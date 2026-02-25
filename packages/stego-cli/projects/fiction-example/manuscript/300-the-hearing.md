@@ -24,15 +24,3 @@ No one accused him of sorcery. They accused him of carelessness: in a season of 
 He defended himself precisely. A text could be illicit in circulation yet sound in analysis; truth did not inherit legal status from its scribes. Raoul answered that governance could not afford that distinction under plague conditions.
 
 The compromise was severe but survivable. Matthaeus would keep his position, surrender the quire, and circulate only conclusions framed in authorized language. Etienne copied the agreement and watched his master sign it without hesitation, as though the quire had already given him everything he needed and its confiscation changed nothing.
-
-<!-- stego-comments:start -->
-
-<!-- comment: CMT-0001 -->
-<!-- meta64: eyJzdGF0dXMiOiJvcGVuIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDItMjFUMDQ6MjI6MzguMDE4WiIsInRpbWV6b25lIjoiQW1lcmljYS9OZXdfWW9yayIsInRpbWV6b25lX29mZnNldF9taW51dGVzIjotMzAwLCJwYXJhZ3JhcGhfaW5kZXgiOjAsImV4Y2VycHRfc3RhcnRfbGluZSI6MTgsImV4Y2VycHRfc3RhcnRfY29sIjozMDcsImV4Y2VycHRfZW5kX2xpbmUiOjE4LCJleGNlcnB0X2VuZF9jb2wiOjMxM30 -->
-> _Feb 21, 2026, 4:22 AM — mattgold_
->
-> > “Arabic”
->
-> spicy
-
-<!-- stego-comments:end -->

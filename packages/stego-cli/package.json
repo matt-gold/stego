@@ -20,8 +20,8 @@
   },
   "files": [
     "dist/**",
-    "docs/**",
     "projects/**",
+    "!projects/local-only/**",
     "!projects/*/dist/*.md",
     "!projects/*/dist/exports/**",
     ".vscode/tasks.json",

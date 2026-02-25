@@ -6,3 +6,4 @@ projects/*/dist/*
 !projects/*/dist/.gitkeep
 projects/*/.vscode/settings.json
 .vscode/settings.json
+local-only/
