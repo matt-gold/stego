@@ -1,6 +1,7 @@
 # Characters
 
 ## CHAR-MATTHAEUS
+label: Magister Matthaeus de Rota
 
 - Magister Matthaeus de Rota
 - Role: Scholar of medicine and astrology at the University of Paris
@@ -9,6 +10,7 @@
 - Arc: Builds a total explanation of the {{pestilence}} and dies at peace inside it; the question is whether his peace is understanding or its most sophisticated substitute
 
 ## CHAR-ETIENNE
+label: Etienne of Saint-Marcel
 
 - Etienne of Saint-Marcel
 - Role: Young cleric-scribe attached to Matthaeus (CHAR-MATTHAEUS)
@@ -16,6 +18,7 @@
 - Function: The story's witness; records the system without fully believing it, but also without offering an alternative
 
 ## CHAR-AGNES
+label: Agnes the apothecary
 
 - Agnes the apothecary
 - Role: Compounder and practical healer near the Petit Pont; supplies Hôtel-Dieu (LOC-HOTELDIEU)
@@ -24,6 +27,7 @@
 - Function: The counterweight; asks whether a system that can absorb any evidence without changing is a system or a habit
 
 ## CHAR-RAOUL
+label: Canon Raoul de Villiers
 
 - Canon Raoul de Villiers
 - Role: Cathedral canon and royal intermediary overseeing the inquiry

@@ -148,6 +148,11 @@ interface WorkspaceContext {
   config: WritingConfig;
 }
 
+interface LintSelection {
+  manuscript: boolean;
+  spine: boolean;
+}
+
 const STATUS_RANK: Record<StageName, number> = {
   draft: 0,
   revise: 1,
@@ -297,6 +302,18 @@ async function main(): Promise<void> {
         } else {
           logLine(`Stage check passed for '${project.id}' at stage '${stage}'.`);
         }
+        return;
+      }
+      case "lint": {
+        activateWorkspace(options);
+        const project = resolveProject(readStringOption(options, "project"));
+        const selection = resolveLintSelection(options);
+        const result = runProjectLint(project, selection);
+        printReport(result.issues);
+        exitIfErrors(result.issues);
+        const scopeLabel = formatLintSelection(selection);
+        const fileLabel = result.fileCount === 1 ? "file" : "files";
+        logLine(`Lint passed for '${project.id}' (${scopeLabel}, ${result.fileCount} ${fileLabel}).`);
         return;
       }
       case "export": {
@@ -798,6 +815,7 @@ async function initWorkspace(options: { force: boolean }): Promise<void> {
   writeScaffoldGitignore(targetRoot, copiedPaths);
   writeScaffoldReadme(targetRoot, copiedPaths);
   copyTemplateAsset(".markdownlint.json", targetRoot, copiedPaths);
+  copyTemplateAsset(".markdownlint.manuscript.json", targetRoot, copiedPaths);
   copyTemplateAsset(".cspell.json", targetRoot, copiedPaths);
   copyTemplateAsset(ROOT_CONFIG_FILENAME, targetRoot, copiedPaths);
   copyTemplateAsset("projects", targetRoot, copiedPaths);
@@ -1056,6 +1074,7 @@ function writeInitRootPackageJson(targetRoot: string): void {
     scripts: {
       "list-projects": "stego list-projects",
       "new-project": "stego new-project",
+      lint: "stego lint",
       validate: "stego validate",
       build: "stego build",
       "check-stage": "stego check-stage",
@@ -1073,7 +1092,7 @@ function writeInitRootPackageJson(targetRoot: string): void {
 
 function printUsage() {
   console.log(
-    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n`
+    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n`
   );
 }
 
@@ -1111,6 +1130,7 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
   const notesDir = path.join(projectRoot, config.notesDir);
   fs.mkdirSync(notesDir, { recursive: true });
   fs.mkdirSync(path.join(projectRoot, config.distDir), { recursive: true });
+  const manuscriptDir = path.join(projectRoot, config.chapterDir);
 
   const projectJson: Record<string, unknown> = {
     id: projectId,
@@ -1144,6 +1164,7 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
     name: `stego-project-${projectId}`,
     private: true,
     scripts: {
+      lint: "npx --no-install stego lint",
       validate: "npx --no-install stego validate",
       build: "npx --no-install stego build",
       "check-stage": "npx --no-install stego check-stage",
@@ -1152,6 +1173,22 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
   };
   const projectPackagePath = path.join(projectRoot, "package.json");
   fs.writeFileSync(projectPackagePath, `${JSON.stringify(projectPackage, null, 2)}\n`, "utf8");
+
+  const starterManuscriptPath = path.join(manuscriptDir, "100-hello-world.md");
+  fs.writeFileSync(
+    starterManuscriptPath,
+    `---
+status: draft
+chapter: 1
+chapter_title: Hello World
+---
+
+# Hello World
+
+Start writing here.
+`,
+    "utf8"
+  );
 
   const charactersNotesPath = path.join(spineDir, "characters.md");
   fs.writeFileSync(charactersNotesPath, "# Characters\n\n", "utf8");
@@ -1165,6 +1202,7 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
   logLine(`Created project: ${path.relative(repoRoot, projectRoot)}`);
   logLine(`- ${path.relative(repoRoot, projectJsonPath)}`);
   logLine(`- ${path.relative(repoRoot, projectPackagePath)}`);
+  logLine(`- ${path.relative(repoRoot, starterManuscriptPath)}`);
   logLine(`- ${path.relative(repoRoot, charactersNotesPath)}`);
   logLine(`- ${path.relative(repoRoot, projectExtensionsPath)}`);
   if (projectSettingsPath) {
@@ -2484,9 +2522,9 @@ function runStageCheck(
   const spineWords = collectSpineWordsForSpellcheck(report.spineState.ids);
 
   if (policy.enforceMarkdownlint) {
-    issues.push(...runMarkdownlint(project, chapterPaths, true));
+    issues.push(...runMarkdownlint(project, chapterPaths, true, "manuscript"));
   } else {
-    issues.push(...runMarkdownlint(project, chapterPaths, false));
+    issues.push(...runMarkdownlint(project, chapterPaths, false, "manuscript"));
   }
 
   if (policy.enforceCSpell) {
@@ -2498,7 +2536,147 @@ function runStageCheck(
   return { chapters: report.chapters, issues };
 }
 
-function runMarkdownlint(project: ProjectContext, files: string[], required: boolean): Issue[] {
+function resolveLintSelection(options: ParsedOptions): LintSelection {
+  const manuscript = readBooleanOption(options, "manuscript");
+  const spine = readBooleanOption(options, "spine");
+
+  if (!manuscript && !spine) {
+    return { manuscript: true, spine: true };
+  }
+
+  return { manuscript, spine };
+}
+
+function formatLintSelection(selection: LintSelection): string {
+  if (selection.manuscript && selection.spine) {
+    return "manuscript + spine";
+  }
+  if (selection.manuscript) {
+    return "manuscript";
+  }
+  if (selection.spine) {
+    return "spine";
+  }
+  return "none";
+}
+
+function runProjectLint(project: ProjectContext, selection: LintSelection): { issues: Issue[]; fileCount: number } {
+  const issues: Issue[] = [];
+  let fileCount = 0;
+
+  if (selection.manuscript) {
+    const manuscriptFiles = collectTopLevelMarkdownFiles(project.manuscriptDir);
+    if (manuscriptFiles.length === 0) {
+      issues.push(makeIssue("error", "lint", `No manuscript markdown files found in ${project.manuscriptDir}`));
+    } else {
+      fileCount += manuscriptFiles.length;
+      issues.push(...runMarkdownlint(project, manuscriptFiles, true, "manuscript"));
+    }
+  }
+
+  if (selection.spine) {
+    const spineLintState = collectSpineLintMarkdownFiles(project);
+    issues.push(...spineLintState.issues);
+    if (spineLintState.files.length > 0) {
+      fileCount += spineLintState.files.length;
+      issues.push(...runMarkdownlint(project, spineLintState.files, true, "default"));
+    }
+  }
+
+  if (fileCount === 0 && issues.length === 0) {
+    issues.push(
+      makeIssue(
+        "error",
+        "lint",
+        `No markdown files found for lint scope '${formatLintSelection(selection)}' in project '${project.id}'.`
+      )
+    );
+  }
+
+  return { issues, fileCount };
+}
+
+function collectSpineLintMarkdownFiles(project: ProjectContext): { files: string[]; issues: Issue[] } {
+  const issues: Issue[] = [];
+  const files = new Set<string>();
+
+  addMarkdownFilesFromDirectory(files, project.spineDir, true);
+  if (!fs.existsSync(project.spineDir)) {
+    issues.push(makeIssue("warning", "lint", `Missing spine directory: ${project.spineDir}`));
+  }
+
+  addMarkdownFilesFromDirectory(files, project.notesDir, true);
+  if (!fs.existsSync(project.notesDir)) {
+    issues.push(makeIssue("warning", "lint", `Missing notes directory: ${project.notesDir}`));
+  }
+
+  for (const file of collectTopLevelMarkdownFiles(project.root)) {
+    files.add(file);
+  }
+
+  const sortedFiles = Array.from(files).sort();
+  if (sortedFiles.length === 0) {
+    issues.push(
+      makeIssue(
+        "error",
+        "lint",
+        `No spine/notes markdown files found in ${project.spineDir}, ${project.notesDir}, or project root.`
+      )
+    );
+  }
+
+  return { files: sortedFiles, issues };
+}
+
+function collectTopLevelMarkdownFiles(directory: string): string[] {
+  if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => path.join(directory, entry.name))
+    .sort();
+}
+
+function addMarkdownFilesFromDirectory(target: Set<string>, directory: string, recursive: boolean): void {
+  if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) {
+    return;
+  }
+
+  const stack = [directory];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    const entries = fs.readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isFile() && entry.name.endsWith(".md")) {
+        target.add(fullPath);
+        continue;
+      }
+
+      if (recursive && entry.isDirectory()) {
+        stack.push(fullPath);
+      }
+    }
+  }
+}
+
+function runMarkdownlint(
+  project: ProjectContext,
+  files: string[],
+  required: boolean,
+  profile: "default" | "manuscript" = "default"
+): Issue[] {
+  if (files.length === 0) {
+    return [];
+  }
+
   const markdownlintCommand = resolveCommand("markdownlint");
   if (!markdownlintCommand) {
     if (required) {
@@ -2506,17 +2684,28 @@ function runMarkdownlint(project: ProjectContext, files: string[], required: boo
         makeIssue(
           "error",
           "tooling",
-          "markdownlint is required for this stage but not installed. Run 'npm i' in the repo root."
+          "markdownlint is required for this command but not installed. Run 'npm i' in the repo root."
         )
       ];
     }
     return [];
   }
 
-  const projectConfigPath = path.join(project.root, ".markdownlint.json");
-  const markdownlintConfigPath = fs.existsSync(projectConfigPath)
-    ? projectConfigPath
-    : path.join(repoRoot, ".markdownlint.json");
+  const manuscriptProjectConfigPath = path.join(project.root, ".markdownlint.manuscript.json");
+  const manuscriptRepoConfigPath = path.join(repoRoot, ".markdownlint.manuscript.json");
+  const defaultProjectConfigPath = path.join(project.root, ".markdownlint.json");
+  const defaultRepoConfigPath = path.join(repoRoot, ".markdownlint.json");
+  const markdownlintConfigPath = profile === "manuscript"
+    ? (fs.existsSync(manuscriptProjectConfigPath)
+      ? manuscriptProjectConfigPath
+      : fs.existsSync(manuscriptRepoConfigPath)
+        ? manuscriptRepoConfigPath
+        : fs.existsSync(defaultProjectConfigPath)
+          ? defaultProjectConfigPath
+          : defaultRepoConfigPath)
+    : (fs.existsSync(defaultProjectConfigPath)
+      ? defaultProjectConfigPath
+      : defaultRepoConfigPath);
 
   const prepared = prepareFilesWithoutComments(files);
   try {

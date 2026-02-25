@@ -6,12 +6,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/matt-gold/stego.git"
+    "url": "https://github.com/matt-gold/stego-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/matt-gold/stego/issues"
+    "url": "https://github.com/matt-gold/stego-cli/issues"
   },
-  "homepage": "https://github.com/matt-gold/stego#readme",
+  "homepage": "https://github.com/matt-gold/stego-cli#readme",
   "bin": {
     "stego": "dist/stego-cli.js"
   },
@@ -28,6 +28,7 @@
     ".vscode/extensions.json",
     ".gitignore",
     ".markdownlint.json",
+    ".markdownlint.manuscript.json",
     ".cspell.json",
     "stego.config.json",
     "README.md"
@@ -41,6 +42,7 @@
     "release:version": "changeset version",
     "list-projects": "node --experimental-strip-types tools/stego-cli.ts list-projects",
     "new-project": "node --experimental-strip-types tools/stego-cli.ts new-project",
+    "lint": "node --experimental-strip-types tools/stego-cli.ts lint",
     "validate": "node --experimental-strip-types tools/stego-cli.ts validate",
     "build": "node --experimental-strip-types tools/stego-cli.ts build",
     "check-stage": "node --experimental-strip-types tools/stego-cli.ts check-stage",

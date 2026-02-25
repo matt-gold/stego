@@ -1,6 +1,7 @@
 # Locations
 
 ## LOC-COLLEGE
+label: College chamber near the Rue Saint-Jacques
 
 - College chamber near the Rue Saint-Jacques
 - Study and disputation room
@@ -9,6 +10,7 @@
 - Significance: The space where the system is built; physically separated from the wards and streets where the plague actually operates
 
 ## LOC-HOTELDIEU
+label: "Hôtel-Dieu"
 
 - Hôtel-Dieu
 - Hospital ward near Notre-Dame
@@ -17,6 +19,7 @@
 - Significance: Where data is collected; the distance between this room and the college chamber is the distance between observation and explanation
 
 ## LOC-QUAY
+label: Grain quay on the Seine
 
 - Grain quay on the Seine
 - River unloading zone
@@ -25,6 +28,7 @@
 - Significance: Agnes's observations (SRC-WARD-DATA) trace infection along this route; it is the strongest evidence for material transmission and the hardest for the celestial framework (SRC-CONJUNCTION) to accommodate
 
 ## LOC-CHARNEL
+label: Charnel precinct at the cemetery edge
 
 - Charnel precinct at the cemetery edge
 - Overflow burial ground
