@@ -1,87 +1,36 @@
 # Stego - VSCode Extension for `stego-cli`
 
-Give your manuscript plot armor.
+<div align="center">
+  <img src="assets/stego.png" alt="Stego logo" width="128" />
+</div>
 
-`stego-cli` turns VS Code into a stage-aware writing environment with Git-backed drafts, structured “spine” knowledge, and workflow validation built for long-form projects.
+[`stego-cli`](https://github.com/matt-gold/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
 
 This extension provides the native UX for stego projects:
 
-- A project-aware sidebar for manuscripts, comments, and Spine browsing
-- Spine identifier links and hover previews inside Markdown
-- In-editor buttons for running your project's validation and compile scripts
+- A project-aware sidebar with document, spine, and manuscript-level scope.
+- End-to-end UI workflows for Commenting and metadata maintenance.
+- Hyperlinks and hover previews automatically appear in the editor wherever identifers are found.
+- Project status displays and action buttons for running your project's most important scripts.
 
-## Features
+## Who is this for?
 
-- Dedicated Stego sidebar
-  - Provides a **Document** tab for file-level controls and comments
-  - Provides a **Spine** tab with a browser for your project knowledge base
-  - Provides a **Manuscript** tab for frontmatter editing, status control, overview metrics, and run actions
-- Detects Spine identifiers in Markdown and turns them into clickable links
-  - Shows hover previews for indexed identifiers
-- Runs project scripts for:
-    - stage checks
-    - full manuscript compile/export
-    - current-file validation
+I created Stego with my own needs in mind. As a software developer by trade, I wanted the security of git-backed drafts, with the power and flexibility of CLI tooling workflows for build and validation that I am familiar with in my coding work. Stego, along with its companion extension [`saurus`](https://github.com/matt-gold/saurus), together give VSCode the lift it needs to be my primary word processor for both creative fiction and technical documentation.
 
 ## Core Concepts
 
 - **Spine**: Your project reference system (characters, locations, sources, etc.)
-- **Spine entry**: A reference entry inside a Spine category (for example `LOC-HOTELDIEU`)
-- **Manuscript file**: A Markdown file with frontmatter in your manuscript workflow
-- **Project config**: `stego-project.json`, discovered by walking upward from the active file
-
-## Sidebar Overview
-
-Stego adds a **Stego** sidebar panel in the activity bar with a webview UI.
-
-### Document tab
-
-- Contextual panels for the current file (for example TOC in standard Markdown files)
-- **Spine Entries** panel when viewing Spine category files (clicking a spine entry opens it in the Spine browser)
-- Comments panel with unresolved/resolved threads (when comments are enabled)
-
-### Spine tab
-
-- Project-wide Spine browser (home -> category -> spine entry)
-- Back / forward / home navigation
-- Multi-pin workflow:
-  - Pin a spine entry to keep it visible
-  - Continue browsing in a fresh active browser instance below
-  - Unpin individual spine entries or unpin all
-- "Pin All From File" action to pin all referenced spine entries found in the current Markdown file
-
-### Manuscript tab
-
-- Frontmatter metadata editor
-- Status dropdown (project-aware)
-- Overview metrics (manuscript files, unresolved comments, etc.)
-- Run menu for:
-  - **Compile Full Manuscript**
-  - **Run Stage Check**
-- Status/result cards for stage checks and compile results
+  - This idea is sometimes called a "Story Bible" in fiction-oriented apps, but Stego Spine works equally well for glossaries, academic reference tracking, etc.   
+- **Manuscript**: Your manuscript consists of all the collection of markdown files in your `/manuscript` directory. A manuscript file usually containing a single scene or section. These get compiled together by the build and can export to multiple doc formats. File system order determines the order these get appended in compilation, so it is recommended to follow the convention `###-scene-name.md` to allow easy reordering.
+- **Identifier**: A unique string that creates a structural reference to a metadata or spine entry wherever it appears (for example `CHAR-MARY`, `CMT-001`)
+- **Structural Metadata**: special metadata keys that tell the compiler how to append manuscript files during the build. For example, to control how chapter headings and page breaks get inserted in the exported manuscript.
+- **Project**: A directory with a `stego-project.json` and `/manuscripts` that can be compiled and result in one document. Vscode should be opened at the project directory when using stego extension.
+- **Workspace**: The Stego workspace contains all stego projects and global configuration shared by projects. This provides a monorepo-like workflow to your stego projects when combined with git.
 
 ## Project Setup
 
-Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward.
+Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Use the stego-cli to scaffold a new stego workspace in an empty directory with `npm i -g stego`, then `stego init`.
 
-### Minimal `stego-project.json`
-
-```json
-{
-  "name": "My Novel",
-  "requiredMetadata": ["status", "chapter", "title"],
-  "spineCategories": [
-    { "key": "characters", "prefix": "CHAR", "notesFile": "spine/characters.md" },
-    { "key": "locations", "prefix": "LOC", "notesFile": "spine/locations.md" },
-    { "key": "sources", "prefix": "SRC", "notesFile": "spine/sources.md" }
-  ],
-  "compileStructure": {
-    "levels": [
-      { "key": "chapter", "label": "Chapter", "titleKey": "title" }
-    ]
-  }
-}
-```
 
 ### Supported `stego-project.json` fields (current)
 
@@ -97,37 +46,13 @@ Stego looks for a `stego-project.json` file starting from the active file's dire
   - `titleKey` (optional)
   - `headingTemplate` (optional, defaults to `{label} {value}: {title}`)
 
-Stego validates this file and reports non-fatal problems instead of failing hard.
+Stego validates this file and reports non-fatal problems.
 
-## Spine Index (Optional but Recommended)
+## Spine Entry Discovery
 
-Stego can read a JSON identifier index from `.stego/spine-index.json` (configurable via `stego.spine.indexFile`).
+Stego discovers Spine entries by scanning your Spine category Markdown files using the prefixes defined in `stego-project.json` (`spineCategories[]`).
 
-If the index is missing or incomplete, Stego also infers spine entries by scanning Markdown headings using prefixes from `stego-project.json`.
-
-### Example `.stego/spine-index.json`
-
-```json
-{
-  "LOC-HOTELDIEU": {
-    "title": "Hotel-Dieu",
-    "description": "Paris hospital and recurring setting.",
-    "path": "spine/locations.md",
-    "anchor": "loc-hoteldieu"
-  },
-  "CHAR-JANE": "Primary point-of-view character"
-}
-```
-
-Each identifier value can be:
-
-- a string (treated as a short description)
-- an object with:
-  - `title`
-  - `description`
-  - `url` (absolute target)
-  - `path` (workspace-relative file target)
-  - `anchor` (optional fragment)
+Use entry headings for identifiers (for example `## LOC-HOTELDIEU`) and optional inline `label:` metadata for the display name shown in the Spine tab.
 
 ## Project Scripts Stego Calls
 
@@ -166,7 +91,6 @@ Stego passes arguments for format / stage / file where relevant (for example `--
 ### Spine
 
 - `stego.spine.identifierPattern`
-- `stego.spine.indexFile`
 - `stego.spine.definitionBaseUrl`
 - `stego.spine.reportUnknownIdentifiers`
 
