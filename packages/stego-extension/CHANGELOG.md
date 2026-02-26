@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2
+
+### Patch Changes
+
+- d884c0a: Set the VS Code Marketplace extension icon to use the `assets/stego.png` image used in the README.
+
 ## 0.2.1
 
 ### Patch Changes
