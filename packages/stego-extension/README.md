@@ -4,32 +4,23 @@
   <img src="assets/stego.png" alt="Stego logo" width="128" />
 </div>
 
-Give your manuscript plot armor.
-
-[`stego-cli`](https://github.com/matt-gold/stego-cli) turns VS Code into a stage-aware writing environment with Git-backed drafts, structured “spine” knowledge, and workflow validation built for long-form projects.
+[`stego-cli`](https://github.com/matt-gold/stego-cli) turns VS Code into a writing environment with a structured "spine" knowledge base, resolvable comment threads, and workflow validation built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
 
 This extension provides the native UX for stego projects:
 
-- A project-aware sidebar for manuscripts, comments, and Spine browsing
-- Spine identifier links and hover previews inside Markdown
-- In-editor buttons for running your project's validation and compile scripts
+- A project-aware sidebar with document, spine, and manuscript-level scope.
+- End-to-end UI workflows for Commenting and metadata maintenance.
+- Hyperlinks and hover previews automatically appear in the editor wherever identifers are found.
+- Project status displays and action buttons for running your project's most important scripts.
 
-## Features
+## Who is this for?
 
-- Dedicated Stego sidebar
-  - Provides a **Document** tab for file-level controls and comments
-  - Provides a **Spine** tab with a browser for your project knowledge base
-  - Provides a **Manuscript** tab for frontmatter editing, status control, overview metrics, and run actions
-- Detects Spine identifiers in Markdown and turns them into clickable links
-  - Shows hover previews for indexed identifiers
-- Runs project scripts for:
-    - stage checks
-    - full manuscript compile/export
-    - current-file validation
+I created Stego with my own needs in mind. As a software developer by trade, I wanted the security of git-backed drafts, with the power and flexibility of CLI tooling workflows for build and validation that I am familiar with in my coding work. Stego, along with its companion extension [`saurus`](https://github.com/matt-gold/saurus), together give VSCode the lift it needs to be my primary word processor.
 
 ## Core Concepts
 
 - **Spine**: Your project reference system (characters, locations, sources, etc.)
+  - This idea is sometimes called a "Story Bible" in fiction-oriented apps, but Stego Spine works equally well for glossaries, academic reference tracking, etc.   
 - **Spine entry**: A reference entry inside a Spine category (for example `LOC-HOTELDIEU`)
 - **Manuscript file**: A Markdown file with frontmatter in your manuscript workflow
 - **Project config**: `stego-project.json`, discovered by walking upward from the active file
