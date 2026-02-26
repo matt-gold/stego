@@ -564,16 +564,6 @@ export function getConfig(section: 'spine' | 'editor' | 'comments', scopeUri?: v
   return vscode.workspace.getConfiguration(`stego.${section}`, scopeUri);
 }
 
-export function getResolvedIndexPath(folder: vscode.WorkspaceFolder): string | undefined {
-  const config = getConfig('spine', folder.uri);
-  const configuredPath = config.get<string>('indexFile', '.stego/spine-index.json').trim();
-  if (!configuredPath) {
-    return undefined;
-  }
-
-  return path.isAbsolute(configuredPath) ? configuredPath : path.join(folder.uri.fsPath, configuredPath);
-}
-
 export async function findNearestFileUpward(
   documentPath: string,
   workspaceRoot: string,
