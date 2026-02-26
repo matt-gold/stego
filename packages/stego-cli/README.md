@@ -26,7 +26,7 @@ stego build --project fiction-example
 - `stego-docs` (the full documentation project)
 - `fiction-example` (a fiction-oriented demo with rich Spine usage)
 
-For day-to-day editing, open a project folder in VS Code (for example `projects/stego-docs`) and use the Stego VS Code extension, which is the official UI for Stego projects.
+For day-to-day editing, open a project folder in VS Code (for example `projects/stego-docs`) and use the [Stego VS Code extension](https://github.com/matt-gold/stego-extension), which is the official UI for Stego projects.
 
 ## Full documentation
 
