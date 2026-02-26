@@ -4,7 +4,7 @@
   <img src="assets/stego.png" alt="Stego logo" width="128" />
 </div>
 
-[`stego-cli`](https://github.com/matt-gold/stego-cli) turns VS Code into a writing environment with a structured "spine" knowledge base, resolvable comment threads, and workflow validation built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
+[`stego-cli`](https://github.com/matt-gold/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
 
 This extension provides the native UX for stego projects:
 
@@ -21,9 +21,10 @@ I created Stego with my own needs in mind. As a software developer by trade, I w
 
 - **Spine**: Your project reference system (characters, locations, sources, etc.)
   - This idea is sometimes called a "Story Bible" in fiction-oriented apps, but Stego Spine works equally well for glossaries, academic reference tracking, etc.   
-- **Spine entry**: A reference entry inside a Spine category (for example `LOC-HOTELDIEU`)
-- **Manuscript file**: A Markdown file with frontmatter in your manuscript workflow
-- **Project config**: `stego-project.json`, discovered by walking upward from the active file
+- **Manuscript**: Your manuscript consists of all the collection of markdown files in your `/manuscript` directory. A manuscript file usually containing a single scene or section. These get compiled together by the build and can export to multiple doc formats. File system order determines the order these get appended in compilation, so it is recommended to follow the convention `###-scene-name.md` to allow easy reordering.
+- **Identifier**: A unique string that creates a structural reference to a metadata or spine entry wherever it appears (for example `CHAR-MARY`, `CMT-001`)
+- **Structural Metadata**: special metadata keys that tell the compiler how to append manuscript files during the build. For example, to control how chapter headings and page breaks get inserted in the exported manuscript.
+- **Project config**: `stego-project.json`, discovered by walking upward from the active file.
 
 ## Sidebar Overview
 
