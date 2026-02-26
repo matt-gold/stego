@@ -24,60 +24,13 @@ I created Stego with my own needs in mind. As a software developer by trade, I w
 - **Manuscript**: Your manuscript consists of all the collection of markdown files in your `/manuscript` directory. A manuscript file usually containing a single scene or section. These get compiled together by the build and can export to multiple doc formats. File system order determines the order these get appended in compilation, so it is recommended to follow the convention `###-scene-name.md` to allow easy reordering.
 - **Identifier**: A unique string that creates a structural reference to a metadata or spine entry wherever it appears (for example `CHAR-MARY`, `CMT-001`)
 - **Structural Metadata**: special metadata keys that tell the compiler how to append manuscript files during the build. For example, to control how chapter headings and page breaks get inserted in the exported manuscript.
-- **Project config**: `stego-project.json`, discovered by walking upward from the active file.
-
-## Sidebar Overview
-
-Stego adds a **Stego** sidebar panel in the activity bar with a webview UI.
-
-### Document tab
-
-- Contextual panels for the current file (for example TOC in standard Markdown files)
-- **Spine Entries** panel when viewing Spine category files (clicking a spine entry opens it in the Spine browser)
-- Comments panel with unresolved/resolved threads (when comments are enabled)
-
-### Spine tab
-
-- Project-wide Spine browser (home -> category -> spine entry)
-- Back / forward / home navigation
-- Multi-pin workflow:
-  - Pin a spine entry to keep it visible
-  - Continue browsing in a fresh active browser instance below
-  - Unpin individual spine entries or unpin all
-- "Pin All From File" action to pin all referenced spine entries found in the current Markdown file
-
-### Manuscript tab
-
-- Frontmatter metadata editor
-- Status dropdown (project-aware)
-- Overview metrics (manuscript files, unresolved comments, etc.)
-- Run menu for:
-  - **Compile Full Manuscript**
-  - **Run Stage Check**
-- Status/result cards for stage checks and compile results
+- **Project**: A directory with a `stego-project.json` and `/manuscripts` that can be compiled and result in one document. Vscode should be opened at the project directory when using stego extension.
+- **Workspace**: The Stego workspace contains all stego projects and global configuration shared by projects. This provides a monorepo-like workflow to your stego projects when combined with git.
 
 ## Project Setup
 
-Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward.
+Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Use the stego-cli to scaffold a new stego workspace in an empty directory with `npm i -g stego`, then `stego init`.
 
-### Minimal `stego-project.json`
-
-```json
-{
-  "name": "My Novel",
-  "requiredMetadata": ["status", "chapter", "title"],
-  "spineCategories": [
-    { "key": "characters", "prefix": "CHAR", "notesFile": "spine/characters.md" },
-    { "key": "locations", "prefix": "LOC", "notesFile": "spine/locations.md" },
-    { "key": "sources", "prefix": "SRC", "notesFile": "spine/sources.md" }
-  ],
-  "compileStructure": {
-    "levels": [
-      { "key": "chapter", "label": "Chapter", "titleKey": "title" }
-    ]
-  }
-}
-```
 
 ### Supported `stego-project.json` fields (current)
 
@@ -93,7 +46,7 @@ Stego looks for a `stego-project.json` file starting from the active file's dire
   - `titleKey` (optional)
   - `headingTemplate` (optional, defaults to `{label} {value}: {title}`)
 
-Stego validates this file and reports non-fatal problems instead of failing hard.
+Stego validates this file and reports non-fatal problems.
 
 ## Spine Entry Discovery
 
