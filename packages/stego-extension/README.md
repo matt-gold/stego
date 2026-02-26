@@ -6,7 +6,7 @@
 
 Give your manuscript plot armor.
 
-`stego-cli` turns VS Code into a stage-aware writing environment with Git-backed drafts, structured “spine” knowledge, and workflow validation built for long-form projects.
+[`stego-cli`](https://github.com/matt-gold/stego-cli) turns VS Code into a stage-aware writing environment with Git-backed drafts, structured “spine” knowledge, and workflow validation built for long-form projects.
 
 This extension provides the native UX for stego projects:
 
