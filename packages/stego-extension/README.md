@@ -1,5 +1,9 @@
 # Stego - VSCode Extension for `stego-cli`
 
+<div align="center">
+  <img src="assets/stego.png" alt="Stego logo" width="128" />
+</div>
+
 Give your manuscript plot armor.
 
 `stego-cli` turns VS Code into a stage-aware writing environment with Git-backed drafts, structured “spine” knowledge, and workflow validation built for long-form projects.
@@ -99,35 +103,11 @@ Stego looks for a `stego-project.json` file starting from the active file's dire
 
 Stego validates this file and reports non-fatal problems instead of failing hard.
 
-## Spine Index (Optional but Recommended)
+## Spine Entry Discovery
 
-Stego can read a JSON identifier index from `.stego/spine-index.json` (configurable via `stego.spine.indexFile`).
+Stego discovers Spine entries by scanning your Spine category Markdown files using the prefixes defined in `stego-project.json` (`spineCategories[]`).
 
-If the index is missing or incomplete, Stego also infers spine entries by scanning Markdown headings using prefixes from `stego-project.json`.
-
-### Example `.stego/spine-index.json`
-
-```json
-{
-  "LOC-HOTELDIEU": {
-    "title": "Hotel-Dieu",
-    "description": "Paris hospital and recurring setting.",
-    "path": "spine/locations.md",
-    "anchor": "loc-hoteldieu"
-  },
-  "CHAR-JANE": "Primary point-of-view character"
-}
-```
-
-Each identifier value can be:
-
-- a string (treated as a short description)
-- an object with:
-  - `title`
-  - `description`
-  - `url` (absolute target)
-  - `path` (workspace-relative file target)
-  - `anchor` (optional fragment)
+Use entry headings for identifiers (for example `## LOC-HOTELDIEU`) and optional inline `label:` metadata for the display name shown in the Spine tab.
 
 ## Project Scripts Stego Calls
 
@@ -166,7 +146,6 @@ Stego passes arguments for format / stage / file where relevant (for example `--
 ### Spine
 
 - `stego.spine.identifierPattern`
-- `stego.spine.indexFile`
 - `stego.spine.definitionBaseUrl`
 - `stego.spine.reportUnknownIdentifiers`
 

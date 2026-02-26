@@ -2,19 +2,16 @@ import * as path from 'path';
 import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { slugifyHeading } from '../../shared/markdown';
-import { asString } from '../../shared/value';
 import { toWorkspacePath } from '../../shared/path';
-import { normalizeSpineEntryLabel, parseLeadingSpineEntryLabelLine } from '../../shared/spineEntryMetadata';
+import { parseLeadingSpineEntryLabelLine } from '../../shared/spineEntryMetadata';
 import type { SpineRecord } from '../../shared/types';
 import { buildProjectScanPlan } from '../project/fileScan';
-import { findNearestProjectConfig, getResolvedIndexPath } from '../project/projectConfig';
+import { findNearestProjectConfig } from '../project/projectConfig';
 
 export class SpineIndexService {
-  private readonly explicitCache = new Map<string, { mtimeMs: number; index: Map<string, SpineRecord> }>();
   private readonly inferredCache = new Map<string, { stamp: string; index: Map<string, SpineRecord> }>();
 
   public clear(): void {
-    this.explicitCache.clear();
     this.inferredCache.clear();
   }
 
@@ -24,47 +21,7 @@ export class SpineIndexService {
       return new Map();
     }
 
-    const explicit = await this.loadExplicitIndex(folder);
-    const inferred = await this.loadInferredIndex(document, folder);
-
-    if (explicit.size === 0) {
-      return inferred;
-    }
-
-    if (inferred.size === 0) {
-      return explicit;
-    }
-
-    return mergeIndexes(inferred, explicit);
-  }
-
-  private async loadExplicitIndex(folder: vscode.WorkspaceFolder): Promise<Map<string, SpineRecord>> {
-    const indexPath = getResolvedIndexPath(folder);
-    if (!indexPath) {
-      return new Map();
-    }
-
-    const cacheKey = `${folder.uri.fsPath}::${indexPath}`;
-    let stat;
-
-    try {
-      stat = await fs.stat(indexPath);
-    } catch {
-      this.explicitCache.delete(cacheKey);
-      return new Map();
-    }
-
-    const cached = this.explicitCache.get(cacheKey);
-    if (cached && cached.mtimeMs === stat.mtimeMs) {
-      return cached.index;
-    }
-
-    const raw = await fs.readFile(indexPath, 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    const index = parseIndexFile(parsed);
-
-    this.explicitCache.set(cacheKey, { mtimeMs: stat.mtimeMs, index });
-    return index;
+    return this.loadInferredIndex(document, folder);
   }
 
   private async loadInferredIndex(
@@ -92,59 +49,6 @@ export class SpineIndexService {
     this.inferredCache.set(cacheKey, { stamp, index });
     return index;
   }
-}
-
-export function parseIndexFile(parsed: unknown): Map<string, SpineRecord> {
-  const index = new Map<string, SpineRecord>();
-
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return index;
-  }
-
-  for (const [id, value] of Object.entries(parsed)) {
-    if (typeof value === 'string') {
-      index.set(id, { description: value });
-      continue;
-    }
-
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      continue;
-    }
-
-    const record = value as Record<string, unknown>;
-    index.set(id, {
-      label: normalizeSpineEntryLabel(asString(record.label)),
-      title: asString(record.title),
-      description: asString(record.description),
-      url: asString(record.url),
-      path: asString(record.path),
-      anchor: asString(record.anchor)
-    });
-  }
-
-  return index;
-}
-
-export function mergeIndexes(base: Map<string, SpineRecord>, overrides: Map<string, SpineRecord>): Map<string, SpineRecord> {
-  const merged = new Map(base);
-
-  for (const [id, record] of overrides) {
-    const existing = merged.get(id);
-    merged.set(id, existing ? mergeSpineRecord(existing, record) : record);
-  }
-
-  return merged;
-}
-
-export function mergeSpineRecord(base: SpineRecord, override: SpineRecord): SpineRecord {
-  return {
-    label: override.label ?? base.label,
-    title: override.title ?? base.title,
-    description: override.description ?? base.description,
-    url: override.url ?? base.url,
-    path: override.path ?? base.path,
-    anchor: override.anchor ?? base.anchor
-  };
 }
 
 export async function buildIndexFromHeadingScan(

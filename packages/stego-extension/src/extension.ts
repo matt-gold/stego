@@ -4,7 +4,7 @@ import { maybeAutoFoldFrontmatter, toggleFrontmatterFold } from './features/comm
 import { runProjectBuildWorkflow } from './features/commands/buildWorkflow';
 import { runProjectGateStageWorkflow } from './features/commands/stageCheckWorkflow';
 import { runLocalValidateWorkflow } from './features/commands/localValidateWorkflow';
-import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments, isAnyWorkspaceIndexFile } from './features/diagnostics/refreshDiagnostics';
+import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments } from './features/diagnostics/refreshDiagnostics';
 import { createDocumentLinkProvider } from './features/identifiers/documentLinks';
 import { createHoverProvider } from './features/identifiers/hover';
 import { SpineIndexService } from './features/indexing/spineIndexService';
@@ -146,8 +146,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.workspace.onDidSaveTextDocument((document) => {
-      const shouldReloadIndex = isAnyWorkspaceIndexFile(document.uri)
-        || isProjectFile(document.uri)
+      const shouldReloadIndex = isProjectFile(document.uri)
         || document.languageId === 'markdown';
       if (shouldReloadIndex) {
         indexService.clear();

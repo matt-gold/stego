@@ -104,20 +104,15 @@
           "default": "\\b[A-Z][A-Z0-9]*-[A-Z0-9]+(?:-[A-Z0-9]+)*\\b",
           "description": "Regex used to find Spine identifiers in Markdown text (for example LOC-ASDF or CHAR-JANE)."
         },
-        "stego.spine.indexFile": {
-          "type": "string",
-          "default": ".stego/spine-index.json",
-          "description": "Path to the workspace JSON file containing indexed identifiers. If missing or partial, Stego also infers spine entries from stego-project.json spine category prefixes and markdown headings."
-        },
         "stego.spine.definitionBaseUrl": {
           "type": "string",
           "default": "",
-          "description": "Optional fallback base URL used when an identifier has no explicit URL or path in the index."
+          "description": "Optional fallback base URL used when a Spine identifier has no local file target."
         },
         "stego.spine.reportUnknownIdentifiers": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when identifiers are found in text but missing from the index file."
+          "description": "Warn when identifiers are found in text but missing from the configured Spine categories."
         },
         "stego.editor.enableHover": {
           "type": "boolean",
