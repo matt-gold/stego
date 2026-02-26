@@ -9,6 +9,7 @@
     "type": "git",
     "url": "https://github.com/matt-gold/stego-extension.git"
   },
+  "icon": "assets/stego.png",
   "engines": {
     "vscode": "^1.92.0"
   },
