@@ -4,6 +4,7 @@ import { maybeAutoFoldFrontmatter, toggleFrontmatterFold } from './features/comm
 import { runProjectBuildWorkflow } from './features/commands/buildWorkflow';
 import { runProjectGateStageWorkflow } from './features/commands/stageCheckWorkflow';
 import { runLocalValidateWorkflow } from './features/commands/localValidateWorkflow';
+import { runNewManuscriptWorkflow } from './features/commands/newManuscriptWorkflow';
 import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments } from './features/diagnostics/refreshDiagnostics';
 import { createDocumentLinkProvider } from './features/identifiers/documentLinks';
 import { createHoverProvider } from './features/identifiers/hover';
@@ -118,6 +119,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('stegoSpine.runLocalValidate', async () => {
       await runLocalValidateWorkflow();
+    }),
+    vscode.commands.registerCommand('stegoSpine.newManuscript', async () => {
+      await runNewManuscriptWorkflow();
     }),
     vscode.commands.registerCommand('stegoSpine.toggleFrontmatter', async () => {
       await toggleFrontmatterFold();

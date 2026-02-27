@@ -323,7 +323,10 @@ export type ScriptRunResult = {
 export type ProjectScriptContext = {
   document: vscode.TextDocument;
   projectDir: string;
+  projectId: string;
   packagePath: string;
+  hasPackageJson: boolean;
+  scripts: Set<string>;
 };
 
 export type SidebarRenderContext = {

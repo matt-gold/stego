@@ -16,6 +16,22 @@ export type WorkflowRunResult = {
   stage?: string;
 };
 
+export type WorkflowScriptName = 'build' | 'export' | 'check-stage' | 'validate' | 'new';
+
+export type WorkflowCommandInvocation = {
+  command: string;
+  args: string[];
+  runner: 'script' | 'stego';
+};
+
+type StegoRunner = {
+  command: string;
+  prefixArgs: string[];
+  label: string;
+};
+
+let stegoRunnerPromise: Promise<StegoRunner | undefined> | undefined;
+
 export async function runCommand(
   command: string,
   args: string[],
@@ -69,7 +85,53 @@ export function pickToastDetails(result: ScriptRunResult): string {
   return lines[lines.length - 1];
 }
 
-export async function resolveProjectScriptContext(requiredScripts: string[]): Promise<ProjectScriptContext | undefined> {
+function getNpmCommand(): string {
+  return process.platform === 'win32' ? 'npm.cmd' : 'npm';
+}
+
+function getNpxCommand(): string {
+  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
+}
+
+async function canExecute(command: string, args: string[], cwd: string): Promise<boolean> {
+  try {
+    const result = await runCommand(command, args, cwd);
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
+async function detectStegoRunner(cwd: string): Promise<StegoRunner | undefined> {
+  if (await canExecute('stego', ['--version'], cwd)) {
+    return {
+      command: 'stego',
+      prefixArgs: [],
+      label: 'stego'
+    };
+  }
+
+  const npxCommand = getNpxCommand();
+  if (await canExecute(npxCommand, ['--no-install', 'stego', '--version'], cwd)) {
+    return {
+      command: npxCommand,
+      prefixArgs: ['--no-install', 'stego'],
+      label: 'npx --no-install stego'
+    };
+  }
+
+  return undefined;
+}
+
+async function resolveStegoRunner(cwd: string): Promise<StegoRunner | undefined> {
+  if (!stegoRunnerPromise) {
+    stegoRunnerPromise = detectStegoRunner(cwd);
+  }
+
+  return stegoRunnerPromise;
+}
+
+export async function resolveProjectScriptContext(): Promise<ProjectScriptContext | undefined> {
   const document = getActiveMarkdownDocument(true);
   if (!document) {
     return undefined;
@@ -88,38 +150,82 @@ export async function resolveProjectScriptContext(requiredScripts: string[]): Pr
   }
 
   const packagePath = path.join(project.projectDir, 'package.json');
-  let packageRaw: string;
+  let hasPackageJson = false;
+  const scripts = new Set<string>();
   try {
-    packageRaw = await fs.readFile(packagePath, 'utf8');
-  } catch {
-    void vscode.window.showWarningMessage(`No package.json found in ${project.projectDir}.`);
-    return undefined;
-  }
+    const packageRaw = await fs.readFile(packagePath, 'utf8');
+    hasPackageJson = true;
 
-  let scripts: Record<string, unknown> = {};
-  try {
-    const parsed = JSON.parse(packageRaw) as unknown;
-    const candidateScripts = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>).scripts
-      : undefined;
-    if (candidateScripts && typeof candidateScripts === 'object' && !Array.isArray(candidateScripts)) {
-      scripts = candidateScripts as Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(packageRaw) as unknown;
+      const candidateScripts = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>).scripts
+        : undefined;
+
+      if (candidateScripts && typeof candidateScripts === 'object' && !Array.isArray(candidateScripts)) {
+        for (const [scriptName, scriptValue] of Object.entries(candidateScripts)) {
+          if (typeof scriptValue === 'string' && scriptName.trim().length > 0) {
+            scripts.add(scriptName.trim());
+          }
+        }
+      }
+    } catch {
+      // Ignore invalid package.json content and rely on CLI fallback.
     }
   } catch {
-    scripts = {};
-  }
-
-  for (const requiredScript of requiredScripts) {
-    if (typeof scripts[requiredScript] !== 'string') {
-      void vscode.window.showWarningMessage(`Script '${requiredScript}' is not defined in ${packagePath}.`);
-      return undefined;
-    }
+    hasPackageJson = false;
   }
 
   return {
     document,
     projectDir: project.projectDir,
-    packagePath
+    projectId: path.basename(project.projectDir),
+    packagePath,
+    hasPackageJson,
+    scripts
+  };
+}
+
+export async function resolveWorkflowCommandInvocation(
+  context: ProjectScriptContext,
+  options: {
+    scriptName: WorkflowScriptName;
+    scriptArgs?: string[];
+    stegoArgs: string[];
+    actionLabel: string;
+  }
+): Promise<WorkflowCommandInvocation | undefined> {
+  const npmCommand = getNpmCommand();
+  const scriptArgs = options.scriptArgs ?? [];
+
+  if (context.scripts.has(options.scriptName)) {
+    const args = ['run', options.scriptName];
+    if (scriptArgs.length > 0) {
+      args.push('--', ...scriptArgs);
+    }
+
+    return {
+      command: npmCommand,
+      args,
+      runner: 'script'
+    };
+  }
+
+  const stegoRunner = await resolveStegoRunner(context.projectDir);
+  if (!stegoRunner) {
+    const packageHint = context.hasPackageJson
+      ? `Script '${options.scriptName}' is not defined in ${context.packagePath}.`
+      : `No package.json found in ${context.projectDir}.`;
+    void vscode.window.showWarningMessage(
+      `${packageHint} Install stego-cli (or add the script) to run ${options.actionLabel}.`
+    );
+    return undefined;
+  }
+
+  return {
+    command: stegoRunner.command,
+    args: [...stegoRunner.prefixArgs, ...options.stegoArgs],
+    runner: 'stego'
   };
 }
 

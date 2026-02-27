@@ -7,6 +7,7 @@ import { getStageCheckDetails } from './stageCheckWorkflow';
 import {
   pickToastDetails,
   resolveProjectScriptContext,
+  resolveWorkflowCommandInvocation,
   runCommand,
   toProjectRelativePath
 } from './workflowUtils';
@@ -22,7 +23,7 @@ export function getLocalValidateDetails(relativeFile: string, stage: string): st
 }
 
 export async function runLocalValidateWorkflow(): Promise<WorkflowRunResult> {
-  const context = await resolveProjectScriptContext(['validate', 'check-stage']);
+  const context = await resolveProjectScriptContext();
   if (!context) {
     return { ok: false, cancelled: true };
   }
@@ -51,7 +52,26 @@ export async function runLocalValidateWorkflow(): Promise<WorkflowRunResult> {
     return { ok: false, cancelled: true, projectDir: context.projectDir };
   }
 
-  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const validateInvocation = await resolveWorkflowCommandInvocation(context, {
+    scriptName: 'validate',
+    scriptArgs: ['--file', relativeFile],
+    stegoArgs: ['validate', '--project', context.projectId, '--file', relativeFile],
+    actionLabel: 'Validate'
+  });
+  if (!validateInvocation) {
+    return { ok: false, cancelled: true, projectDir: context.projectDir };
+  }
+
+  const checkStageInvocation = await resolveWorkflowCommandInvocation(context, {
+    scriptName: 'check-stage',
+    scriptArgs: ['--stage', stage, '--file', relativeFile],
+    stegoArgs: ['check-stage', '--project', context.projectId, '--stage', stage, '--file', relativeFile],
+    actionLabel: 'Validate'
+  });
+  if (!checkStageInvocation) {
+    return { ok: false, cancelled: true, projectDir: context.projectDir };
+  }
+
   let validateResult: ScriptRunResult;
   let checkStageResult: ScriptRunResult;
 
@@ -64,16 +84,16 @@ export async function runLocalValidateWorkflow(): Promise<WorkflowRunResult> {
       },
       async () => {
         const validate = await runCommand(
-          npmCommand,
-          ['run', 'validate', '--', '--file', relativeFile],
+          validateInvocation.command,
+          validateInvocation.args,
           context.projectDir
         );
         if (validate.exitCode !== 0) {
           return { validate, checkStage: undefined as ScriptRunResult | undefined };
         }
         const checkStage = await runCommand(
-          npmCommand,
-          ['run', 'check-stage', '--', '--stage', stage as string, '--file', relativeFile],
+          checkStageInvocation.command,
+          checkStageInvocation.args,
           context.projectDir
         );
         return { validate, checkStage };

@@ -21,6 +21,7 @@
     "onCommand:stegoSpine.reloadIndex",
     "onCommand:stegoSpine.runBuild",
     "onCommand:stegoSpine.runGateStage",
+    "onCommand:stegoSpine.newManuscript",
     "onCommand:stegoSpine.addComment",
     "onCommand:stegoSpine.toggleFrontmatter",
     "onView:stegoSpine.metadataView"
@@ -57,6 +58,11 @@
         "icon": "$(file)"
       },
       {
+        "command": "stegoSpine.newManuscript",
+        "title": "New Manuscript",
+        "icon": "$(add)"
+      },
+      {
         "command": "stegoSpine.runGateStage",
         "title": "Run Stage Checks",
         "icon": "$(check)"
@@ -85,6 +91,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "stegoSpine.newManuscript",
+          "when": "view == stegoSpine.metadataView",
+          "group": "navigation@0"
+        },
         {
           "command": "stegoSpine.runBuild",
           "when": "view == stegoSpine.metadataView",
@@ -160,6 +171,7 @@
     "@types/node": "^20.14.10",
     "@types/vscode": "^1.92.0",
     "@vscode/vsce": "^3.7.1",
+    "stego-cli": "^0.2.0",
     "typescript": "^5.6.3"
   },
   "dependencies": {

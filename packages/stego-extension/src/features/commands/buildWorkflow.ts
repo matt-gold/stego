@@ -4,6 +4,7 @@ import type { ScriptRunResult } from '../../shared/types';
 import {
   extractOutputPath,
   pickToastDetails,
+  resolveWorkflowCommandInvocation,
   resolveProjectScriptContext,
   runCommand
 } from './workflowUtils';
@@ -33,7 +34,7 @@ export async function showBuildSuccessToast(result: ScriptRunResult, formatLabel
 }
 
 export async function runProjectBuildWorkflow(): Promise<WorkflowRunResult> {
-  const context = await resolveProjectScriptContext(['build', 'export']);
+  const context = await resolveProjectScriptContext();
   if (!context) {
     return { ok: false, cancelled: true };
   }
@@ -71,11 +72,19 @@ export async function runProjectBuildWorkflow(): Promise<WorkflowRunResult> {
     return { ok: false, cancelled: true, projectDir: context.projectDir };
   }
 
-  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
   const formatLabel = pickedFormat.label;
-  const runArgs = pickedFormat.format === 'md'
-    ? ['run', 'build']
-    : ['run', 'export', '--', '--format', pickedFormat.format];
+  const invocation = await resolveWorkflowCommandInvocation(context, {
+    scriptName: pickedFormat.format === 'md' ? 'build' : 'export',
+    scriptArgs: pickedFormat.format === 'md' ? [] : ['--format', pickedFormat.format],
+    stegoArgs: pickedFormat.format === 'md'
+      ? ['build', '--project', context.projectId]
+      : ['export', '--project', context.projectId, '--format', pickedFormat.format],
+    actionLabel: 'Build'
+  });
+  if (!invocation) {
+    return { ok: false, cancelled: true, projectDir: context.projectDir };
+  }
+
   let result: ScriptRunResult;
   try {
     result = await vscode.window.withProgress(
@@ -84,7 +93,7 @@ export async function runProjectBuildWorkflow(): Promise<WorkflowRunResult> {
         title: `Build (${formatLabel})`,
         cancellable: false
       },
-      async () => runCommand(npmCommand, runArgs, context.projectDir)
+      async () => runCommand(invocation.command, invocation.args, context.projectDir)
     );
   } catch (error) {
     void vscode.window.showErrorMessage(`Build failed: ${errorToMessage(error)}`);

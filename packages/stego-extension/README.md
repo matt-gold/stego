@@ -62,8 +62,9 @@ This is intentional: Stego keeps the sidebar UX and command wiring in the extens
 
 In most projects, these scripts are thin wrappers around `stego-cli` commands.
 
-### Required scripts by action
+### Preferred scripts by action
 
+- **New Manuscript**: `new`
 - **Run Stage Check**: `check-stage`
 - **Compile Full Manuscript**: `build` and `export`
 - **Validate Current File**: `validate` and `check-stage`
@@ -73,6 +74,7 @@ In most projects, these scripts are thin wrappers around `stego-cli` commands.
 ```json
 {
   "scripts": {
+    "new": "stego new",
     "build": "stego build",
     "export": "stego export",
     "check-stage": "stego check-stage",
@@ -81,14 +83,17 @@ In most projects, these scripts are thin wrappers around `stego-cli` commands.
 }
 ```
 
-The extension invokes these scripts with `npm run ...` and passes arguments where relevant:
+The extension invokes these scripts with `npm run ...` and passes arguments where relevant.
 
+If a script is missing, the extension falls back to direct `stego` CLI commands when `stego-cli` is available in your PATH (or via `npx --no-install stego`):
+
+- `new` creates a manuscript file (same as `stego new`)
 - `check-stage` receives `--stage ...`
 - `export` receives `--format ...`
 - `validate` receives `--file ...`
 - `Validate Current File` also runs `check-stage -- --stage <status> --file <relative-path>` after `validate`
 
-If you need custom behavior, wrap `stego-cli` in your own script and keep the script names (`build`, `export`, `check-stage`, `validate`) the same so the extension can call them.
+If you need custom behavior, wrap `stego-cli` in your own scripts and keep these script names (`new`, `build`, `export`, `check-stage`, `validate`) so the extension can call them directly.
 
 ## Comments
 
