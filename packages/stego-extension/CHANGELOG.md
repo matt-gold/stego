@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- b21851c: Fix extension release packaging in the monorepo publish workflow.
+
 ## 0.3.1
 
 ### Patch Changes
