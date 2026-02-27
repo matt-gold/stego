@@ -2,6 +2,7 @@
   "name": "stego-project-fiction-example",
   "private": true,
   "scripts": {
+    "new": "node --experimental-strip-types ../../tools/stego-cli.ts new",
     "validate": "node --experimental-strip-types ../../tools/stego-cli.ts validate",
     "build": "node --experimental-strip-types ../../tools/stego-cli.ts build",
     "check-stage": "node --experimental-strip-types ../../tools/stego-cli.ts check-stage",

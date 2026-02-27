@@ -19,6 +19,7 @@ npm install
 stego list-projects
 stego validate --project fiction-example
 stego build --project fiction-example
+stego new --project fiction-example
 ```
 
 `stego init` scaffolds two example projects:
@@ -48,6 +49,7 @@ Run commands from the workspace root and target a project with `--project`.
 ```bash
 stego list-projects
 stego new-project --project my-book --title "My Book"
+stego new --project fiction-example
 stego validate --project fiction-example
 stego build --project fiction-example
 stego check-stage --project fiction-example --stage revise

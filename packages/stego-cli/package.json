@@ -42,6 +42,7 @@
     "release:version": "changeset version",
     "list-projects": "node --experimental-strip-types tools/stego-cli.ts list-projects",
     "new-project": "node --experimental-strip-types tools/stego-cli.ts new-project",
+    "new": "node --experimental-strip-types tools/stego-cli.ts new",
     "lint": "node --experimental-strip-types tools/stego-cli.ts lint",
     "validate": "node --experimental-strip-types tools/stego-cli.ts validate",
     "build": "node --experimental-strip-types tools/stego-cli.ts build",
