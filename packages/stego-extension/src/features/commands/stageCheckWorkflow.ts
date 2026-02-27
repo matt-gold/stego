@@ -4,7 +4,7 @@ import { asString } from '../../shared/value';
 import type { ScriptRunResult } from '../../shared/types';
 import { parseMarkdownDocument } from '../metadata/frontmatterParse';
 import { resolveAllowedStatuses } from '../metadata/statusControl';
-import { pickToastDetails, resolveProjectScriptContext, runCommand } from './workflowUtils';
+import { pickToastDetails, resolveProjectScriptContext, resolveWorkflowCommandInvocation, runCommand } from './workflowUtils';
 import type { WorkflowRunResult } from './workflowUtils';
 
 export function getStageCheckDetails(stage: string, scope: 'file' | 'project'): string[] {
@@ -39,7 +39,7 @@ export function getStageCheckDetails(stage: string, scope: 'file' | 'project'): 
 }
 
 export async function runProjectGateStageWorkflow(): Promise<WorkflowRunResult> {
-  const context = await resolveProjectScriptContext(['check-stage']);
+  const context = await resolveProjectScriptContext();
   if (!context) {
     return { ok: false, cancelled: true };
   }
@@ -74,7 +74,16 @@ export async function runProjectGateStageWorkflow(): Promise<WorkflowRunResult> 
   }
 
   const stage = pickedStage.label;
-  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const invocation = await resolveWorkflowCommandInvocation(context, {
+    scriptName: 'check-stage',
+    scriptArgs: ['--stage', stage],
+    stegoArgs: ['check-stage', '--project', context.projectId, '--stage', stage],
+    actionLabel: 'Run Stage Checks'
+  });
+  if (!invocation) {
+    return { ok: false, cancelled: true, projectDir: context.projectDir, stage };
+  }
+
   let result: ScriptRunResult;
   try {
     result = await vscode.window.withProgress(
@@ -83,11 +92,7 @@ export async function runProjectGateStageWorkflow(): Promise<WorkflowRunResult> 
         title: `Run Stage Checks (${stage})`,
         cancellable: false
       },
-      async () => runCommand(
-        npmCommand,
-        ['run', 'check-stage', '--', '--stage', stage],
-        context.projectDir
-      )
+      async () => runCommand(invocation.command, invocation.args, context.projectDir)
     );
   } catch (error) {
     void vscode.window.showErrorMessage(`Run Stage Checks failed: ${errorToMessage(error)}`);
