@@ -54,9 +54,13 @@ Stego discovers Spine entries by scanning your Spine category Markdown files usi
 
 Use entry headings for identifiers (for example `## LOC-HOTELDIEU`) and optional inline `label:` metadata for the display name shown in the Spine tab.
 
-## Project Scripts Stego Calls
+## Project Scripts the Extension Calls
 
-Stego does not compile manuscripts itself. It runs scripts from the nearest project `package.json`.
+The VS Code extension UI delegates build/validate actions to scripts in the nearest project `package.json`.
+
+This is intentional: Stego keeps the sidebar UX and command wiring in the extension, while each project owns the exact workflow (for example custom Pandoc flags, pre/post processing, or other project-specific steps).
+
+In most projects, these scripts are thin wrappers around `stego-cli` commands.
 
 ### Required scripts by action
 
@@ -69,15 +73,22 @@ Stego does not compile manuscripts itself. It runs scripts from the nearest proj
 ```json
 {
   "scripts": {
-    "build": "node scripts/build-manuscript.js",
-    "export": "node scripts/export-manuscript.js",
-    "check-stage": "node scripts/check-stage.js",
-    "validate": "node scripts/validate-file.js"
+    "build": "stego build",
+    "export": "stego export",
+    "check-stage": "stego check-stage",
+    "validate": "stego validate"
   }
 }
 ```
 
-Stego passes arguments for format / stage / file where relevant (for example `--stage`, `--file`, `--format`).
+The extension invokes these scripts with `npm run ...` and passes arguments where relevant:
+
+- `check-stage` receives `--stage ...`
+- `export` receives `--format ...`
+- `validate` receives `--file ...`
+- `Validate Current File` also runs `check-stage -- --stage <status> --file <relative-path>` after `validate`
+
+If you need custom behavior, wrap `stego-cli` in your own script and keep the script names (`build`, `export`, `check-stage`, `validate`) the same so the extension can call them.
 
 ## Comments
 
@@ -85,58 +96,6 @@ Stego passes arguments for format / stage / file where relevant (for example `--
 - Unresolved comments are highlighted in the editor and listed in the sidebar
 - Comment anchors track edits so comments remain attached to the intended text
 - The sidebar supports resolving and clearing resolved threads
-
-## Configuration
-
-### Spine
-
-- `stego.spine.identifierPattern`
-- `stego.spine.definitionBaseUrl`
-- `stego.spine.reportUnknownIdentifiers`
-
-### Editor
-
-- `stego.editor.enableHover`
-- `stego.editor.linkInCodeFences`
-- `stego.editor.autoFoldFrontmatter`
-
-### Comments
-
-- `stego.comments.enable`
-- `stego.comments.author`
-
-### Optional status list override
-
-If present, Stego reads `stego.config.json` (nearest upward) for:
-
-- `allowedStatuses` (array of strings), used by manuscript status controls and stage-check picker
-
-Default statuses are:
-
-- `draft`
-- `revise`
-- `line-edit`
-- `proof`
-- `final`
-
-## Commands
-
-User-facing commands contributed by the extension:
-
-- `Stego Spine: Rebuild Index`
-- `Compile Full Manuscript`
-- `Run Stage Checks`
-- `Validate Current File`
-- `Stego Spine: Toggle Frontmatter Fold`
-- `Stego: Add Comment`
-
-## Malformed Project Demo
-
-The repo includes a demo workspace that intentionally contains bad data to test hardening behavior:
-
-- `examples/malformed-project`
-
-Open it in VS Code and inspect the Stego sidebar plus the **Stego Project Health** output channel.
 
 ## Development
 
