@@ -1,0 +1,62 @@
+{
+  "name": "stego-cli",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Installable CLI for the Stego writing monorepo workflow.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matt-gold/stego-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/matt-gold/stego-cli/issues"
+  },
+  "homepage": "https://github.com/matt-gold/stego-cli#readme",
+  "bin": {
+    "stego": "dist/stego-cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist/**",
+    "projects/**",
+    "!projects/local-only/**",
+    "!projects/*/dist/*.md",
+    "!projects/*/dist/exports/**",
+    ".vscode/tasks.json",
+    ".vscode/extensions.json",
+    ".gitignore",
+    ".markdownlint.json",
+    ".markdownlint.manuscript.json",
+    ".cspell.json",
+    "stego.config.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build:cli": "tsc -p tsconfig.build.json",
+    "compile": "npm run build:cli",
+    "prepack": "npm run build:cli",
+    "pack:dry-run": "npm pack --dry-run",
+    "changeset": "changeset",
+    "release:version": "changeset version",
+    "list-projects": "node --experimental-strip-types tools/stego-cli.ts list-projects",
+    "new-project": "node --experimental-strip-types tools/stego-cli.ts new-project",
+    "new": "node --experimental-strip-types tools/stego-cli.ts new",
+    "lint": "node --experimental-strip-types tools/stego-cli.ts lint",
+    "validate": "node --experimental-strip-types tools/stego-cli.ts validate",
+    "build": "node --experimental-strip-types tools/stego-cli.ts build",
+    "check-stage": "node --experimental-strip-types tools/stego-cli.ts check-stage",
+    "export": "node --experimental-strip-types tools/stego-cli.ts export",
+    "test:compile-structure": "node --test tools/test/compile-structure.test.mjs",
+    "test": "npm run test:compile-structure"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@types/node": "^25.2.3",
+    "cspell": "^9.6.4",
+    "markdownlint-cli": "^0.47.0",
+    "pandoc": "^0.2.0",
+    "typescript": "^5.9.3"
+  }
+}
