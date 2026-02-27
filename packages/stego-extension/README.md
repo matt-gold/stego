@@ -4,7 +4,7 @@
   <img src="assets/stego.png" alt="Stego logo" width="128" />
 </div>
 
-[`stego-cli`](https://github.com/matt-gold/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
+[`stego-cli`](https://github.com/matt-gold/stego/tree/main/packages/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
 
 This extension provides the native UX for stego projects:
 
