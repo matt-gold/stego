@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.2.1
+
+### Patch Changes
+
+- f490fc2: Update monorepo links and package metadata after migration.
+
 ## 0.2.0
 
 ### Minor Changes
