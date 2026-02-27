@@ -2,6 +2,11 @@
 
 Stego is a markdown-first writing system for long-form projects. It combines a CLI workflow (`stego-cli`) with a VS Code UI (`stego-extension`) so teams can draft, validate, and release manuscripts with structured references and repeatable build pipelines.
 
+<div align="center">
+  <img src="packages/stego-extension/assets/stego.png" alt="Stego logo" width="128" />
+</div>
+
+
 ## What Stego Is For
 
 - Writing and organizing long-form content in plain markdown.
