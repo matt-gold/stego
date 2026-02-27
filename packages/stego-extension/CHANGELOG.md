@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- f490fc2: Update monorepo links and package metadata after migration.
+
 ## 0.3.0
 
 ### Minor Changes
