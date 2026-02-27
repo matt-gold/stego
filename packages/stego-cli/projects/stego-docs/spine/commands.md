@@ -25,6 +25,15 @@ label: stego new-project --project <project-id> [--title <title>] [--root <path>
 - Related workflows: FLOW-NEW-PROJECT.
 - Related concepts: CON-PROJECT, CON-MANUSCRIPT, CON-NOTES, CON-DIST.
 
+## CMD-NEW
+label: stego new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]
+
+- `stego new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]`
+- Create a new manuscript file with an inferred numeric prefix and draft frontmatter.
+- Related workflows: FLOW-DAILY-WRITING.
+- Related concepts: CON-MANUSCRIPT, CON-METADATA.
+- Related configuration: CFG-REQUIRED-METADATA.
+
 ## CMD-VALIDATE
 label: stego validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]
 

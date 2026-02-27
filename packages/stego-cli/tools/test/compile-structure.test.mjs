@@ -133,3 +133,68 @@ test('build emits nested TOC and inherits missing group values/titles', () => {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }
 });
+
+test('new infers next manuscript prefix from the last two manuscripts', () => {
+  const projectId = `new-manuscript-infer-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'New Manuscript Inference Test',
+      requiredMetadata: ['status', 'chapter', 'chapter_title']
+    },
+    [
+      ['101-first.md', '---\nstatus: draft\nchapter: 1\nchapter_title: One\n---\n\nA\n'],
+      ['103-second.md', '---\nstatus: draft\nchapter: 1\nchapter_title: Two\n---\n\nB\n']
+    ]
+  );
+
+  try {
+    const result = runCli(['new', '--project', projectId]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+
+    const nextPath = path.join(projectRoot, 'manuscript', '105-new-document.md');
+    assert.equal(fs.existsSync(nextPath), true, `Expected manuscript file at ${nextPath}`);
+
+    const created = fs.readFileSync(nextPath, 'utf8');
+    assert.match(created, /^---\nstatus: draft\nchapter:\nchapter_title:\n---\n\n# New Document\n/m);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test('new supports explicit prefix via -i and --i', () => {
+  const projectId = `new-manuscript-explicit-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'New Manuscript Explicit Prefix Test',
+      requiredMetadata: ['status']
+    },
+    [
+      ['100-first.md', '---\nstatus: draft\n---\n\nA\n'],
+      ['200-second.md', '---\nstatus: draft\n---\n\nB\n']
+    ]
+  );
+
+  try {
+    const shortFlag = runCli(['new', '--project', projectId, '-i', '350']);
+    assert.equal(shortFlag.status, 0, `${shortFlag.stdout}\n${shortFlag.stderr}`);
+    assert.equal(
+      fs.existsSync(path.join(projectRoot, 'manuscript', '350-new-document.md')),
+      true,
+      'Expected manuscript created with -i'
+    );
+
+    const longFlag = runCli(['new', '--project', projectId, '--i', '500']);
+    assert.equal(longFlag.status, 0, `${longFlag.stdout}\n${longFlag.stderr}`);
+    assert.equal(
+      fs.existsSync(path.join(projectRoot, 'manuscript', '500-new-document.md')),
+      true,
+      'Expected manuscript created with --i'
+    );
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});

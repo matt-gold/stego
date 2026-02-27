@@ -108,6 +108,11 @@ interface ChapterEntry {
   issues: Issue[];
 }
 
+interface ManuscriptOrderEntry {
+  order: number;
+  filename: string;
+}
+
 interface SpineState {
   ids: Set<string>;
   issues: Issue[];
@@ -161,6 +166,7 @@ const STATUS_RANK: Record<StageName, number> = {
   final: 4
 };
 const RESERVED_COMMENT_PREFIX = "CMT";
+const DEFAULT_NEW_MANUSCRIPT_SLUG = "new-document";
 const ROOT_CONFIG_FILENAME = "stego.config.json";
 const PROSE_FONT_PROMPT = "Switch workspace to proportional (prose-style) font? (recommended)";
 const SCAFFOLD_GITIGNORE_CONTENT = `node_modules/
@@ -199,6 +205,7 @@ stego validate --project fiction-example
 stego build --project fiction-example
 stego check-stage --project fiction-example --stage revise
 stego export --project fiction-example --format md
+stego new --project fiction-example
 \`\`\`
 
 ## Work inside one project
@@ -221,6 +228,12 @@ This keeps your editor context focused and applies the project's recommended ext
 
 \`\`\`bash
 stego new-project --project my-book --title "My Book"
+\`\`\`
+
+## Add a new manuscript file
+
+\`\`\`bash
+stego new --project fiction-example
 \`\`\`
 `;
 const PROSE_MARKDOWN_EDITOR_SETTINGS: Record<string, unknown> = {
@@ -266,6 +279,13 @@ async function main(): Promise<void> {
         activateWorkspace(options);
         await createProject(readStringOption(options, "project"), readStringOption(options, "title"));
         return;
+      case "new": {
+        activateWorkspace(options);
+        const project = resolveProject(readStringOption(options, "project"));
+        const createdPath = createNewManuscript(project, readStringOption(options, "i"));
+        logLine(`Created manuscript: ${createdPath}`);
+        return;
+      }
       case "validate": {
         activateWorkspace(options);
         const project = resolveProject(readStringOption(options, "project"));
@@ -708,21 +728,43 @@ function parseArgs(argv: string[]): ParseArgsResult {
 
   for (let i = 0; i < rest.length; i += 1) {
     const token = rest[i];
+    if (token === "--") {
+      options._.push(...rest.slice(i + 1));
+      break;
+    }
+
+    if (token.startsWith("--")) {
+      const key = token.slice(2);
+      const next = rest[i + 1];
+
+      if (!next || next.startsWith("-")) {
+        options[key] = true;
+        continue;
+      }
+
+      options[key] = next;
+      i += 1;
+      continue;
+    }
+
+    if (token.startsWith("-") && token.length > 1) {
+      const key = token.slice(1);
+      const next = rest[i + 1];
+
+      if (!next || next.startsWith("-")) {
+        options[key] = true;
+        continue;
+      }
+
+      options[key] = next;
+      i += 1;
+      continue;
+    }
+
     if (!token.startsWith("--")) {
       options._.push(token);
       continue;
     }
-
-    const key = token.slice(2);
-    const next = rest[i + 1];
-
-    if (!next || next.startsWith("--")) {
-      options[key] = true;
-      continue;
-    }
-
-    options[key] = next;
-    i += 1;
   }
 
   return { command, options };
@@ -971,6 +1013,7 @@ function rewriteTemplateProjectPackageScripts(targetRoot: string): void {
     scripts.build = "npx --no-install stego build";
     scripts["check-stage"] = "npx --no-install stego check-stage";
     scripts.export = "npx --no-install stego export";
+    scripts.new = "npx --no-install stego new";
 
     projectPackage.scripts = scripts;
     fs.writeFileSync(packageJsonPath, `${JSON.stringify(projectPackage, null, 2)}\n`, "utf8");
@@ -1074,6 +1117,7 @@ function writeInitRootPackageJson(targetRoot: string): void {
     scripts: {
       "list-projects": "stego list-projects",
       "new-project": "stego new-project",
+      new: "stego new",
       lint: "stego lint",
       validate: "stego validate",
       build: "stego build",
@@ -1092,7 +1136,7 @@ function writeInitRootPackageJson(targetRoot: string): void {
 
 function printUsage() {
   console.log(
-    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n`
+    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n`
   );
 }
 
@@ -1164,6 +1208,7 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
     name: `stego-project-${projectId}`,
     private: true,
     scripts: {
+      new: "npx --no-install stego new",
       lint: "npx --no-install stego lint",
       validate: "npx --no-install stego validate",
       build: "npx --no-install stego build",
@@ -1208,6 +1253,116 @@ Start writing here.
   if (projectSettingsPath) {
     logLine(`- ${path.relative(repoRoot, projectSettingsPath)}`);
   }
+}
+
+function createNewManuscript(project: ProjectContext, requestedPrefixRaw?: string): string {
+  fs.mkdirSync(project.manuscriptDir, { recursive: true });
+  const requiredMetadataState = resolveRequiredMetadata(project, config);
+  const requiredMetadataErrors = requiredMetadataState.issues
+    .filter((issue) => issue.level === "error")
+    .map((issue) => issue.message);
+  if (requiredMetadataErrors.length > 0) {
+    throw new Error(
+      `Unable to resolve required metadata for project '${project.id}': ${requiredMetadataErrors.join(" ")}`
+    );
+  }
+
+  const existingEntries = listManuscriptOrderEntries(project.manuscriptDir);
+  const explicitPrefix = parseManuscriptPrefix(requestedPrefixRaw);
+  const nextPrefix = explicitPrefix ?? inferNextManuscriptPrefix(existingEntries);
+  const collision = existingEntries.find((entry) => entry.order === nextPrefix);
+  if (collision) {
+    throw new Error(
+      `Manuscript prefix '${nextPrefix}' is already used by '${collision.filename}'. Re-run with --i <number> to choose an unused prefix.`
+    );
+  }
+
+  const filename = `${nextPrefix}-${DEFAULT_NEW_MANUSCRIPT_SLUG}.md`;
+  const manuscriptPath = path.join(project.manuscriptDir, filename);
+  const content = renderNewManuscriptTemplate(requiredMetadataState.requiredMetadata);
+  fs.writeFileSync(manuscriptPath, content, "utf8");
+  return path.relative(repoRoot, manuscriptPath);
+}
+
+function listManuscriptOrderEntries(manuscriptDir: string): ManuscriptOrderEntry[] {
+  if (!fs.existsSync(manuscriptDir)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(manuscriptDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => {
+      const match = entry.name.match(/^(\d+)[-_]/);
+      if (!match) {
+        return null;
+      }
+
+      return {
+        order: Number(match[1]),
+        filename: entry.name
+      };
+    })
+    .filter((entry): entry is ManuscriptOrderEntry => entry !== null)
+    .sort((a, b) => {
+      if (a.order === b.order) {
+        return a.filename.localeCompare(b.filename);
+      }
+      return a.order - b.order;
+    });
+}
+
+function parseManuscriptPrefix(raw: string | undefined): number | undefined {
+  if (raw == null) {
+    return undefined;
+  }
+
+  const normalized = raw.trim();
+  if (!normalized) {
+    throw new Error("Option --i/-i requires a numeric value.");
+  }
+
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`Invalid manuscript prefix '${raw}'. Use a non-negative integer.`);
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`Invalid manuscript prefix '${raw}'. Use a smaller integer value.`);
+  }
+  return parsed;
+}
+
+function inferNextManuscriptPrefix(entries: ManuscriptOrderEntry[]): number {
+  if (entries.length === 0) {
+    return 100;
+  }
+
+  if (entries.length === 1) {
+    return entries[0].order + 100;
+  }
+
+  const previous = entries[entries.length - 2].order;
+  const latest = entries[entries.length - 1].order;
+  const step = latest - previous;
+  return latest + (step > 0 ? step : 1);
+}
+
+function renderNewManuscriptTemplate(requiredMetadata: string[]): string {
+  const lines: string[] = ["---", "status: draft"];
+  const seenKeys = new Set<string>(["status"]);
+
+  for (const key of requiredMetadata) {
+    const normalized = key.trim();
+    if (!normalized || seenKeys.has(normalized)) {
+      continue;
+    }
+    seenKeys.add(normalized);
+    lines.push(`${normalized}:`);
+  }
+
+  lines.push("---", "", "# New Document", "");
+  return `${lines.join("\n")}\n`;
 }
 
 function getProjectIds(): string[] {

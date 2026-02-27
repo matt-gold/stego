@@ -10,6 +10,7 @@ concepts:
 commands:
   - CMD-LIST-PROJECTS
   - CMD-NEW-PROJECT
+  - CMD-NEW
   - CMD-VALIDATE
   - CMD-BUILD
   - CMD-CHECK-STAGE
@@ -41,6 +42,7 @@ From the workspace root, target a project with `--project`.
 
 ```bash
 stego list-projects
+stego new --project fiction-example
 stego validate --project fiction-example
 stego build --project fiction-example
 stego check-stage --project fiction-example --stage revise
@@ -53,6 +55,7 @@ Projects also include local npm scripts. These are useful when you want to stay 
 
 ```bash
 cd projects/fiction-example
+npm run new
 npm run validate
 npm run build
 npm run check-stage -- --stage revise
