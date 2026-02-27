@@ -1,0 +1,9 @@
+node_modules/
+/dist/
+.DS_Store
+*.log
+projects/*/dist/*
+!projects/*/dist/.gitkeep
+projects/*/.vscode/settings.json
+.vscode/settings.json
+local-only/

@@ -1,0 +1,48 @@
+# Stego
+
+Stego is a markdown-first writing system for long-form projects. It combines a CLI workflow (`stego-cli`) with a VS Code UI (`stego-extension`) so teams can draft, validate, and release manuscripts with structured references and repeatable build pipelines.
+
+## What Stego Is For
+
+- Writing and organizing long-form content in plain markdown.
+- Managing structured project context with Spine categories and entries.
+- Running stage-aware quality gates and validation checks.
+- Building and exporting manuscripts to release formats.
+- Working in a Git-friendly, automation-friendly workflow.
+
+## Packages
+
+- [`packages/stego-cli`](packages/stego-cli): CLI engine for init, validation, stage checks, build, lint, and export.
+- [`packages/stego-extension`](packages/stego-extension): VS Code extension UI for manuscript, Spine, and comments workflows.
+- [`packages/stego-cli/projects/stego-docs`](packages/stego-cli/projects/stego-docs): canonical documentation project for the full system.
+
+## Full Documentation
+
+For complete docs, start here:
+
+- [`packages/stego-cli/projects/stego-docs/README.md`](packages/stego-cli/projects/stego-docs/README.md)
+
+## CLI Commands (High-Level)
+
+- `stego init`: scaffold a new Stego workspace.
+- `stego list-projects`: list projects in the workspace.
+- `stego new-project`: create a new project scaffold.
+- `stego new`: create a new manuscript file in a project.
+- `stego validate`: run project/file validation checks.
+- `stego check-stage`: run stage-gate checks.
+- `stego lint`: run markdown linting (project/manuscript/spine).
+- `stego build`: compile manuscript markdown output.
+- `stego export`: export to `md`, `docx`, `pdf`, or `epub`.
+
+## Quick Start
+
+```bash
+npm install -g stego-cli
+stego init
+stego list-projects
+stego build --project stego-docs
+```
+
+## License
+
+Apache-2.0. See [`LICENSE`](LICENSE).

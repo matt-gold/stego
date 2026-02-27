@@ -1,0 +1,41 @@
+{
+  "id": "fiction-example",
+  "title": "Under Saturn's Breath (Demo)",
+  "subtitle": "Paris, 1348 — a scholar builds a total explanation of the pestilence",
+  "author": "Matt Gold",
+  "requiredMetadata": [
+    "status",
+    "chapter",
+    "pov",
+    "timeline"
+  ],
+  "compileStructure": {
+    "levels": [
+      {
+        "key": "chapter",
+        "label": "Chapter",
+        "titleKey": "chapter_title",
+        "injectHeading": true,
+        "headingTemplate": "{label} {value}: {title}",
+        "pageBreak": "between-groups"
+      }
+    ]
+  },
+  "spineCategories": [
+    {
+      "key": "characters",
+      "prefix": "CHAR",
+      "notesFile": "characters.md"
+    },
+    {
+      "key": "locations",
+      "prefix": "LOC",
+      "notesFile": "locations.md"
+    },
+    {
+      "key": "sources",
+      "prefix": "SRC",
+      "notesFile": "sources.md"
+    }
+  ]
+}

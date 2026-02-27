@@ -1,0 +1,14 @@
+{
+  "version": "0.2",
+  "language": "en-US",
+  "words": [
+    "worldbuilding",
+    "lineedit",
+    "hôtel",
+    "dieu",
+    "hôtel-dieu"
+  ],
+  "ignorePaths": [
+    "projects/*/dist/**"
+  ]
+}

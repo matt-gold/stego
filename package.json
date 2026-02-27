@@ -1,0 +1,18 @@
+{
+  "name": "stego-monorepo",
+  "private": true,
+  "license": "Apache-2.0",
+  "workspaces": [
+    "packages/stego-cli",
+    "packages/stego-extension"
+  ],
+  "scripts": {
+    "build": "npm run -w packages/stego-cli compile && npm run -w packages/stego-extension compile",
+    "test": "npm run -w packages/stego-cli test && npm run -w packages/stego-extension test",
+    "changeset": "changeset",
+    "release:version": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8"
+  }
+}

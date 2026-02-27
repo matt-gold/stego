@@ -1,0 +1,50 @@
+{
+  "id": "stego-docs",
+  "title": "Stego Docs",
+  "subtitle": "Canonical documentation project for stego-cli and the Stego writing workflow",
+  "author": "Matt Gold",
+  "requiredMetadata": [
+    "status",
+    "chapter",
+    "concepts"
+  ],
+  "compileStructure": {
+    "levels": [
+      {
+        "key": "chapter",
+        "label": "Chapter",
+        "titleKey": "chapter_title",
+        "injectHeading": true,
+        "headingTemplate": "{label} {value}: {title}",
+        "pageBreak": "between-groups"
+      }
+    ]
+  },
+  "spineCategories": [
+    {
+      "key": "commands",
+      "prefix": "CMD",
+      "notesFile": "commands.md"
+    },
+    {
+      "key": "concepts",
+      "prefix": "CON",
+      "notesFile": "concepts.md"
+    },
+    {
+      "key": "workflows",
+      "prefix": "FLOW",
+      "notesFile": "workflows.md"
+    },
+    {
+      "key": "configuration",
+      "prefix": "CFG",
+      "notesFile": "configuration.md"
+    },
+    {
+      "key": "integrations",
+      "prefix": "INT",
+      "notesFile": "integrations.md"
+    }
+  ]
+}

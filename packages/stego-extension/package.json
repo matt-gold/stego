@@ -1,0 +1,183 @@
+{
+  "name": "stego-extension",
+  "displayName": "Stego",
+  "description": "The official UI companion to Stego CLI, providing a user-friendly sidebar for managing manuscripts, comments, project browsing, validation and export in VS Code.",
+  "version": "0.3.0",
+  "publisher": "matt-gold",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matt-gold/stego.git",
+    "directory": "packages/stego-extension"
+  },
+  "icon": "assets/stego.png",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onCommand:stegoSpine.reloadIndex",
+    "onCommand:stegoSpine.runBuild",
+    "onCommand:stegoSpine.runGateStage",
+    "onCommand:stegoSpine.newManuscript",
+    "onCommand:stegoSpine.addComment",
+    "onCommand:stegoSpine.toggleFrontmatter",
+    "onView:stegoSpine.metadataView"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "stegoSpine",
+          "title": "Stego",
+          "icon": "assets/stego.svg"
+        }
+      ]
+    },
+    "views": {
+      "stegoSpine": [
+        {
+          "id": "stegoSpine.metadataView",
+          "name": "Stego",
+          "type": "webview",
+          "icon": "assets/stego.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "stegoSpine.reloadIndex",
+        "title": "Stego Spine: Rebuild Index"
+      },
+      {
+        "command": "stegoSpine.runBuild",
+        "title": "Compile Full Manuscript",
+        "icon": "$(file)"
+      },
+      {
+        "command": "stegoSpine.newManuscript",
+        "title": "New Manuscript",
+        "icon": "$(add)"
+      },
+      {
+        "command": "stegoSpine.runGateStage",
+        "title": "Run Stage Checks",
+        "icon": "$(check)"
+      },
+      {
+        "command": "stegoSpine.runLocalValidate",
+        "title": "Validate Current File",
+        "icon": "$(verified)"
+      },
+      {
+        "command": "stegoSpine.toggleFrontmatter",
+        "title": "Stego Spine: Toggle Frontmatter Fold"
+      },
+      {
+        "command": "stegoSpine.addComment",
+        "title": "Stego: Add Comment"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "stegoSpine.addComment",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "stegoSpine.newManuscript",
+          "when": "view == stegoSpine.metadataView",
+          "group": "navigation@0"
+        },
+        {
+          "command": "stegoSpine.runBuild",
+          "when": "view == stegoSpine.metadataView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "stegoSpine.runGateStage",
+          "when": "view == stegoSpine.metadataView",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Stego",
+      "properties": {
+        "stego.spine.identifierPattern": {
+          "type": "string",
+          "default": "\\b[A-Z][A-Z0-9]*-[A-Z0-9]+(?:-[A-Z0-9]+)*\\b",
+          "description": "Regex used to find Spine identifiers in Markdown text (for example LOC-ASDF or CHAR-JANE)."
+        },
+        "stego.spine.definitionBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional fallback base URL used when a Spine identifier has no local file target."
+        },
+        "stego.spine.reportUnknownIdentifiers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when identifiers are found in text but missing from the configured Spine categories."
+        },
+        "stego.editor.enableHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show identifier details on hover."
+        },
+        "stego.editor.linkInCodeFences": {
+          "type": "boolean",
+          "default": false,
+          "description": "Create links inside fenced code blocks."
+        },
+        "stego.editor.autoFoldFrontmatter": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically fold YAML frontmatter in Markdown files."
+        },
+        "stego.comments.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the comments feature. When disabled, no comment parsing, gutter decorations, or comments tab will appear."
+        },
+        "stego.comments.author": {
+          "type": "string",
+          "default": "",
+          "description": "Default author name used when adding sidebar comments. Leave blank to use your system/git username."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "test": "npm run test:pure",
+    "test:pure": "npm run compile && node --test out/test/pure/*.js",
+    "package": "vsce package",
+    "changeset": "changeset",
+    "release:version": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@types/js-yaml": "^4.0.9",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^20.14.10",
+    "@types/vscode": "^1.92.0",
+    "@vscode/vsce": "^3.7.1",
+    "stego-cli": "^0.2.0",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.19",
+    "js-yaml": "^4.1.0",
+    "markdown-it": "^14.1.1"
+  }
+}
