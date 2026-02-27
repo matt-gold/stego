@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.2.0
+
+### Minor Changes
+
+- 0be79cc: add stego new manuscript command
+
 ## 0.1.7
 
 ### Patch Changes
