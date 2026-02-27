@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Compile stego-cli
+        run: npm run -w packages/stego-cli compile
+
+      - name: Test stego-cli
+        run: npm run -w packages/stego-cli test
+
+      - name: Compile stego-extension
+        run: npm run -w packages/stego-extension compile
+
+      - name: Test stego-extension
+        run: npm run -w packages/stego-extension test

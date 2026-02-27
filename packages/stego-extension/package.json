@@ -7,7 +7,8 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/matt-gold/stego-extension.git"
+    "url": "https://github.com/matt-gold/stego.git",
+    "directory": "packages/stego-extension"
   },
   "icon": "assets/stego.png",
   "engines": {

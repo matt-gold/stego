@@ -1,0 +1,194 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  changesets:
+    name: changesets
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    outputs:
+      has_changesets: ${{ steps.changesets.outputs.hasChangesets }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run Changesets action
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: npm run release:version
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    needs: changesets
+    if: ${{ needs.changesets.outputs.has_changesets == 'false' }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Resolve release metadata
+        run: |
+          git fetch --force --tags
+
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            BASE_REF="HEAD^"
+          else
+            BASE_REF="$(git hash-object -t tree /dev/null)"
+          fi
+
+          if git diff --name-only "$BASE_REF" HEAD -- packages/stego-cli/package.json | grep -q .; then
+            CLI_CHANGED=true
+          else
+            CLI_CHANGED=false
+          fi
+
+          if git diff --name-only "$BASE_REF" HEAD -- packages/stego-extension/package.json | grep -q .; then
+            EXT_CHANGED=true
+          else
+            EXT_CHANGED=false
+          fi
+
+          CLI_VERSION="$(node -p "require('./packages/stego-cli/package.json').version")"
+          EXT_VERSION="$(node -p "require('./packages/stego-extension/package.json').version")"
+          CLI_TAG="stego-cli-v${CLI_VERSION}"
+          EXT_TAG="stego-extension-v${EXT_VERSION}"
+
+          if [ "$CLI_CHANGED" = "true" ] && git show-ref --tags --verify --quiet "refs/tags/${CLI_TAG}"; then
+            CLI_CHANGED=false
+          fi
+          if [ "$EXT_CHANGED" = "true" ] && git show-ref --tags --verify --quiet "refs/tags/${EXT_TAG}"; then
+            EXT_CHANGED=false
+          fi
+
+          echo "CLI_CHANGED=$CLI_CHANGED" >> "$GITHUB_ENV"
+          echo "EXT_CHANGED=$EXT_CHANGED" >> "$GITHUB_ENV"
+          echo "CLI_VERSION=$CLI_VERSION" >> "$GITHUB_ENV"
+          echo "EXT_VERSION=$EXT_VERSION" >> "$GITHUB_ENV"
+          echo "CLI_TAG=$CLI_TAG" >> "$GITHUB_ENV"
+          echo "EXT_TAG=$EXT_TAG" >> "$GITHUB_ENV"
+
+      - name: Test stego-cli
+        if: ${{ env.CLI_CHANGED == 'true' }}
+        run: npm run -w packages/stego-cli test
+
+      - name: Package stego-cli tarball
+        if: ${{ env.CLI_CHANGED == 'true' }}
+        run: |
+          cd packages/stego-cli
+          npm pack
+
+      - name: Resolve stego-cli tarball path
+        if: ${{ env.CLI_CHANGED == 'true' }}
+        run: |
+          CLI_TGZ_PATH="$(ls -1t packages/stego-cli/*.tgz | head -n 1)"
+          if [ -z "$CLI_TGZ_PATH" ]; then
+            echo "No npm tarball found for stego-cli."
+            exit 1
+          fi
+          echo "CLI_TGZ_PATH=$CLI_TGZ_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload stego-cli tarball to GitHub Release
+        if: ${{ env.CLI_CHANGED == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.CLI_TAG }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          files: ${{ env.CLI_TGZ_PATH }}
+
+      - name: Validate npm token
+        if: ${{ env.CLI_CHANGED == 'true' }}
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "Missing NPM_TOKEN secret."
+            exit 1
+          fi
+
+      - name: Publish stego-cli to npm
+        if: ${{ env.CLI_CHANGED == 'true' }}
+        run: npm publish "${{ env.CLI_TGZ_PATH }}" --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Test stego-extension
+        if: ${{ env.EXT_CHANGED == 'true' }}
+        run: npm run -w packages/stego-extension test
+
+      - name: Package stego-extension VSIX
+        if: ${{ env.EXT_CHANGED == 'true' }}
+        run: npm run -w packages/stego-extension package
+
+      - name: Resolve stego-extension VSIX path
+        if: ${{ env.EXT_CHANGED == 'true' }}
+        run: |
+          EXT_VSIX_PATH="$(ls -1t packages/stego-extension/*.vsix | head -n 1)"
+          if [ -z "$EXT_VSIX_PATH" ]; then
+            echo "No VSIX found for stego-extension."
+            exit 1
+          fi
+          echo "EXT_VSIX_PATH=$EXT_VSIX_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload stego-extension VSIX to GitHub Release
+        if: ${{ env.EXT_CHANGED == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.EXT_TAG }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          files: ${{ env.EXT_VSIX_PATH }}
+
+      - name: Validate VS Marketplace token
+        if: ${{ env.EXT_CHANGED == 'true' }}
+        run: |
+          if [ -z "${{ secrets.VSCE_PAT }}" ]; then
+            echo "Missing VSCE_PAT secret."
+            exit 1
+          fi
+
+      - name: Publish stego-extension to VS Marketplace
+        if: ${{ env.EXT_CHANGED == 'true' }}
+        run: |
+          cd packages/stego-extension
+          npx @vscode/vsce publish -p "${{ secrets.VSCE_PAT }}"

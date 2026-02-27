@@ -6,7 +6,8 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/matt-gold/stego-cli.git"
+    "url": "https://github.com/matt-gold/stego.git",
+    "directory": "packages/stego-cli"
   },
   "bugs": {
     "url": "https://github.com/matt-gold/stego-cli/issues"
