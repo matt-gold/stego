@@ -13,7 +13,7 @@ It combines a CLI workflow (`stego-cli`) with a VS Code UI (`stego-extension`) s
 - Writing and organizing long-form content in plain markdown.
 - Managing structured project context with Spine categories and entries.
 - Running stage-aware quality gates and validation checks.
-- Building and exporting manuscripts to release formats.
+- Building and exporting manuscripts to md, docx, pdf, and epub.
 - Working in a Git-friendly, automation-friendly workflow.
 
 ## Packages
