@@ -1,5 +1,6 @@
 ---
 "stego-cli": patch
+"stego-extension": patch
 ---
 
-Update repository, homepage, and cross-package links after monorepo migration.
+Update monorepo links and package metadata after migration.
