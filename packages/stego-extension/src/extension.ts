@@ -5,6 +5,8 @@ import { runProjectBuildWorkflow } from './features/commands/buildWorkflow';
 import { runProjectGateStageWorkflow } from './features/commands/stageCheckWorkflow';
 import { runLocalValidateWorkflow } from './features/commands/localValidateWorkflow';
 import { runNewManuscriptWorkflow } from './features/commands/newManuscriptWorkflow';
+import { runNewProjectWorkflow } from './features/commands/newProjectWorkflow';
+import { runOpenProjectWorkflow } from './features/commands/openProjectWorkflow';
 import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments } from './features/diagnostics/refreshDiagnostics';
 import { createDocumentLinkProvider } from './features/identifiers/documentLinks';
 import { createHoverProvider } from './features/identifiers/hover';
@@ -13,6 +15,7 @@ import { ReferenceUsageIndexService } from './features/indexing/referenceUsageIn
 import { getFrontmatterLineRange, getStegoCommentsLineRange } from './features/metadata/frontmatterParse';
 import { getActiveMarkdownDocument } from './features/metadata/frontmatterEdit';
 import { getConfig, isProjectFile } from './features/project/projectConfig';
+import { detectStegoOpenMode } from './features/project/openMode';
 import { MetadataSidebarProvider } from './features/sidebar/sidebarProvider';
 import { CommentDecorationsService } from './features/comments/commentDecorations';
 import { CommentExcerptTracker } from './features/comments/commentExcerptTracker';
@@ -32,6 +35,11 @@ export function activate(context: vscode.ExtensionContext): void {
   const commentDecorations = new CommentDecorationsService(context.extensionUri, excerptTracker);
 
   const selector: vscode.DocumentSelector = [{ language: 'markdown' }];
+
+  const refreshOpenModeContext = async (): Promise<void> => {
+    const mode = await detectStegoOpenMode();
+    await vscode.commands.executeCommand('setContext', 'stegoSpine.isStegoWorkspace', mode === 'workspace');
+  };
 
   context.subscriptions.push(
     diagnostics,
@@ -121,7 +129,21 @@ export function activate(context: vscode.ExtensionContext): void {
       await runLocalValidateWorkflow();
     }),
     vscode.commands.registerCommand('stegoSpine.newManuscript', async () => {
-      await runNewManuscriptWorkflow();
+      const result = await runNewManuscriptWorkflow();
+      if (result.ok) {
+        sidebarProvider.expandMetadataPanel();
+        await sidebarProvider.refresh();
+      }
+    }),
+    vscode.commands.registerCommand('stegoSpine.newProject', async () => {
+      const result = await runNewProjectWorkflow();
+      if (result.ok) {
+        await sidebarProvider.refresh();
+      }
+      await refreshOpenModeContext();
+    }),
+    vscode.commands.registerCommand('stegoSpine.openProject', async () => {
+      await runOpenProjectWorkflow();
     }),
     vscode.commands.registerCommand('stegoSpine.toggleFrontmatter', async () => {
       await toggleFrontmatterFold();
@@ -201,12 +223,16 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.window.onDidChangeVisibleTextEditors(() => {
       commentDecorations.refreshVisibleEditors();
+    }),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      void refreshOpenModeContext();
     })
   );
 
   void refreshVisibleMarkdownDocuments(indexService, diagnostics);
   commentDecorations.refreshVisibleEditors();
   void sidebarProvider.refresh();
+  void refreshOpenModeContext();
   void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);
 
   function initExcerptTracking(document: vscode.TextDocument): void {

@@ -56,6 +56,8 @@ stego check-stage --project fiction-example --stage revise
 stego export --project fiction-example --format md
 ```
 
+`stego new` also supports `--i <prefix>` for numeric prefix override and `--filename <name>` for an explicit manuscript filename.
+
 Projects also include local npm scripts so you can work from inside a project directory.
 
 ## VS Code workflow

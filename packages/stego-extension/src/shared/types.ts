@@ -349,6 +349,7 @@ export type SidebarMessage =
   | { type: 'removeMetadataArrayItem'; key: string; index: number }
   | { type: 'toggleMetadataEditing' }
   | { type: 'runLocalValidate' }
+  | { type: 'fillRequiredMetadata' }
   | { type: 'openMarkdownPreview' }
   | { type: 'toggleFrontmatter' }
   | { type: 'refresh' }
@@ -382,6 +383,7 @@ export type SidebarMessage =
   | { type: 'clearResolvedComments' }
   | { type: 'runBuildWorkflow' }
   | { type: 'runGateStageWorkflow' }
+  | { type: 'runNewManuscriptWorkflow' }
   | { type: 'openOverviewFile'; filePath: string }
   | { type: 'openFirstMissingMetadata'; filePath: string }
   | { type: 'openFirstUnresolvedComment'; filePath: string; id: string }

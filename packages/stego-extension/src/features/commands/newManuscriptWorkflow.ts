@@ -5,6 +5,15 @@ import { errorToMessage } from '../../shared/errors';
 import type { ScriptRunResult } from '../../shared/types';
 import { pickToastDetails, resolveProjectScriptContext, resolveWorkflowCommandInvocation, runCommand } from './workflowUtils';
 import type { WorkflowRunResult } from './workflowUtils';
+import { suppressAutoFoldFrontmatterForDocument } from './frontmatterFold';
+
+const DEFAULT_MANUSCRIPT_DIR = 'manuscript';
+const DEFAULT_NEW_MANUSCRIPT_SLUG = 'new-document';
+
+type ManuscriptOrderEntry = {
+  order: number;
+  filename: string;
+};
 
 export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
   const context = await resolveProjectScriptContext();
@@ -13,9 +22,25 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
   }
 
   const manuscriptFilesBefore = await listManuscriptFiles(context.projectDir);
+  const defaultFilename = await inferDefaultManuscriptFilename(context.projectDir);
+  const requestedFilename = await promptRequestedFilename(defaultFilename);
+  if (requestedFilename === undefined) {
+    return { ok: false, cancelled: true, projectDir: context.projectDir };
+  }
+  const normalizedRequestedFilename = requestedFilename
+    ? normalizeRequestedFilename(requestedFilename)
+    : '';
+
+  const scriptArgs = normalizedRequestedFilename ? ['--filename', normalizedRequestedFilename] : [];
+  const stegoArgs = ['new', '--project', context.projectId];
+  if (normalizedRequestedFilename) {
+    stegoArgs.push('--filename', normalizedRequestedFilename);
+  }
+
   const invocation = await resolveWorkflowCommandInvocation(context, {
     scriptName: 'new',
-    stegoArgs: ['new', '--project', context.projectId],
+    scriptArgs,
+    stegoArgs,
     actionLabel: 'Create New Manuscript'
   });
   if (!invocation) {
@@ -55,26 +80,26 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
   }
 
   const createdPath = extractCreatedManuscriptPath(result);
-  const openedPath = await tryOpenCreatedPath(createdPath, context.document.uri, context.projectDir);
-  if (!openedPath) {
-    const inferredPath = await detectCreatedManuscriptPath(context.projectDir, manuscriptFilesBefore);
-    if (inferredPath) {
-      const inferredDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(inferredPath));
-      await vscode.window.showTextDocument(inferredDocument, { preview: false });
-      void vscode.window.showInformationMessage(`Created manuscript: ${inferredPath}`);
-      return {
-        ok: true,
-        outputPath: inferredPath,
-        projectDir: context.projectDir
-      };
-    }
-  }
+  const resolvedPath = await resolveCreatedManuscriptPath(
+    createdPath,
+    context.document.uri,
+    context.projectDir,
+    manuscriptFilesBefore
+  );
+  const finalPath = await applyRequestedFilenameFallback(
+    resolvedPath,
+    normalizedRequestedFilename
+  );
 
-  if (openedPath) {
-    void vscode.window.showInformationMessage(`Created manuscript: ${openedPath}`);
+  if (finalPath) {
+    await removeScaffoldHeadingFromNewManuscript(finalPath);
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(finalPath));
+    suppressAutoFoldFrontmatterForDocument(document.uri);
+    await vscode.window.showTextDocument(document, { preview: false });
+    void vscode.window.showInformationMessage(`Created manuscript: ${finalPath}`);
     return {
       ok: true,
-      outputPath: openedPath,
+      outputPath: finalPath,
       projectDir: context.projectDir
     };
   }
@@ -88,6 +113,43 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
     outputPath: createdPath,
     projectDir: context.projectDir
   };
+}
+
+function normalizeRequestedFilename(rawFilename: string): string {
+  const trimmed = rawFilename.trim();
+  return trimmed.toLowerCase().endsWith('.md')
+    ? trimmed
+    : `${trimmed}.md`;
+}
+
+async function promptRequestedFilename(defaultFilename: string): Promise<string | undefined> {
+  const rawValue = await vscode.window.showInputBox({
+    title: 'Create New Manuscript',
+    prompt: `Optional filename. Press Enter to use inferred default: ${defaultFilename}`,
+    placeHolder: defaultFilename,
+    value: '',
+    ignoreFocusOut: true,
+    validateInput: (value) => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return undefined;
+      }
+      if (/[\\/]/.test(trimmed)) {
+        return 'Use a filename only (no directory separators).';
+      }
+      if (trimmed === '.md') {
+        return 'Enter a filename before .md.';
+      }
+      return undefined;
+    }
+  });
+
+  if (rawValue === undefined) {
+    return undefined;
+  }
+
+  const trimmed = rawValue.trim();
+  return trimmed || '';
 }
 
 function extractCreatedManuscriptPath(result: ScriptRunResult): string | undefined {
@@ -117,7 +179,99 @@ function extractCreatedManuscriptPath(result: ScriptRunResult): string | undefin
   return undefined;
 }
 
-async function tryOpenCreatedPath(
+async function resolveCreatedManuscriptPath(
+  rawPath: string | undefined,
+  scopeUri: vscode.Uri,
+  projectDir: string,
+  manuscriptFilesBefore: Set<string>
+): Promise<string | undefined> {
+  const resolvedFromOutput = await resolveCreatedPath(rawPath, scopeUri, projectDir);
+  if (resolvedFromOutput) {
+    return resolvedFromOutput;
+  }
+
+  return detectCreatedManuscriptPath(projectDir, manuscriptFilesBefore);
+}
+
+async function applyRequestedFilenameFallback(
+  createdPath: string | undefined,
+  requestedFilename: string
+): Promise<string | undefined> {
+  if (!createdPath || !requestedFilename) {
+    return createdPath;
+  }
+
+  const currentName = path.basename(createdPath);
+  if (currentName.toLowerCase() === requestedFilename.toLowerCase()) {
+    return createdPath;
+  }
+
+  const targetPath = path.resolve(path.join(path.dirname(createdPath), requestedFilename));
+  if (targetPath === createdPath) {
+    return createdPath;
+  }
+
+  try {
+    const existing = await fs.stat(targetPath);
+    if (existing.isFile()) {
+      void vscode.window.showWarningMessage(
+        `Created manuscript as '${currentName}', but requested '${requestedFilename}'. `
+        + `Could not apply requested name because '${requestedFilename}' already exists.`
+      );
+      return createdPath;
+    }
+  } catch {
+    // Target does not exist.
+  }
+
+  try {
+    await fs.rename(createdPath, targetPath);
+    return targetPath;
+  } catch (error) {
+    void vscode.window.showWarningMessage(
+      `Created manuscript as '${currentName}', but requested '${requestedFilename}'. `
+      + `Could not rename automatically: ${errorToMessage(error)}`
+    );
+    return createdPath;
+  }
+}
+
+async function removeScaffoldHeadingFromNewManuscript(filePath: string): Promise<void> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(filePath, 'utf8');
+  } catch {
+    return;
+  }
+
+  const next = stripSingleHeadingScaffold(raw);
+  if (next === raw) {
+    return;
+  }
+
+  try {
+    await fs.writeFile(filePath, next, 'utf8');
+  } catch {
+    // no-op
+  }
+}
+
+function stripSingleHeadingScaffold(text: string): string {
+  const frontmatterMatch = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/);
+  if (!frontmatterMatch) {
+    return text;
+  }
+
+  const frontmatterBlock = frontmatterMatch[0];
+  const remainder = text.slice(frontmatterBlock.length);
+  if (!/^\r?\n# [^\r\n]+\r?\n\s*$/.test(remainder)) {
+    return text;
+  }
+
+  return `${frontmatterBlock}\n`;
+}
+
+async function resolveCreatedPath(
   rawPath: string | undefined,
   scopeUri: vscode.Uri,
   projectDir: string
@@ -134,9 +288,6 @@ async function tryOpenCreatedPath(
       if (!stat.isFile()) {
         continue;
       }
-
-      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-      await vscode.window.showTextDocument(document, { preview: false });
       return filePath;
     } catch {
       // no-op
@@ -184,7 +335,7 @@ async function resolveCreatedPathCandidates(
 }
 
 async function listManuscriptFiles(projectDir: string): Promise<Set<string>> {
-  const manuscriptDir = path.join(projectDir, 'manuscripts');
+  const manuscriptDir = await resolveManuscriptDir(projectDir);
   let entries: string[];
   try {
     entries = await fs.readdir(manuscriptDir);
@@ -197,6 +348,82 @@ async function listManuscriptFiles(projectDir: string): Promise<Set<string>> {
       .filter((name) => name.toLowerCase().endsWith('.md'))
       .map((name) => path.resolve(path.join(manuscriptDir, name)))
   );
+}
+
+async function listManuscriptOrderEntries(manuscriptDir: string): Promise<ManuscriptOrderEntry[]> {
+  let entries: string[];
+  try {
+    entries = await fs.readdir(manuscriptDir);
+  } catch {
+    return [];
+  }
+
+  return entries
+    .filter((name) => name.toLowerCase().endsWith('.md'))
+    .map((name) => {
+      const match = name.match(/^(\d+)[-_]/);
+      if (!match) {
+        return null;
+      }
+      return {
+        order: Number(match[1]),
+        filename: name
+      };
+    })
+    .filter((entry): entry is ManuscriptOrderEntry => !!entry)
+    .sort((a, b) => {
+      if (a.order === b.order) {
+        return a.filename.localeCompare(b.filename);
+      }
+      return a.order - b.order;
+    });
+}
+
+function inferNextManuscriptPrefix(entries: ManuscriptOrderEntry[]): number {
+  if (entries.length === 0) {
+    return 100;
+  }
+
+  if (entries.length === 1) {
+    return entries[0].order + 100;
+  }
+
+  const previous = entries[entries.length - 2].order;
+  const latest = entries[entries.length - 1].order;
+  const step = latest - previous;
+  return latest + (step > 0 ? step : 1);
+}
+
+async function inferDefaultManuscriptFilename(projectDir: string): Promise<string> {
+  const manuscriptDir = await resolveManuscriptDir(projectDir);
+  const entries = await listManuscriptOrderEntries(manuscriptDir);
+  const nextPrefix = inferNextManuscriptPrefix(entries);
+  return `${nextPrefix}-${DEFAULT_NEW_MANUSCRIPT_SLUG}.md`;
+}
+
+async function resolveManuscriptDir(projectDir: string): Promise<string> {
+  const workspaceRoot = await findNearestStegoWorkspaceRoot(projectDir);
+  if (!workspaceRoot) {
+    return path.join(projectDir, DEFAULT_MANUSCRIPT_DIR);
+  }
+
+  const configPath = path.join(workspaceRoot, 'stego.config.json');
+  try {
+    const raw = await fs.readFile(configPath, 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return path.join(projectDir, DEFAULT_MANUSCRIPT_DIR);
+    }
+
+    const chapterDirRaw = (parsed as Record<string, unknown>).chapterDir;
+    const chapterDir = typeof chapterDirRaw === 'string'
+      ? chapterDirRaw.trim()
+      : '';
+    const resolvedDir = chapterDir || DEFAULT_MANUSCRIPT_DIR;
+    return path.join(projectDir, resolvedDir);
+  } catch {
+    return path.join(projectDir, DEFAULT_MANUSCRIPT_DIR);
+  }
 }
 
 async function detectCreatedManuscriptPath(
