@@ -2108,13 +2108,13 @@ function parseStegoCommentThreads(
       continue;
     }
 
-    const headingMatch = trimmed.match(/^###\s+(CMT-\d{4})\s*$/);
-    if (!headingMatch) {
+    const id = parseCommentThreadDelimiter(trimmed);
+    if (!id) {
       issues.push(
         makeIssue(
           "error",
           "comments",
-          "Invalid comments appendix line. Expected heading like '### CMT-0001'.",
+          "Invalid comments appendix line. Expected comment delimiter '<!-- comment: CMT-0001 -->'.",
           relativePath,
           baseLine + index
         )
@@ -2123,13 +2123,12 @@ function parseStegoCommentThreads(
       continue;
     }
 
-    const id = headingMatch[1];
     index += 1;
     const rowLines: string[] = [];
     const rowLineNumbers: number[] = [];
     while (index < lines.length) {
       const nextTrimmed = lines[index].trim();
-      if (/^###\s+CMT-\d{4}\s*$/.test(nextTrimmed)) {
+      if (parseCommentThreadDelimiter(nextTrimmed)) {
         break;
       }
       rowLines.push(lines[index]);
@@ -2322,6 +2321,20 @@ function parseStegoCommentThreads(
   }
 
   return comments;
+}
+
+function parseCommentThreadDelimiter(line: string): string | undefined {
+  const markerMatch = line.match(/^<!--\s*comment:\s*(CMT-\d{4,})\s*-->\s*$/i);
+  if (markerMatch?.[1]) {
+    return markerMatch[1].toUpperCase();
+  }
+
+  const legacyHeadingMatch = line.match(/^###\s+(CMT-\d{4,})\s*$/i);
+  if (legacyHeadingMatch?.[1]) {
+    return legacyHeadingMatch[1].toUpperCase();
+  }
+
+  return undefined;
 }
 
 function decodeCommentMeta64(
