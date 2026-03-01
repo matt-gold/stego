@@ -8,6 +8,7 @@ import {
   parseMetadataInput,
   serializeMarkdownDocument
 } from './frontmatterParse';
+import { resolveAllowedStatuses } from './statusControl';
 
 export function getActiveMarkdownDocument(showMessage: boolean): vscode.TextDocument | undefined {
   const editor = vscode.window.activeTextEditor;
@@ -271,4 +272,146 @@ export async function removeMetadataArrayItem(key: string, index: number): Promi
   }
 
   await writeParsedDocument(document, parsed);
+}
+
+type RequiredMetadataPromptResult =
+  | { kind: 'value'; value: string }
+  | { kind: 'skip' };
+
+type MetadataQuickPickItem = vscode.QuickPickItem & {
+  metaType: 'suggestion' | 'skip';
+};
+
+export async function promptAndFillRequiredMetadata(requiredKeys: string[]): Promise<void> {
+  const document = getActiveMarkdownDocument(true);
+  if (!document) {
+    return;
+  }
+
+  if (requiredKeys.length === 0) {
+    void vscode.window.showInformationMessage('No required metadata keys are configured for this project.');
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = parseMarkdownDocument(document.getText());
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Could not parse frontmatter: ${errorToMessage(error)}`);
+    return;
+  }
+
+  const missingKeys = requiredKeys.filter((key) => isUnsetRequiredMetadataValue(parsed.frontmatter[key]));
+  if (missingKeys.length === 0) {
+    void vscode.window.showInformationMessage('All required metadata fields are already set.');
+    return;
+  }
+
+  const allowedStatuses = await resolveAllowedStatuses(document);
+  let filledCount = 0;
+  let skippedCount = 0;
+  let cancelled = false;
+
+  for (let index = 0; index < missingKeys.length; index += 1) {
+    const key = missingKeys[index];
+    const suggestions = key.toLowerCase() === 'status' ? allowedStatuses : [];
+    const result = await promptRequiredMetadataValue(key, suggestions, index + 1, missingKeys.length);
+    if (!result) {
+      cancelled = true;
+      break;
+    }
+
+    if (result.kind === 'skip') {
+      skippedCount += 1;
+      continue;
+    }
+
+    parsed.frontmatter[key] = parseMetadataInput(result.value);
+    filledCount += 1;
+  }
+
+  if (filledCount > 0) {
+    await writeParsedDocument(document, parsed);
+  }
+
+  const summary = [
+    `Filled ${filledCount} required metadata field${filledCount === 1 ? '' : 's'}.`,
+    skippedCount > 0 ? `Skipped ${skippedCount}.` : '',
+    cancelled ? 'Cancelled before completing all missing fields.' : ''
+  ]
+    .filter((line) => line.length > 0)
+    .join(' ');
+  void vscode.window.showInformationMessage(summary);
+}
+
+async function promptRequiredMetadataValue(
+  key: string,
+  suggestions: string[],
+  step: number,
+  total: number
+): Promise<RequiredMetadataPromptResult | undefined> {
+  return new Promise<RequiredMetadataPromptResult | undefined>((resolve) => {
+    const quickPick = vscode.window.createQuickPick<MetadataQuickPickItem>();
+    quickPick.title = `Fill Required Metadata (${step}/${total})`;
+    quickPick.placeholder = `Set value for '${key}' (type a value, choose a suggestion, or select Skip this field)`;
+    quickPick.matchOnDescription = true;
+    quickPick.matchOnDetail = true;
+
+    const suggestionItems: MetadataQuickPickItem[] = suggestions.map((value) => ({
+      label: value,
+      description: `Use '${value}'`,
+      detail: `Set '${key}' to '${value}'`,
+      metaType: 'suggestion'
+    }));
+    const skipItem: MetadataQuickPickItem = {
+      label: 'Skip this field',
+      description: `Leave '${key}' unset for now`,
+      metaType: 'skip'
+    };
+    quickPick.items = [...suggestionItems, skipItem];
+
+    let settled = false;
+    const finish = (value: RequiredMetadataPromptResult | undefined): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+      quickPick.hide();
+      quickPick.dispose();
+    };
+
+    quickPick.onDidAccept(() => {
+      const selected = quickPick.selectedItems[0];
+      if (selected?.metaType === 'skip') {
+        finish({ kind: 'skip' });
+        return;
+      }
+
+      const rawValue = selected?.metaType === 'suggestion'
+        ? selected.label
+        : quickPick.value;
+      const trimmed = rawValue.trim();
+      if (!trimmed) {
+        void vscode.window.showWarningMessage(`Enter a value for '${key}' or select "Skip this field".`);
+        return;
+      }
+
+      finish({ kind: 'value', value: trimmed });
+    });
+
+    quickPick.onDidHide(() => {
+      if (!settled) {
+        settled = true;
+        resolve(undefined);
+        quickPick.dispose();
+      }
+    });
+
+    quickPick.show();
+  });
+}
+
+function isUnsetRequiredMetadataValue(value: unknown): boolean {
+  return value === null || value === undefined || String(value).trim().length === 0;
 }

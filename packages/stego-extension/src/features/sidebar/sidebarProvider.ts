@@ -20,9 +20,10 @@ import type {
 import { runProjectBuildWorkflow } from '../commands/buildWorkflow';
 import { runProjectGateStageWorkflow } from '../commands/stageCheckWorkflow';
 import { runLocalValidateWorkflow } from '../commands/localValidateWorkflow';
+import { runNewManuscriptWorkflow } from '../commands/newManuscriptWorkflow';
 import type { WorkflowRunResult } from '../commands/workflowUtils';
 import { openMarkdownPreviewCommand } from '../commands/openMarkdownPreview';
-import { toggleFrontmatterFold } from '../commands/frontmatterFold';
+import { suppressAutoFoldFrontmatterForDocument, toggleFrontmatterFold } from '../commands/frontmatterFold';
 import { refreshVisibleMarkdownDocuments } from '../diagnostics/refreshDiagnostics';
 import { SpineIndexService } from '../indexing/spineIndexService';
 import { ReferenceUsageIndexService } from '../indexing/referenceUsageIndexService';
@@ -34,6 +35,7 @@ import {
   removeMetadataArrayItem,
   removeMetadataField,
   setMetadataStatus,
+  promptAndFillRequiredMetadata,
   getActiveMarkdownDocument
 } from '../metadata/frontmatterEdit';
 import { formatMetadataValue, parseMarkdownDocument } from '../metadata/frontmatterParse';
@@ -144,6 +146,10 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     this.setActiveTab('document');
     this.selectedCommentId = normalized;
     await this.refresh();
+  }
+
+  public expandMetadataPanel(): void {
+    this.metadataCollapsed = false;
   }
 
   private setActiveTab(tab: SidebarViewTab, options?: { trackHistory?: boolean }): void {
@@ -1357,6 +1363,14 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         }
         break;
       }
+      case 'runNewManuscriptWorkflow': {
+        shouldRefreshDiagnostics = false;
+        const result = await runNewManuscriptWorkflow();
+        if (result.ok) {
+          this.expandMetadataPanel();
+        }
+        break;
+      }
       case 'openFirstUnresolvedComment': {
         shouldRefreshDiagnostics = false;
         if (typeof payload.filePath !== 'string' || typeof payload.id !== 'string') {
@@ -1394,7 +1408,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           break;
         }
 
+        suppressAutoFoldFrontmatterForDocument(vscode.Uri.file(payload.filePath));
         await openBacklinkFile(payload.filePath, 1);
+        this.expandMetadataPanel();
         this.setActiveTab('document');
         break;
       }
@@ -1460,6 +1476,16 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       case 'runLocalValidate': {
         shouldRefreshDiagnostics = false;
         const result = await runLocalValidateWorkflow();
+        break;
+      }
+      case 'fillRequiredMetadata': {
+        shouldRefreshDiagnostics = false;
+        const projectContext = await this.getCurrentProjectConfigContext();
+        if (!projectContext) {
+          void vscode.window.showWarningMessage('Open a project manuscript file first to fill required metadata.');
+          break;
+        }
+        await promptAndFillRequiredMetadata(projectContext.requiredMetadata);
         break;
       }
       case 'openMarkdownPreview': {

@@ -157,7 +157,7 @@ test('new infers next manuscript prefix from the last two manuscripts', () => {
     assert.equal(fs.existsSync(nextPath), true, `Expected manuscript file at ${nextPath}`);
 
     const created = fs.readFileSync(nextPath, 'utf8');
-    assert.match(created, /^---\nstatus: draft\nchapter:\nchapter_title:\n---\n\n# New Document\n/m);
+    assert.match(created, /^---\nstatus: draft\nchapter:\nchapter_title:\n---\n\n$/m);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }
@@ -194,6 +194,55 @@ test('new supports explicit prefix via -i and --i', () => {
       true,
       'Expected manuscript created with --i'
     );
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test('new supports explicit filename via --filename', () => {
+  const projectId = `new-manuscript-filename-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'New Manuscript Filename Test',
+      requiredMetadata: ['status']
+    },
+    [
+      ['100-first.md', '---\nstatus: draft\n---\n\nA\n']
+    ]
+  );
+
+  try {
+    const result = runCli(['new', '--project', projectId, '--filename', '250-custom-scene.md']);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+
+    const createdPath = path.join(projectRoot, 'manuscript', '250-custom-scene.md');
+    assert.equal(fs.existsSync(createdPath), true, `Expected manuscript file at ${createdPath}`);
+
+    const created = fs.readFileSync(createdPath, 'utf8');
+    assert.match(created, /^---\nstatus: draft\n---\n\n$/m);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test('new rejects using --filename with --i', () => {
+  const projectId = `new-manuscript-filename-conflict-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'New Manuscript Filename Conflict Test',
+      requiredMetadata: ['status']
+    },
+    []
+  );
+
+  try {
+    const result = runCli(['new', '--project', projectId, '--i', '300', '--filename', '400-custom-scene.md']);
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(`${result.stdout}\n${result.stderr}`, /--filename and --i\/-i cannot be used together/);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }

@@ -26,9 +26,9 @@ label: stego new-project --project <project-id> [--title <title>] [--root <path>
 - Related concepts: CON-PROJECT, CON-MANUSCRIPT, CON-NOTES, CON-DIST.
 
 ## CMD-NEW
-label: stego new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]
+label: stego new --project <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--root <path>]
 
-- `stego new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]`
+- `stego new --project <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--root <path>]`
 - Create a new manuscript file with an inferred numeric prefix and draft frontmatter.
 - Related workflows: FLOW-DAILY-WRITING.
 - Related concepts: CON-MANUSCRIPT, CON-METADATA.
