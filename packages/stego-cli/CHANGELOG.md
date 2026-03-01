@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.3.3
+
+### Patch Changes
+
+- 2a13e2a: Align `stego comments add` output with extension comment formatting: human-readable header timestamp with em-dash author separator, nested quoted selection excerpt, and extension-compatible `meta64` fields (`created_at`, `timezone`, `timezone_offset_minutes`, paragraph and excerpt coordinates). Also expand CLI comment parsing compatibility for extension metadata keys and em-dash-style thread headers.
+
 ## 0.3.2
 
 ### Patch Changes
