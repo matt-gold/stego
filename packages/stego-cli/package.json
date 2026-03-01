@@ -50,7 +50,8 @@
     "check-stage": "node --experimental-strip-types tools/stego-cli.ts check-stage",
     "export": "node --experimental-strip-types tools/stego-cli.ts export",
     "test:compile-structure": "node --test tools/test/compile-structure.test.mjs",
-    "test": "npm run test:compile-structure"
+    "test:comments": "node --test tools/test/comments-add.test.mjs",
+    "test": "npm run test:compile-structure && npm run test:comments"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",

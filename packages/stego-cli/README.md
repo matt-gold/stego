@@ -58,6 +58,18 @@ stego export --project fiction-example --format md
 
 Projects also include local npm scripts so you can work from inside a project directory.
 
+## Advanced integration command
+
+`stego comments add` is a machine-facing command for editor/tool integrations.
+
+```bash
+stego comments add manuscript/100-scene.md --message "Could this transition be clearer?"
+stego comments add manuscript/100-scene.md --input payload.json --format json
+stego comments add manuscript/100-scene.md --input - --format json <<'JSON'
+{"message":"Could this transition be clearer?","range":{"start":{"line":10,"col":4},"end":{"line":10,"col":32}}}
+JSON
+```
+
 ## VS Code workflow
 
 When actively working on one project, open that project directory directly in VS Code (for example `projects/fiction-example`).
