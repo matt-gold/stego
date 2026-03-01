@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.3.1
+
+### Patch Changes
+
+- 94cb344: Support `--input -` as a valid stdin payload value for `stego comments add` and add coverage for stdin-based comment creation.
+
 ## 0.3.0
 
 ### Minor Changes
