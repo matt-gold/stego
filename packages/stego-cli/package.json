@@ -1,6 +1,6 @@
 {
   "name": "stego-cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Installable CLI for the Stego writing monorepo workflow.",
   "license": "Apache-2.0",
@@ -10,9 +10,9 @@
     "directory": "packages/stego-cli"
   },
   "bugs": {
-    "url": "https://github.com/matt-gold/stego-cli/issues"
+    "url": "https://github.com/matt-gold/stego/issues"
   },
-  "homepage": "https://github.com/matt-gold/stego-cli#readme",
+  "homepage": "https://github.com/matt-gold/stego/tree/main/packages/stego-cli#readme",
   "bin": {
     "stego": "dist/stego-cli.js"
   },

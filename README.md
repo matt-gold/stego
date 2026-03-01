@@ -1,20 +1,25 @@
 # Stego
 
-Stego is a markdown-first writing system for long-form projects. It combines a CLI workflow (`stego-cli`) with a VS Code UI (`stego-extension`) so teams can draft, validate, and release manuscripts with structured references and repeatable build pipelines.
+Stego is a markdown-first writing system for long-form projects.
+
+<div align="center">
+  <img src="packages/stego-extension/assets/stego.png" alt="Stego logo" width="128" />
+</div>
+
+It combines a CLI workflow (`stego-cli`) with a VS Code UI (`stego-extension`) so teams can draft, validate, and release manuscripts with structured references and repeatable build pipelines.
 
 ## What Stego Is For
 
 - Writing and organizing long-form content in plain markdown.
 - Managing structured project context with Spine categories and entries.
 - Running stage-aware quality gates and validation checks.
-- Building and exporting manuscripts to release formats.
-- Writing in a Git-friendly, automation-friendly environment.
+- Building and exporting manuscripts to md, docx, pdf, and epub.
+- Working in a Git-friendly, automation-friendly workflow.
 
 ## Packages
 
 - [`packages/stego-cli`](packages/stego-cli): CLI engine for init, validation, stage checks, build, lint, and export.
 - [`packages/stego-extension`](packages/stego-extension): VS Code extension UI for manuscript, Spine, and comments workflows.
-- [`packages/stego-cli/projects/stego-docs`](packages/stego-cli/projects/stego-docs): canonical documentation project for the full system.
 
 ## Full Documentation
 
@@ -36,12 +41,16 @@ For complete docs, start here:
 
 ## Quick Start
 
+ - Create your stego workspace in an empty directory:
+
 ```bash
 npm install -g stego-cli
 stego init
-stego list-projects
-stego build --project stego-docs
+stego new-project --project hello-world
 ```
+
+ - Open `./projects/hello-world` in VSCode
+ - Install the [stego vscode extension](https://marketplace.visualstudio.com/items?itemName=matt-gold.stego-extension)
 
 ## License
 

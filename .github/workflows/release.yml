@@ -157,14 +157,25 @@ jobs:
         if: ${{ env.EXT_CHANGED == 'true' }}
         run: npm run -w packages/stego-extension test
 
+      - name: Prepare isolated stego-extension package dir
+        if: ${{ env.EXT_CHANGED == 'true' }}
+        run: |
+          EXT_PKG_DIR="$RUNNER_TEMP/stego-extension-package"
+          mkdir -p "$EXT_PKG_DIR"
+          cp -R packages/stego-extension/. "$EXT_PKG_DIR/"
+          echo "EXT_PKG_DIR=$EXT_PKG_DIR" >> "$GITHUB_ENV"
+
       - name: Package stego-extension VSIX
         if: ${{ env.EXT_CHANGED == 'true' }}
-        run: npm run -w packages/stego-extension package
+        run: |
+          cd "$EXT_PKG_DIR"
+          npm install
+          npm run package
 
       - name: Resolve stego-extension VSIX path
         if: ${{ env.EXT_CHANGED == 'true' }}
         run: |
-          EXT_VSIX_PATH="$(ls -1t packages/stego-extension/*.vsix | head -n 1)"
+          EXT_VSIX_PATH="$(ls -1t "$EXT_PKG_DIR"/*.vsix | head -n 1)"
           if [ -z "$EXT_VSIX_PATH" ]; then
             echo "No VSIX found for stego-extension."
             exit 1
@@ -189,6 +200,4 @@ jobs:
 
       - name: Publish stego-extension to VS Marketplace
         if: ${{ env.EXT_CHANGED == 'true' }}
-        run: |
-          cd packages/stego-extension
-          npx @vscode/vsce publish -p "${{ secrets.VSCE_PAT }}"
+        run: npx @vscode/vsce publish --packagePath "${{ env.EXT_VSIX_PATH }}" -p "${{ secrets.VSCE_PAT }}"
