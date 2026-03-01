@@ -30,7 +30,13 @@ type StegoRunner = {
   label: string;
 };
 
-let stegoRunnerPromise: Promise<StegoRunner | undefined> | undefined;
+type PackageScriptState = {
+  packagePath: string;
+  hasPackageJson: boolean;
+  scripts: Set<string>;
+};
+
+const stegoRunnerPromiseByCwd = new Map<string, Promise<StegoRunner | undefined>>();
 
 export async function runCommand(
   command: string,
@@ -124,11 +130,21 @@ async function detectStegoRunner(cwd: string): Promise<StegoRunner | undefined> 
 }
 
 async function resolveStegoRunner(cwd: string): Promise<StegoRunner | undefined> {
-  if (!stegoRunnerPromise) {
-    stegoRunnerPromise = detectStegoRunner(cwd);
+  const cacheKey = path.resolve(cwd);
+  const existing = stegoRunnerPromiseByCwd.get(cacheKey);
+  if (existing) {
+    return existing;
   }
 
-  return stegoRunnerPromise;
+  const detection = detectStegoRunner(cwd).then((runner) => {
+    if (!runner) {
+      // Allow retry later (for example after package install or PATH changes).
+      stegoRunnerPromiseByCwd.delete(cacheKey);
+    }
+    return runner;
+  });
+  stegoRunnerPromiseByCwd.set(cacheKey, detection);
+  return detection;
 }
 
 export async function resolveProjectScriptContext(): Promise<ProjectScriptContext | undefined> {
@@ -226,6 +242,104 @@ export async function resolveWorkflowCommandInvocation(
     command: stegoRunner.command,
     args: [...stegoRunner.prefixArgs, ...options.stegoArgs],
     runner: 'stego'
+  };
+}
+
+export async function resolveStegoCommandInvocation(
+  cwd: string,
+  stegoArgs: string[],
+  actionLabel: string
+): Promise<WorkflowCommandInvocation | undefined> {
+  const stegoRunner = await resolveStegoRunner(cwd);
+  if (!stegoRunner) {
+    void vscode.window.showWarningMessage(
+      `Install stego-cli to run ${actionLabel}.`
+    );
+    return undefined;
+  }
+
+  return {
+    command: stegoRunner.command,
+    args: [...stegoRunner.prefixArgs, ...stegoArgs],
+    runner: 'stego'
+  };
+}
+
+export async function resolveWorkspaceCommandInvocation(
+  workspaceDir: string,
+  options: {
+    scriptName: string;
+    scriptArgs?: string[];
+    stegoArgs: string[];
+    actionLabel: string;
+  }
+): Promise<WorkflowCommandInvocation | undefined> {
+  const scriptState = await readPackageScriptState(workspaceDir);
+  const scriptArgs = options.scriptArgs ?? [];
+  const npmCommand = getNpmCommand();
+
+  if (scriptState.scripts.has(options.scriptName)) {
+    const args = ['run', options.scriptName];
+    if (scriptArgs.length > 0) {
+      args.push('--', ...scriptArgs);
+    }
+    return {
+      command: npmCommand,
+      args,
+      runner: 'script'
+    };
+  }
+
+  const stegoRunner = await resolveStegoRunner(workspaceDir);
+  if (!stegoRunner) {
+    const packageHint = scriptState.hasPackageJson
+      ? `Script '${options.scriptName}' is not defined in ${scriptState.packagePath}.`
+      : `No package.json found in ${workspaceDir}.`;
+    void vscode.window.showWarningMessage(
+      `${packageHint} Install stego-cli (or add the script) to run ${options.actionLabel}.`
+    );
+    return undefined;
+  }
+
+  return {
+    command: stegoRunner.command,
+    args: [...stegoRunner.prefixArgs, ...options.stegoArgs],
+    runner: 'stego'
+  };
+}
+
+async function readPackageScriptState(cwd: string): Promise<PackageScriptState> {
+  const packagePath = path.join(cwd, 'package.json');
+  const scripts = new Set<string>();
+  let hasPackageJson = false;
+
+  try {
+    const packageRaw = await fs.readFile(packagePath, 'utf8');
+    hasPackageJson = true;
+    try {
+      const parsed = JSON.parse(packageRaw) as unknown;
+      const candidateScripts = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>).scripts
+        : undefined;
+
+      if (candidateScripts && typeof candidateScripts === 'object' && !Array.isArray(candidateScripts)) {
+        for (const [scriptName, scriptValue] of Object.entries(candidateScripts)) {
+          if (typeof scriptValue === 'string' && scriptName.trim().length > 0) {
+            scripts.add(scriptName.trim());
+          }
+        }
+      }
+    } catch {
+      // Ignore invalid package content and rely on CLI fallback.
+    }
+  } catch {
+    hasPackageJson = false;
+  }
+
+  return {
+    packagePath,
+    hasPackageJson,
+    scripts
   };
 }
 

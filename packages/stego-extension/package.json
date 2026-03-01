@@ -23,6 +23,8 @@
     "onCommand:stegoSpine.runBuild",
     "onCommand:stegoSpine.runGateStage",
     "onCommand:stegoSpine.newManuscript",
+    "onCommand:stegoSpine.newProject",
+    "onCommand:stegoSpine.openProject",
     "onCommand:stegoSpine.addComment",
     "onCommand:stegoSpine.toggleFrontmatter",
     "onView:stegoSpine.metadataView"
@@ -64,6 +66,15 @@
         "icon": "$(add)"
       },
       {
+        "command": "stegoSpine.newProject",
+        "title": "New Stego Project"
+      },
+      {
+        "command": "stegoSpine.openProject",
+        "title": "Open Project",
+        "icon": "$(folder-opened)"
+      },
+      {
         "command": "stegoSpine.runGateStage",
         "title": "Run Stage Checks",
         "icon": "$(check)"
@@ -94,17 +105,27 @@
       "view/title": [
         {
           "command": "stegoSpine.newManuscript",
-          "when": "view == stegoSpine.metadataView",
+          "when": "view == stegoSpine.metadataView && !stegoSpine.isStegoWorkspace",
           "group": "navigation@0"
         },
         {
+          "command": "stegoSpine.openProject",
+          "when": "view == stegoSpine.metadataView && stegoSpine.isStegoWorkspace",
+          "group": "navigation@0"
+        },
+        {
+          "command": "stegoSpine.newProject",
+          "when": "view == stegoSpine.metadataView && stegoSpine.isStegoWorkspace",
+          "group": "navigation@1"
+        },
+        {
           "command": "stegoSpine.runBuild",
-          "when": "view == stegoSpine.metadataView",
+          "when": "view == stegoSpine.metadataView && !stegoSpine.isStegoWorkspace",
           "group": "navigation@1"
         },
         {
           "command": "stegoSpine.runGateStage",
-          "when": "view == stegoSpine.metadataView",
+          "when": "view == stegoSpine.metadataView && !stegoSpine.isStegoWorkspace",
           "group": "navigation@2"
         }
       ]

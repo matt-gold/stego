@@ -8,7 +8,7 @@ Stego is a markdown-first writing system for long-form projects. It combines a C
 - Managing structured project context with Spine categories and entries.
 - Running stage-aware quality gates and validation checks.
 - Building and exporting manuscripts to release formats.
-- Working in a Git-friendly, automation-friendly workflow.
+- Writing in a Git-friendly, automation-friendly environment.
 
 ## Packages
 

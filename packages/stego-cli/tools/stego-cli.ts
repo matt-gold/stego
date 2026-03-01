@@ -282,7 +282,11 @@ async function main(): Promise<void> {
       case "new": {
         activateWorkspace(options);
         const project = resolveProject(readStringOption(options, "project"));
-        const createdPath = createNewManuscript(project, readStringOption(options, "i"));
+        const createdPath = createNewManuscript(
+          project,
+          readStringOption(options, "i"),
+          readStringOption(options, "filename")
+        );
         logLine(`Created manuscript: ${createdPath}`);
         return;
       }
@@ -675,7 +679,7 @@ function resolveCompileStructure(project: ProjectContext): { levels: CompileStru
       continue;
     }
 
-    const pageBreakRaw = typeof entry.pageBreak === "string" ? entry.pageBreak.trim() : "none";
+    const pageBreakRaw = typeof entry.pageBreak === "string" ? entry.pageBreak.trim() : "between-groups";
     if (pageBreakRaw !== "none" && pageBreakRaw !== "between-groups") {
       issues.push(
         makeIssue(
@@ -1136,7 +1140,7 @@ function writeInitRootPackageJson(targetRoot: string): void {
 
 function printUsage() {
   console.log(
-    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n`
+    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  new --project <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n`
   );
 }
 
@@ -1188,7 +1192,7 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
           titleKey: "chapter_title",
           injectHeading: true,
           headingTemplate: "{label} {value}: {title}",
-          pageBreak: "none"
+          pageBreak: "between-groups"
         }
       ]
     },
@@ -1255,7 +1259,11 @@ Start writing here.
   }
 }
 
-function createNewManuscript(project: ProjectContext, requestedPrefixRaw?: string): string {
+function createNewManuscript(
+  project: ProjectContext,
+  requestedPrefixRaw?: string,
+  requestedFilenameRaw?: string
+): string {
   fs.mkdirSync(project.manuscriptDir, { recursive: true });
   const requiredMetadataState = resolveRequiredMetadata(project, config);
   const requiredMetadataErrors = requiredMetadataState.issues
@@ -1269,17 +1277,42 @@ function createNewManuscript(project: ProjectContext, requestedPrefixRaw?: strin
 
   const existingEntries = listManuscriptOrderEntries(project.manuscriptDir);
   const explicitPrefix = parseManuscriptPrefix(requestedPrefixRaw);
-  const nextPrefix = explicitPrefix ?? inferNextManuscriptPrefix(existingEntries);
-  const collision = existingEntries.find((entry) => entry.order === nextPrefix);
-  if (collision) {
-    throw new Error(
-      `Manuscript prefix '${nextPrefix}' is already used by '${collision.filename}'. Re-run with --i <number> to choose an unused prefix.`
-    );
+  const requestedFilename = parseRequestedManuscriptFilename(requestedFilenameRaw);
+  if (requestedFilename && explicitPrefix != null) {
+    throw new Error("Options --filename and --i/-i cannot be used together.");
   }
 
-  const filename = `${nextPrefix}-${DEFAULT_NEW_MANUSCRIPT_SLUG}.md`;
+  let filename: string;
+  if (requestedFilename) {
+    const requestedOrder = parseOrderFromManuscriptFilename(requestedFilename);
+    if (requestedOrder != null) {
+      const collision = existingEntries.find((entry) => entry.order === requestedOrder);
+      if (collision) {
+        throw new Error(
+          `Manuscript prefix '${requestedOrder}' is already used by '${collision.filename}'. Choose a different filename prefix.`
+        );
+      }
+    }
+    filename = requestedFilename;
+  } else {
+    const nextPrefix = explicitPrefix ?? inferNextManuscriptPrefix(existingEntries);
+    const collision = existingEntries.find((entry) => entry.order === nextPrefix);
+    if (collision) {
+      throw new Error(
+        `Manuscript prefix '${nextPrefix}' is already used by '${collision.filename}'. Re-run with --i <number> to choose an unused prefix.`
+      );
+    }
+    filename = `${nextPrefix}-${DEFAULT_NEW_MANUSCRIPT_SLUG}.md`;
+  }
+
   const manuscriptPath = path.join(project.manuscriptDir, filename);
-  const content = renderNewManuscriptTemplate(requiredMetadataState.requiredMetadata);
+  if (fs.existsSync(manuscriptPath)) {
+    throw new Error(`Manuscript already exists: ${filename}`);
+  }
+
+  const content = renderNewManuscriptTemplate(
+    requiredMetadataState.requiredMetadata
+  );
   fs.writeFileSync(manuscriptPath, content, "utf8");
   return path.relative(repoRoot, manuscriptPath);
 }
@@ -1333,6 +1366,39 @@ function parseManuscriptPrefix(raw: string | undefined): number | undefined {
   return parsed;
 }
 
+function parseRequestedManuscriptFilename(raw: string | undefined): string | undefined {
+  if (raw == null) {
+    return undefined;
+  }
+
+  const normalized = raw.trim();
+  if (!normalized) {
+    throw new Error("Option --filename requires a value.");
+  }
+
+  if (/[\\/]/.test(normalized)) {
+    throw new Error(`Invalid filename '${raw}'. Use a filename only (no directory separators).`);
+  }
+
+  const withExtension = normalized.toLowerCase().endsWith(".md")
+    ? normalized
+    : `${normalized}.md`;
+  const stem = withExtension.slice(0, -3).trim();
+  if (!stem) {
+    throw new Error(`Invalid filename '${raw}'.`);
+  }
+
+  return withExtension;
+}
+
+function parseOrderFromManuscriptFilename(filename: string): number | undefined {
+  const match = filename.match(/^(\d+)[-_]/);
+  if (!match) {
+    return undefined;
+  }
+  return Number(match[1]);
+}
+
 function inferNextManuscriptPrefix(entries: ManuscriptOrderEntry[]): number {
   if (entries.length === 0) {
     return 100;
@@ -1361,7 +1427,7 @@ function renderNewManuscriptTemplate(requiredMetadata: string[]): string {
     lines.push(`${normalized}:`);
   }
 
-  lines.push("---", "", "# New Document", "");
+  lines.push("---", "");
   return `${lines.join("\n")}\n`;
 }
 
