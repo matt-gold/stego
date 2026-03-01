@@ -1,5 +1,11 @@
 # stego-cli
 
+## 0.3.2
+
+### Patch Changes
+
+- 7b5ce1a: Fix `stego comments add` to write canonical comment delimiters (`<!-- comment: CMT-#### -->`) and prevent duplicate comment IDs by deriving the next ID from existing comments in the appendix (including legacy heading compatibility). Also update CLI comment parsing to accept canonical comment delimiters while remaining backward-compatible with legacy `### CMT-####` headings.
+
 ## 0.3.1
 
 ### Patch Changes
