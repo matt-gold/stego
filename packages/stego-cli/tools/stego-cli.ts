@@ -755,7 +755,7 @@ function parseArgs(argv: string[]): ParseArgsResult {
       const key = token.slice(2);
       const next = rest[i + 1];
 
-      if (!next || next.startsWith("-")) {
+      if (!next || !canBeOptionValue(next)) {
         options[key] = true;
         continue;
       }
@@ -769,7 +769,7 @@ function parseArgs(argv: string[]): ParseArgsResult {
       const key = token.slice(1);
       const next = rest[i + 1];
 
-      if (!next || next.startsWith("-")) {
+      if (!next || !canBeOptionValue(next)) {
         options[key] = true;
         continue;
       }
@@ -786,6 +786,14 @@ function parseArgs(argv: string[]): ParseArgsResult {
   }
 
   return { command, options };
+}
+
+function canBeOptionValue(token: string): boolean {
+  if (token === "-") {
+    return true;
+  }
+
+  return !token.startsWith("-");
 }
 
 function resolveWorkspaceContext(rootOption?: string): WorkspaceContext {

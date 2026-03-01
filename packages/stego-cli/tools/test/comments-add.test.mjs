@@ -10,10 +10,11 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "../..");
 const cliPath = path.join(repoRoot, "tools", "stego-cli.ts");
 
-function runCli(args) {
+function runCli(args, input) {
   return spawnSync("node", ["--experimental-strip-types", cliPath, ...args], {
     cwd: repoRoot,
-    encoding: "utf8"
+    encoding: "utf8",
+    input
   });
 }
 
@@ -86,6 +87,50 @@ test("comments add rejects non-stego manuscripts with code 3", () => {
     const payload = JSON.parse(result.stderr.trim());
     assert.equal(payload.ok, false);
     assert.equal(payload.code, "NOT_STEGO_MANUSCRIPT");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("comments add accepts --input - from stdin", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-comments-add-"));
+  const manuscriptPath = path.join(tempDir, "chapter.md");
+  fs.writeFileSync(
+    manuscriptPath,
+    "---\nstatus: draft\n---\n\nA short scene.\n",
+    "utf8"
+  );
+
+  try {
+    const inputPayload = JSON.stringify({
+      message: "Should this sentence land with more impact?",
+      range: {
+        start: { line: 4, col: 0 },
+        end: { line: 4, col: 15 }
+      }
+    });
+
+    const result = runCli(
+      [
+        "comments",
+        "add",
+        manuscriptPath,
+        "--input",
+        "-",
+        "--format",
+        "json"
+      ],
+      inputPayload
+    );
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const payload = JSON.parse(result.stdout.trim());
+    assert.equal(payload.ok, true);
+    assert.equal(payload.commentId, "CMT-0001");
+    assert.equal(payload.anchor.type, "selection");
+
+    const updated = fs.readFileSync(manuscriptPath, "utf8");
+    assert.match(updated, /Should this sentence land with more impact\?/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
