@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 import { markdownExporter } from "./exporters/markdown-exporter.ts";
 import { createPandocExporter } from "./exporters/pandoc-exporter.ts";
 import type { ExportFormat, Exporter } from "./exporters/exporter-types.ts";
+import { runCommentsCommand } from "./comments/comments-command.ts";
+import { CommentsCommandError } from "./comments/errors.ts";
 
 type StageName = "draft" | "revise" | "line-edit" | "proof" | "final";
 type IssueLevel = "error" | "warning";
@@ -352,10 +354,22 @@ async function main(): Promise<void> {
         logLine(`Export output: ${outputPath}`);
         return;
       }
+      case "comments":
+        await runCommentsCommand(options, process.cwd());
+        return;
       default:
         throw new Error(`Unknown command '${command}'. Run with 'help' for usage.`);
     }
   } catch (error: unknown) {
+    if (error instanceof CommentsCommandError) {
+      if (error.outputFormat === "json") {
+        console.error(JSON.stringify(error.toJson(), null, 2));
+      } else {
+        console.error(`ERROR: ${error.message}`);
+      }
+      process.exit(error.exitCode);
+    }
+
     if (error instanceof Error) {
       console.error(`ERROR: ${error.message}`);
     } else {
@@ -1140,7 +1154,7 @@ function writeInitRootPackageJson(targetRoot: string): void {
 
 function printUsage() {
   console.log(
-    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  new --project <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n`
+    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n  comments add <manuscript> [--message <text> | --input <path|->] [--author <name>] [--start-line <n> --start-col <n> --end-line <n> --end-col <n>] [--format <text|json>]\n`
   );
 }
 
