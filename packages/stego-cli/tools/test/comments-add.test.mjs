@@ -54,10 +54,62 @@ test("comments add appends first comment block and returns json", () => {
 
     const updated = fs.readFileSync(manuscriptPath, "utf8");
     assert.match(updated, /<!-- stego-comments:start -->/);
-    assert.match(updated, /### CMT-0001/);
+    assert.match(updated, /<!-- comment: CMT-0001 -->/);
     assert.match(updated, /Could this transition be clearer\?/);
     assert.match(updated, /<!-- meta64: /);
     assert.match(updated, /<!-- stego-comments:end -->/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("comments add increments from existing marker IDs", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-comments-add-"));
+  const manuscriptPath = path.join(tempDir, "chapter.md");
+  fs.writeFileSync(
+    manuscriptPath,
+    [
+      "---",
+      "status: draft",
+      "---",
+      "",
+      "A short scene.",
+      "",
+      "<!-- stego-comments:start -->",
+      "",
+      "<!-- comment: CMT-0001 -->",
+      "<!-- meta64: eyJzdGF0dXMiOiJvcGVuIn0 -->",
+      "> _2026-01-01T00:00:00.000Z | Saurus_",
+      ">",
+      "> Existing comment.",
+      "",
+      "<!-- stego-comments:end -->",
+      ""
+    ].join("\n"),
+    "utf8"
+  );
+
+  try {
+    const result = runCli([
+      "comments",
+      "add",
+      manuscriptPath,
+      "--message",
+      "Follow-up comment.",
+      "--format",
+      "json"
+    ]);
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const payload = JSON.parse(result.stdout.trim());
+    assert.equal(payload.ok, true);
+    assert.equal(payload.commentId, "CMT-0002");
+
+    const updated = fs.readFileSync(manuscriptPath, "utf8");
+    const firstIdMatches = updated.match(/<!--\s*comment:\s*CMT-0001\s*-->/g) ?? [];
+    const secondIdMatches = updated.match(/<!--\s*comment:\s*CMT-0002\s*-->/g) ?? [];
+    assert.equal(firstIdMatches.length, 1);
+    assert.equal(secondIdMatches.length, 1);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

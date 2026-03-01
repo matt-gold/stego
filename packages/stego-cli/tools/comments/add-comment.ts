@@ -33,7 +33,8 @@ export type AddCommentResult = {
   createdAt: string;
 };
 
-const COMMENT_HEADING_REGEX = /^###\s+(CMT-(\d{4,}))\s*$/;
+const COMMENT_DELIMITER_REGEX = /^<!--\s*comment:\s*(CMT-(\d{4,}))\s*-->\s*$/i;
+const LEGACY_COMMENT_HEADING_REGEX = /^###\s+(CMT-(\d{4,}))\s*$/i;
 const START_SENTINEL = "<!-- stego-comments:start -->";
 const END_SENTINEL = "<!-- stego-comments:end -->";
 
@@ -58,7 +59,7 @@ export function addCommentToManuscript(request: AddCommentRequest): AddCommentRe
     );
   }
 
-  const commentId = getNextCommentId(lines);
+  const commentId = getNextCommentId(lines, sentinelState);
   const createdAt = new Date().toISOString();
   const meta = buildMetaPayload(request.range, request.sourceMeta);
   const meta64 = Buffer.from(JSON.stringify(meta), "utf8").toString("base64url");
@@ -129,7 +130,7 @@ function buildCommentEntryLines(
     .map((line) => line.trimEnd());
 
   return [
-    `### ${commentId}`,
+    `<!-- comment: ${commentId} -->`,
     `<!-- meta64: ${meta64} -->`,
     `> _${timestamp} | ${safeAuthor}_`,
     ">",
@@ -224,11 +225,16 @@ function findTrimmedLineIndexes(lines: string[], target: string): number[] {
   return indexes;
 }
 
-function getNextCommentId(lines: string[]): string {
+function getNextCommentId(lines: string[], sentinelState: SentinelState): string {
+  const candidateLines = sentinelState.hasSentinels
+    ? lines.slice(sentinelState.startIndex + 1, sentinelState.endIndex)
+    : lines;
+
   let maxId = 0;
-  for (const line of lines) {
-    const match = line.trim().match(COMMENT_HEADING_REGEX);
-    if (!match) {
+  for (const line of candidateLines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(COMMENT_DELIMITER_REGEX) ?? trimmed.match(LEGACY_COMMENT_HEADING_REGEX);
+    if (!match || !match[2]) {
       continue;
     }
 
