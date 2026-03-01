@@ -18,6 +18,12 @@ function runCli(args, input) {
   });
 }
 
+function parseFirstMetaPayload(markdown) {
+  const metaMatch = markdown.match(/<!--\s*meta64:\s*(\S+)\s*-->/);
+  assert.ok(metaMatch, "Expected a meta64 row.");
+  return JSON.parse(Buffer.from(metaMatch[1], "base64url").toString("utf8"));
+}
+
 test("comments add appends first comment block and returns json", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-comments-add-"));
   const manuscriptPath = path.join(tempDir, "chapter.md");
@@ -35,13 +41,13 @@ test("comments add appends first comment block and returns json", () => {
       "--message",
       "Could this transition be clearer?",
       "--start-line",
-      "4",
+      "5",
       "--start-col",
       "0",
       "--end-line",
-      "4",
+      "5",
       "--end-col",
-      "12",
+      "13",
       "--format",
       "json"
     ]);
@@ -55,9 +61,21 @@ test("comments add appends first comment block and returns json", () => {
     const updated = fs.readFileSync(manuscriptPath, "utf8");
     assert.match(updated, /<!-- stego-comments:start -->/);
     assert.match(updated, /<!-- comment: CMT-0001 -->/);
+    assert.match(updated, /> _[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2} (AM|PM) — Saurus_/);
+    assert.match(updated, /> > “A short scene”/);
     assert.match(updated, /Could this transition be clearer\?/);
     assert.match(updated, /<!-- meta64: /);
     assert.match(updated, /<!-- stego-comments:end -->/);
+
+    const meta = parseFirstMetaPayload(updated);
+    assert.equal(meta.status, "open");
+    assert.equal(typeof meta.created_at, "string");
+    assert.equal(typeof meta.timezone_offset_minutes, "number");
+    assert.equal(meta.paragraph_index, 0);
+    assert.equal(meta.excerpt_start_line, 5);
+    assert.equal(meta.excerpt_start_col, 0);
+    assert.equal(meta.excerpt_end_line, 5);
+    assert.equal(meta.excerpt_end_col, 13);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -157,8 +175,8 @@ test("comments add accepts --input - from stdin", () => {
     const inputPayload = JSON.stringify({
       message: "Should this sentence land with more impact?",
       range: {
-        start: { line: 4, col: 0 },
-        end: { line: 4, col: 15 }
+        start: { line: 5, col: 0 },
+        end: { line: 5, col: 12 }
       }
     });
 
