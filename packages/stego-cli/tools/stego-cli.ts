@@ -2194,7 +2194,7 @@ function parseStegoCommentThreads(
           makeIssue(
             "error",
             "comments",
-            `Invalid thread header '${trimmedRow}'. Expected blockquote header like '> _timestamp | author_'.`,
+            `Invalid thread header '${trimmedRow}'. Expected blockquote header like '> _timestamp — author_'.`,
             relativePath,
             lineNumber
           )
@@ -2209,7 +2209,7 @@ function parseStegoCommentThreads(
           makeIssue(
             "error",
             "comments",
-            `Invalid thread header '${headerQuote.trim()}'. Expected '> _timestamp | author_'.`,
+            `Invalid thread header '${headerQuote.trim()}'. Expected '> _timestamp — author_'.`,
             relativePath,
             lineNumber
           )
@@ -2389,7 +2389,20 @@ function decodeCommentMeta64(
     return undefined;
   }
 
-  const allowedKeys = new Set(["status", "anchor", "paragraph_index", "signature", "excerpt"]);
+  const allowedKeys = new Set([
+    "status",
+    "created_at",
+    "timezone",
+    "timezone_offset_minutes",
+    "paragraph_index",
+    "excerpt_start_line",
+    "excerpt_start_col",
+    "excerpt_end_line",
+    "excerpt_end_col",
+    "anchor",
+    "excerpt",
+    "signature"
+  ]);
   for (const key of Object.keys(parsed)) {
     if (!allowedKeys.has(key)) {
       issues.push(
@@ -2432,7 +2445,7 @@ function extractQuotedLine(raw: string): string | undefined {
 }
 
 function parseThreadHeader(value: string): { timestamp: string; author: string } | undefined {
-  const match = value.trim().match(/^_(.+?)\s*\|\s*(.+?)_\s*$/);
+  const match = value.trim().match(/^_(.+?)\s*(?:—|\|)\s*(.+?)_\s*$/);
   if (!match) {
     return undefined;
   }
