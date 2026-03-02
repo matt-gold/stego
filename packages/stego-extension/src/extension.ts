@@ -19,7 +19,12 @@ import { detectStegoOpenMode } from './features/project/openMode';
 import { MetadataSidebarProvider } from './features/sidebar/sidebarProvider';
 import { CommentDecorationsService } from './features/comments/commentDecorations';
 import { CommentExcerptTracker } from './features/comments/commentExcerptTracker';
-import { addCommentAtSelection, loadCommentDocumentState, persistExcerptUpdates, deleteCommentsByIds } from './features/comments/commentStore';
+import {
+  addCommentAtSelection,
+  clearCachedCommentState,
+  persistExcerptUpdates,
+  refreshCommentState
+} from './features/comments/commentStore';
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection('stegoSpine');
@@ -89,7 +94,7 @@ export function activate(context: vscode.ExtensionContext): void {
       } else {
         await sidebarProvider.refresh();
       }
-      initExcerptTracking(document);
+      await syncCommentStateAndTracker(document, false);
       commentDecorations.refreshVisibleEditors();
     }),
     vscode.languages.registerDocumentLinkProvider(selector, createDocumentLinkProvider(indexService)),
@@ -153,7 +158,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (document === vscode.window.activeTextEditor?.document) {
         void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);
       }
-      initExcerptTracking(document);
+      void syncCommentStateAndTracker(document, false);
       commentDecorations.refreshVisibleEditors();
       void sidebarProvider.refresh();
     }),
@@ -192,6 +197,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidCloseTextDocument((document) => {
       diagnostics.delete(document.uri);
       excerptTracker.clear(document.uri.toString());
+      clearCachedCommentState(document.uri.toString());
       commentDecorations.refreshVisibleEditors();
       void sidebarProvider.refresh();
     }),
@@ -216,7 +222,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       void maybeAutoFoldFrontmatter(editor);
       if (editor?.document) {
-        initExcerptTracking(editor.document);
+        void syncCommentStateAndTracker(editor.document, false);
       }
       commentDecorations.refreshEditor(editor);
       void sidebarProvider.refresh();
@@ -234,43 +240,47 @@ export function activate(context: vscode.ExtensionContext): void {
   void sidebarProvider.refresh();
   void refreshOpenModeContext();
   void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);
+  for (const editor of vscode.window.visibleTextEditors) {
+    void syncCommentStateAndTracker(editor.document, false);
+  }
 
-  function initExcerptTracking(document: vscode.TextDocument): void {
+  async function syncCommentStateAndTracker(document: vscode.TextDocument, showWarning: boolean): Promise<void> {
     if (document.languageId !== 'markdown') {
       return;
     }
+
     if (!getConfig('comments', document.uri).get<boolean>('enable', true)) {
       return;
     }
-    const state = loadCommentDocumentState(document.getText());
-    if (state.errors.length === 0) {
-      excerptTracker.load(document.uri.toString(), state.comments);
+
+    const refreshed = await refreshCommentState(document, { showWarning });
+    if (refreshed.state && refreshed.state.parseErrors.length === 0) {
+      excerptTracker.load(document.uri.toString(), refreshed.state.comments);
     }
+
+    commentDecorations.refreshVisibleEditors();
+    void sidebarProvider.refresh();
   }
 
   async function handleExcerptPersistOnSave(document: vscode.TextDocument): Promise<void> {
-    const uri = document.uri.toString();
     if (!getConfig('comments', document.uri).get<boolean>('enable', true)) {
       return;
     }
 
-    // Handle auto-deletion of comments whose excerpts were fully deleted
-    const state = loadCommentDocumentState(document.getText());
-    const deletedIds = excerptTracker.getDeletedThreadIds(uri, state.comments);
-    if (deletedIds.length > 0) {
-      const removed = await deleteCommentsByIds(document, deletedIds, excerptTracker);
-      if (removed > 0) {
-        void vscode.window.showInformationMessage(
-          `Removed ${removed} comment${removed === 1 ? '' : 's'} (excerpt deleted).`
-        );
-        commentDecorations.refreshVisibleEditors();
-        void sidebarProvider.refresh();
-        return;
-      }
+    const syncResult = await persistExcerptUpdates(document, excerptTracker);
+    if (syncResult.warning) {
+      void vscode.window.showWarningMessage(syncResult.warning);
     }
 
-    // Persist tracked excerpt coordinate updates
-    await persistExcerptUpdates(document, excerptTracker);
+    if (syncResult.deletedCount > 0) {
+      void vscode.window.showInformationMessage(
+        `Removed ${syncResult.deletedCount} comment${syncResult.deletedCount === 1 ? '' : 's'} (excerpt deleted).`
+      );
+    }
+
+    await syncCommentStateAndTracker(document, false);
+    commentDecorations.refreshVisibleEditors();
+    void sidebarProvider.refresh();
   }
 }
 

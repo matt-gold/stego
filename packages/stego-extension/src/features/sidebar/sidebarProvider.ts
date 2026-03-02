@@ -64,15 +64,17 @@ import {
   togglePinnedSpineBacklinks,
   unpinSpineEntry
 } from './spinePins';
-import { parseCommentAppendix } from '../comments/commentParser';
 import {
   addCommentAtSelection,
   buildSidebarCommentsState,
   clearResolvedComments,
   deleteComment,
+  getDocumentContentWithoutComments,
   jumpToComment,
   normalizeAuthor,
+  readCommentStateForFile,
   replyToComment,
+  stripStegoCommentsAppendix,
   toggleCommentResolved
 } from '../comments/commentStore';
 
@@ -601,7 +603,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     };
 
     const comments = enableComments
-      ? buildSidebarCommentsState(document.getText(), this.selectedCommentId)
+      ? buildSidebarCommentsState(document.uri.toString(), this.selectedCommentId)
       : emptyComments;
     comments.currentAuthor = normalizeAuthor(getConfig('comments', document.uri).get<string>('author', '') ?? '');
     this.selectedCommentId = comments.selectedId;
@@ -848,7 +850,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     };
 
     const comments = enableComments
-      ? buildSidebarCommentsState(document.getText(), this.selectedCommentId)
+      ? buildSidebarCommentsState(document.uri.toString(), this.selectedCommentId)
       : emptyComments;
     comments.currentAuthor = normalizeAuthor(getConfig('comments', document.uri).get<string>('author', '') ?? '');
     this.selectedCommentId = comments.selectedId;
@@ -1911,7 +1913,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         if (!this.selectedCommentId) {
           break;
         }
-        const afterClear = buildSidebarCommentsState(document.getText(), this.selectedCommentId);
+        const afterClear = buildSidebarCommentsState(document.uri.toString(), this.selectedCommentId);
         if (!afterClear.selectedId) {
           this.selectedCommentId = undefined;
         }
@@ -1928,8 +1930,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         if (!document) {
           break;
         }
-        const parsed = parseCommentAppendix(document.getText());
-        const withoutComments = parsed.contentWithoutComments;
+        const withoutComments = await getDocumentContentWithoutComments(document, { showWarning: true });
         const withoutFrontmatter = withoutComments.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
         const clean = withoutFrontmatter.trim();
         await vscode.env.clipboard.writeText(clean);
@@ -2105,15 +2106,17 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         }
 
         try {
-          const parsedComments = parseCommentAppendix(text);
-          const parsed = parseMarkdownDocument(parsedComments.contentWithoutComments);
+          const commentState = await readCommentStateForFile(filePath, { showWarning: false });
+          const contentWithoutComments = commentState.state
+            ? commentState.state.contentWithoutComments
+            : stripStegoCommentsAppendix(text);
+          const parsed = parseMarkdownDocument(contentWithoutComments);
           frontmatter = parsed.frontmatter;
           const fileWordCount = this.countWords(parsed.body);
           wordCount += fileWordCount;
 
-          const unresolved = parsedComments.comments.filter((comment) => comment.status === 'open');
-          unresolvedCount = unresolved.length;
-          firstUnresolvedCommentId = unresolved[0]?.id;
+          unresolvedCount = commentState.state?.unresolvedCount ?? 0;
+          firstUnresolvedCommentId = commentState.state?.comments.find((comment) => comment.status === 'open')?.id;
 
           const statusRaw = frontmatter.status;
           status = statusRaw === null || statusRaw === undefined || String(statusRaw).trim().length === 0

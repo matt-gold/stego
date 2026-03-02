@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { loadCommentDocumentState } from './commentStore';
+import { getCachedCommentState } from './commentStore';
 import { getConfig } from '../project/projectConfig';
 import type { CommentExcerptTracker } from './commentExcerptTracker';
+import { buildDecorationCommentEntries } from './commentModel';
 
 dayjs.extend(relativeTime);
 
@@ -76,8 +77,8 @@ export class CommentDecorationsService implements vscode.Disposable {
       return;
     }
 
-    const state = loadCommentDocumentState(editor.document.getText());
-    if (state.errors.length > 0 || state.comments.length === 0) {
+    const state = getCachedCommentState(editor.document.uri.toString());
+    if (!state || state.parseErrors.length > 0 || state.comments.length === 0) {
       editor.setDecorations(this.unresolvedDecoration, []);
       editor.setDecorations(this.resolvedDecoration, []);
       editor.setDecorations(this.lineUnderlineDecoration, []);
@@ -107,10 +108,11 @@ export class CommentDecorationsService implements vscode.Disposable {
     };
 
     const trackedEntries = this.excerptTracker.getTracked(editor.document.uri.toString());
-    const trackedById = new Map<string, { startLine: number; startCol: number; endLine: number; endCol: number; deleted: boolean }>();
+    const overlayEntries: Array<{ id: string; startLine: number; startCol: number; endLine: number; endCol: number; deleted: boolean }> = [];
     if (trackedEntries) {
       for (const t of trackedEntries) {
-        trackedById.set(t.id, {
+        overlayEntries.push({
+          id: t.id,
           startLine: t.start.line + 1,
           startCol: t.start.character,
           endLine: t.end.line + 1,
@@ -122,24 +124,20 @@ export class CommentDecorationsService implements vscode.Disposable {
 
     const byLine = new Map<number, AnchorEntry[]>();
     const commentEntries: CommentEntry[] = [];
-    for (const comment of state.comments) {
-      const tracked = trackedById.get(comment.id);
-      if (tracked?.deleted) {
-        continue;
-      }
+    const resolvedEntries = buildDecorationCommentEntries(state, overlayEntries);
 
-      const resolvedAnchor = state.anchorsById.get(comment.id);
-      const line = clampLine(resolvedAnchor?.line ?? 1, editor.document.lineCount);
+    for (const comment of resolvedEntries) {
+      const line = clampLine(comment.line, editor.document.lineCount);
       const anchorEntry: AnchorEntry = {
         id: comment.id,
         status: comment.status,
         thread: [...comment.thread],
         createdAt: comment.createdAt,
-        underlineStartLine: tracked?.startLine ?? resolvedAnchor?.underlineStartLine,
-        underlineStartCol: tracked?.startCol ?? resolvedAnchor?.underlineStartCol,
-        underlineEndLine: tracked?.endLine ?? resolvedAnchor?.underlineEndLine,
-        underlineEndCol: tracked?.endCol ?? resolvedAnchor?.underlineEndCol,
-        paragraphEndLine: resolvedAnchor?.paragraphEndLine
+        underlineStartLine: comment.underlineStartLine,
+        underlineStartCol: comment.underlineStartCol,
+        underlineEndLine: comment.underlineEndLine,
+        underlineEndCol: comment.underlineEndCol,
+        paragraphEndLine: comment.paragraphEndLine
       };
 
       let textRange: vscode.Range;

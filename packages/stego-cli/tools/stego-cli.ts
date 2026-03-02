@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { markdownExporter } from "./exporters/markdown-exporter.ts";
 import { createPandocExporter } from "./exporters/pandoc-exporter.ts";
 import type { ExportFormat, Exporter } from "./exporters/exporter-types.ts";
+import { parseCommentAppendix } from "./comments/comment-domain.ts";
 import { runCommentsCommand } from "./comments/comments-command.ts";
 import { CommentsCommandError } from "./comments/errors.ts";
 
@@ -1162,7 +1163,7 @@ function writeInitRootPackageJson(targetRoot: string): void {
 
 function printUsage() {
   console.log(
-    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n  comments add <manuscript> [--message <text> | --input <path|->] [--author <name>] [--start-line <n> --start-col <n> --end-line <n> --end-col <n>] [--format <text|json>]\n`
+    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n  comments read <manuscript> [--format <text|json>]\n  comments add <manuscript> [--message <text> | --input <path|->] [--author <name>] [--start-line <n> --start-col <n> --end-line <n> --end-col <n>] [--cursor-line <n>] [--format <text|json>]\n  comments reply <manuscript> --comment-id <CMT-####> [--message <text> | --input <path|->] [--author <name>] [--format <text|json>]\n  comments set-status <manuscript> --comment-id <CMT-####> --status <open|resolved> [--thread] [--format <text|json>]\n  comments delete <manuscript> --comment-id <CMT-####> [--format <text|json>]\n  comments clear-resolved <manuscript> [--format <text|json>]\n  comments sync-anchors <manuscript> --input <path|-> [--format <text|json>]\n`
   );
 }
 
@@ -2020,453 +2021,32 @@ function parseStegoCommentsAppendix(
   relativePath: string,
   bodyStartLine: number
 ): { bodyWithoutComments: string; comments: ParsedCommentThread[]; issues: Issue[] } {
-  const lineEnding = body.includes("\r\n") ? "\r\n" : "\n";
-  const lines = body.split(/\r?\n/);
-  const startMarker = "<!-- stego-comments:start -->";
-  const endMarker = "<!-- stego-comments:end -->";
-  const issues: Issue[] = [];
-
-  const startIndexes = findTrimmedLineIndexes(lines, startMarker);
-  const endIndexes = findTrimmedLineIndexes(lines, endMarker);
-
-  if (startIndexes.length === 0 && endIndexes.length === 0) {
-    return { bodyWithoutComments: body, comments: [], issues };
-  }
-
-  if (startIndexes.length !== 1 || endIndexes.length !== 1) {
-    if (startIndexes.length !== 1) {
-      issues.push(
-        makeIssue(
-          "error",
-          "comments",
-          `Expected exactly one '${startMarker}' marker.`,
-          relativePath
-        )
-      );
-    }
-    if (endIndexes.length !== 1) {
-      issues.push(
-        makeIssue(
-          "error",
-          "comments",
-          `Expected exactly one '${endMarker}' marker.`,
-          relativePath
-        )
-      );
-    }
-    return { bodyWithoutComments: body, comments: [], issues };
-  }
-
-  const start = startIndexes[0];
-  const end = endIndexes[0];
-  if (end <= start) {
-    issues.push(
-      makeIssue(
-        "error",
-        "comments",
-        `'${endMarker}' must appear after '${startMarker}'.`,
-        relativePath,
-        bodyStartLine + end
-      )
-    );
-    return { bodyWithoutComments: body, comments: [], issues };
-  }
-
-  const blockLines = lines.slice(start + 1, end);
-  const comments = parseStegoCommentThreads(blockLines, relativePath, bodyStartLine + start + 1, issues);
-
-  let removeStart = start;
-  if (removeStart > 0 && lines[removeStart - 1].trim().length === 0) {
-    removeStart -= 1;
-  }
-
-  const kept = [...lines.slice(0, removeStart), ...lines.slice(end + 1)];
-  while (kept.length > 0 && kept[kept.length - 1].trim().length === 0) {
-    kept.pop();
-  }
+  const parsed = parseCommentAppendix(body);
+  const issues = parsed.errors.map((error) => parseCommentIssueFromParserError(error, relativePath, bodyStartLine));
+  const comments = parsed.comments.map((comment) => ({
+    id: comment.id,
+    resolved: comment.status === "resolved",
+    thread: comment.thread
+  }));
 
   return {
-    bodyWithoutComments: kept.join(lineEnding),
+    bodyWithoutComments: parsed.contentWithoutComments,
     comments,
     issues
   };
 }
 
-function parseStegoCommentThreads(
-  lines: string[],
-  relativePath: string,
-  baseLine: number,
-  issues: Issue[]
-): ParsedCommentThread[] {
-  const comments: ParsedCommentThread[] = [];
-
-  let index = 0;
-  while (index < lines.length) {
-    const trimmed = lines[index].trim();
-    if (!trimmed) {
-      index += 1;
-      continue;
-    }
-
-    const id = parseCommentThreadDelimiter(trimmed);
-    if (!id) {
-      issues.push(
-        makeIssue(
-          "error",
-          "comments",
-          "Invalid comments appendix line. Expected comment delimiter '<!-- comment: CMT-0001 -->'.",
-          relativePath,
-          baseLine + index
-        )
-      );
-      index += 1;
-      continue;
-    }
-
-    index += 1;
-    const rowLines: string[] = [];
-    const rowLineNumbers: number[] = [];
-    while (index < lines.length) {
-      const nextTrimmed = lines[index].trim();
-      if (parseCommentThreadDelimiter(nextTrimmed)) {
-        break;
-      }
-      rowLines.push(lines[index]);
-      rowLineNumbers.push(baseLine + index);
-      index += 1;
-    }
-
-    let resolved: boolean | undefined;
-    let sawMeta64 = false;
-    const thread: string[] = [];
-    let rowIndex = 0;
-
-    while (rowIndex < rowLines.length) {
-      const rawRow = rowLines[rowIndex];
-      const lineNumber = rowLineNumbers[rowIndex];
-      const trimmedRow = rawRow.trim();
-      if (!trimmedRow) {
-        rowIndex += 1;
-        continue;
-      }
-
-      if (thread.length > 0) {
-        issues.push(
-          makeIssue(
-            "error",
-            "comments",
-            `Multiple message blocks found for ${id}. Create a new CMT id for each reply.`,
-            relativePath,
-            lineNumber
-          )
-        );
-        break;
-      }
-
-      if (!sawMeta64) {
-        const metaMatch = trimmedRow.match(/^<!--\s*meta64:\s*(\S+)\s*-->\s*$/);
-        if (!metaMatch) {
-          issues.push(
-            makeIssue(
-              "error",
-              "comments",
-              `Invalid comment metadata row '${trimmedRow}'. Expected '<!-- meta64: <base64url-json> -->'.`,
-              relativePath,
-              lineNumber
-            )
-          );
-          rowIndex += 1;
-          continue;
-        }
-
-        sawMeta64 = true;
-        const decoded = decodeCommentMeta64(metaMatch[1], id, relativePath, lineNumber, issues);
-        if (decoded) {
-          resolved = decoded.resolved;
-        }
-        rowIndex += 1;
-        continue;
-      }
-
-      const headerQuote = extractQuotedLine(rawRow);
-      if (headerQuote === undefined) {
-        issues.push(
-          makeIssue(
-            "error",
-            "comments",
-            `Invalid thread header '${trimmedRow}'. Expected blockquote header like '> _timestamp — author_'.`,
-            relativePath,
-            lineNumber
-          )
-        );
-        rowIndex += 1;
-        continue;
-      }
-
-      const header = parseThreadHeader(headerQuote);
-      if (!header) {
-        issues.push(
-          makeIssue(
-            "error",
-            "comments",
-            `Invalid thread header '${headerQuote.trim()}'. Expected '> _timestamp — author_'.`,
-            relativePath,
-            lineNumber
-          )
-        );
-        rowIndex += 1;
-        continue;
-      }
-
-      rowIndex += 1;
-      while (rowIndex < rowLines.length) {
-        const separatorRaw = rowLines[rowIndex];
-        const separatorTrimmed = separatorRaw.trim();
-        if (!separatorTrimmed) {
-          rowIndex += 1;
-          continue;
-        }
-
-        const separatorQuote = extractQuotedLine(separatorRaw);
-        if (separatorQuote !== undefined && separatorQuote.trim().length === 0) {
-          rowIndex += 1;
-        }
-        break;
-      }
-
-      const messageLines: string[] = [];
-      while (rowIndex < rowLines.length) {
-        const messageRaw = rowLines[rowIndex];
-        const messageLineNumber = rowLineNumbers[rowIndex];
-        const messageTrimmed = messageRaw.trim();
-        if (!messageTrimmed) {
-          rowIndex += 1;
-          if (messageLines.length > 0) {
-            break;
-          }
-          continue;
-        }
-
-        const messageQuote = extractQuotedLine(messageRaw);
-        if (messageQuote === undefined) {
-          issues.push(
-            makeIssue(
-              "error",
-              "comments",
-              `Invalid thread line '${messageTrimmed}'. Expected blockquote content starting with '>'.`,
-              relativePath,
-              messageLineNumber
-            )
-          );
-          rowIndex += 1;
-          if (messageLines.length > 0) {
-            break;
-          }
-          continue;
-        }
-
-        if (parseThreadHeader(messageQuote)) {
-          break;
-        }
-
-        messageLines.push(messageQuote);
-        rowIndex += 1;
-      }
-
-      while (messageLines.length > 0 && messageLines[messageLines.length - 1].trim().length === 0) {
-        messageLines.pop();
-      }
-
-      if (messageLines.length === 0) {
-        issues.push(
-          makeIssue(
-            "error",
-            "comments",
-            `Thread entry for comment ${id} is missing message text.`,
-            relativePath,
-            lineNumber
-          )
-        );
-        continue;
-      }
-
-      const message = messageLines.join("\n").trim();
-      thread.push(`${header.timestamp} | ${header.author} | ${message}`);
-    }
-
-    if (!sawMeta64) {
-      issues.push(
-        makeIssue(
-          "error",
-          "comments",
-          `Comment ${id} is missing metadata row ('<!-- meta64: <base64url-json> -->').`,
-          relativePath
-        )
-      );
-      resolved = false;
-    }
-
-    if (thread.length === 0) {
-      issues.push(
-        makeIssue(
-          "error",
-          "comments",
-          `Comment ${id} is missing valid blockquote thread entries.`,
-          relativePath
-        )
-      );
-    }
-
-    comments.push({ id, resolved: Boolean(resolved), thread });
+function parseCommentIssueFromParserError(error: string, relativePath: string, bodyStartLine: number): Issue {
+  const lineMatch = error.match(/^Line\\s+(\\d+):\\s+([\\s\\S]+)$/);
+  if (!lineMatch) {
+    return makeIssue("error", "comments", error, relativePath);
   }
 
-  return comments;
-}
-
-function parseCommentThreadDelimiter(line: string): string | undefined {
-  const markerMatch = line.match(/^<!--\s*comment:\s*(CMT-\d{4,})\s*-->\s*$/i);
-  if (markerMatch?.[1]) {
-    return markerMatch[1].toUpperCase();
-  }
-
-  const legacyHeadingMatch = line.match(/^###\s+(CMT-\d{4,})\s*$/i);
-  if (legacyHeadingMatch?.[1]) {
-    return legacyHeadingMatch[1].toUpperCase();
-  }
-
-  return undefined;
-}
-
-function decodeCommentMeta64(
-  encoded: string,
-  commentId: string,
-  relativePath: string,
-  lineNumber: number,
-  issues: Issue[]
-): { resolved: boolean } | undefined {
-  let rawJson = "";
-  try {
-    rawJson = Buffer.from(encoded, "base64url").toString("utf8");
-  } catch {
-    issues.push(
-      makeIssue(
-        "error",
-        "comments",
-        `Invalid meta64 payload for comment ${commentId}; expected base64url-encoded JSON.`,
-        relativePath,
-        lineNumber
-      )
-    );
-    return undefined;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(rawJson);
-  } catch {
-    issues.push(
-      makeIssue(
-        "error",
-        "comments",
-        `Invalid meta64 JSON for comment ${commentId}.`,
-        relativePath,
-        lineNumber
-      )
-    );
-    return undefined;
-  }
-
-  if (!isPlainObject(parsed)) {
-    issues.push(
-      makeIssue(
-        "error",
-        "comments",
-        `Invalid meta64 object for comment ${commentId}.`,
-        relativePath,
-        lineNumber
-      )
-    );
-    return undefined;
-  }
-
-  const allowedKeys = new Set([
-    "status",
-    "created_at",
-    "timezone",
-    "timezone_offset_minutes",
-    "paragraph_index",
-    "excerpt_start_line",
-    "excerpt_start_col",
-    "excerpt_end_line",
-    "excerpt_end_col",
-    "anchor",
-    "excerpt",
-    "signature"
-  ]);
-  for (const key of Object.keys(parsed)) {
-    if (!allowedKeys.has(key)) {
-      issues.push(
-        makeIssue(
-          "error",
-          "comments",
-          `meta64 for comment ${commentId} contains unsupported key '${key}'.`,
-          relativePath,
-          lineNumber
-        )
-      );
-      return undefined;
-    }
-  }
-
-  const status = typeof parsed.status === "string" ? parsed.status.trim().toLowerCase() : "";
-  if (status !== "open" && status !== "resolved") {
-    issues.push(
-      makeIssue(
-        "error",
-        "comments",
-        `meta64 for comment ${commentId} must include status 'open' or 'resolved'.`,
-        relativePath,
-        lineNumber
-      )
-    );
-    return undefined;
-  }
-
-  return { resolved: status === "resolved" };
-}
-
-function extractQuotedLine(raw: string): string | undefined {
-  const quoteMatch = raw.match(/^\s*>\s?(.*)$/);
-  if (!quoteMatch) {
-    return undefined;
-  }
-
-  return quoteMatch[1];
-}
-
-function parseThreadHeader(value: string): { timestamp: string; author: string } | undefined {
-  const match = value.trim().match(/^_(.+?)\s*(?:—|\|)\s*(.+?)_\s*$/);
-  if (!match) {
-    return undefined;
-  }
-
-  const timestamp = match[1].trim();
-  const author = match[2].trim();
-  if (!timestamp || !author) {
-    return undefined;
-  }
-
-  return { timestamp, author };
-}
-
-function findTrimmedLineIndexes(lines: string[], marker: string): number[] {
-  const indexes: number[] = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    if (lines[index].trim() === marker) {
-      indexes.push(index);
-    }
-  }
-  return indexes;
+  const relativeLine = Number.parseInt(lineMatch[1], 10);
+  const absoluteLine = Number.isFinite(relativeLine)
+    ? bodyStartLine + relativeLine - 1
+    : undefined;
+  return makeIssue("error", "comments", lineMatch[2], relativePath, absoluteLine);
 }
 
 function coerceMetadataValue(value: string): MetadataValue {
