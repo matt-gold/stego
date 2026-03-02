@@ -22,7 +22,7 @@ I created Stego with my own needs in mind. As a software developer by trade, I w
 - **Spine**: Your project reference system (characters, locations, sources, etc.)
   - This idea is sometimes called a "Story Bible" in fiction-oriented apps, but Stego Spine works equally well for glossaries, academic reference tracking, etc.   
 - **Manuscript**: Your manuscript consists of all the collection of markdown files in your `/manuscript` directory. A manuscript file usually containing a single scene or section. These get compiled together by the build and can export to multiple doc formats. File system order determines the order these get appended in compilation, so it is recommended to follow the convention `###-scene-name.md` to allow easy reordering.
-- **Identifier**: A unique string that creates a structural reference to a metadata or spine entry wherever it appears (for example `CHAR-MARY`, `CMT-001`)
+- **Identifier**: A unique string used for inline references and comments where applicable (for example `CMT-0001`).
 - **Structural Metadata**: special metadata keys that tell the compiler how to append manuscript files during the build. For example, to control how chapter headings and page breaks get inserted in the exported manuscript.
 - **Project**: A directory with a `stego-project.json` and `/manuscripts` that can be compiled and result in one document. Vscode should be opened at the project directory when using stego extension.
 - **Workspace**: The Stego workspace contains all stego projects and global configuration shared by projects. This provides a monorepo-like workflow to your stego projects when combined with git.
@@ -36,10 +36,6 @@ Stego looks for a `stego-project.json` file starting from the active file's dire
 
 - `title` or `name`
 - `requiredMetadata` (array of frontmatter keys)
-- `spineCategories[]`
-  - `key` (metadata key used in manuscripts)
-  - `prefix` (identifier prefix, uppercased internally)
-  - `notesFile` (optional path to the Spine category note file)
 - `compileStructure.levels[]`
   - `key`
   - `label`
@@ -50,9 +46,13 @@ Stego validates this file and reports non-fatal problems.
 
 ## Spine Entry Discovery
 
-Stego discovers Spine entries by scanning your Spine category Markdown files using the prefixes defined in `stego-project.json` (`spineCategories[]`).
+Stego discovers Spine entries from directory structure:
 
-Use entry headings for identifiers (for example `## LOC-HOTELDIEU`) and optional inline `label:` metadata for the display name shown in the Spine tab.
+- categories are inferred from `spine/<category>/`
+- category metadata lives in `spine/<category>/_category.md`
+- entries are markdown files under each category directory (nested files are supported)
+
+Entry metadata uses the same frontmatter format as manuscript files.
 
 ## Project Scripts the Extension Calls
 

@@ -35,8 +35,8 @@ export async function runNewProjectWorkflow(): Promise<WorkflowRunResult> {
     workspaceRoot,
     {
       scriptName: 'new-project',
-      scriptArgs: ['--project', projectId],
-      stegoArgs: ['new-project', '--project', projectId],
+      scriptArgs: ['--project', projectId, '--prose-font', proseFontChoice ? 'yes' : 'no'],
+      stegoArgs: ['new-project', '--project', projectId, '--prose-font', proseFontChoice ? 'yes' : 'no'],
       actionLabel: 'Create New Stego Project'
     }
   );
@@ -70,16 +70,6 @@ export async function runNewProjectWorkflow(): Promise<WorkflowRunResult> {
 
   const projectsDir = await readProjectsDir(workspaceRoot);
   const projectDir = path.join(workspaceRoot, projectsDir, projectId);
-  if (!proseFontChoice) {
-    try {
-      await removeProjectSettingsFile(projectDir);
-    } catch (error) {
-      const message = errorToMessage(error);
-      void vscode.window.showWarningMessage(
-        `Project was created, but could not remove prose settings: ${message}`
-      );
-    }
-  }
 
   const action = await vscode.window.showInformationMessage(
     proseFontChoice
@@ -170,28 +160,5 @@ async function readProjectsDir(workspaceRoot: string): Promise<string> {
     return projectsDir.length > 0 ? projectsDir : DEFAULT_PROJECTS_DIR;
   } catch {
     return DEFAULT_PROJECTS_DIR;
-  }
-}
-
-async function removeProjectSettingsFile(projectDir: string): Promise<void> {
-  const settingsPath = path.join(projectDir, '.vscode', 'settings.json');
-  try {
-    await fs.unlink(settingsPath);
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== 'ENOENT') {
-      throw error;
-    }
-    return;
-  }
-
-  const vscodeDir = path.join(projectDir, '.vscode');
-  try {
-    const entries = await fs.readdir(vscodeDir);
-    if (entries.length === 0) {
-      await fs.rmdir(vscodeDir);
-    }
-  } catch {
-    // no-op
   }
 }

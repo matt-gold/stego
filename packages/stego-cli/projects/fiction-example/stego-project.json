@@ -20,22 +20,5 @@
         "pageBreak": "between-groups"
       }
     ]
-  },
-  "spineCategories": [
-    {
-      "key": "characters",
-      "prefix": "CHAR",
-      "notesFile": "characters.md"
-    },
-    {
-      "key": "locations",
-      "prefix": "LOC",
-      "notesFile": "locations.md"
-    },
-    {
-      "key": "sources",
-      "prefix": "SRC",
-      "notesFile": "sources.md"
-    }
-  ]
+  }
 }

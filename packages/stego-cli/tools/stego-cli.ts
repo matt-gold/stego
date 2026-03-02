@@ -13,6 +13,9 @@ import type { ExportFormat, Exporter } from "./exporters/exporter-types.ts";
 import { parseCommentAppendix } from "./comments/comment-domain.ts";
 import { runCommentsCommand } from "./comments/comments-command.ts";
 import { CommentsCommandError } from "./comments/errors.ts";
+import { runMetadataCommand } from "./metadata/metadata-command.ts";
+import { runSpineCommand } from "./spine/spine-command.ts";
+import { readSpineCatalog } from "./spine/spine-domain.ts";
 
 type StageName = "draft" | "revise" | "line-edit" | "proof" | "final";
 type IssueLevel = "error" | "warning";
@@ -80,9 +83,7 @@ interface CompileStructureLevel {
 
 interface SpineCategory {
   key: string;
-  prefix: string;
-  notesFile: string;
-  idPattern: RegExp;
+  entries: Set<string>;
 }
 
 interface ProjectContext {
@@ -103,7 +104,7 @@ interface ChapterEntry {
   title: string;
   order: number | null;
   status: string;
-  referenceIds: string[];
+  referenceKeysByCategory: Record<string, string[]>;
   groupValues: Record<string, string>;
   metadata: Metadata;
   body: string;
@@ -117,7 +118,8 @@ interface ManuscriptOrderEntry {
 }
 
 interface SpineState {
-  ids: Set<string>;
+  categories: SpineCategory[];
+  entriesByCategory: Map<string, Set<string>>;
   issues: Issue[];
 }
 
@@ -143,11 +145,6 @@ interface ParsedCommentThread {
   id: string;
   resolved: boolean;
   thread: string[];
-}
-
-interface SpineSchema {
-  categories: SpineCategory[];
-  inlineIdRegex: RegExp | null;
 }
 
 interface WorkspaceContext {
@@ -264,6 +261,13 @@ void main();
 async function main(): Promise<void> {
   const { command, options } = parseArgs(process.argv.slice(2));
 
+  if (command === "version" || command === "--version" || command === "-v") {
+    const cliPackage = readJson<Record<string, unknown>>(path.join(packageRoot, "package.json"));
+    const version = typeof cliPackage.version === "string" ? cliPackage.version : "0.0.0";
+    console.log(version);
+    return;
+  }
+
   if (!command || command === "help" || command === "--help" || command === "-h") {
     printUsage();
     return;
@@ -280,7 +284,12 @@ async function main(): Promise<void> {
         return;
       case "new-project":
         activateWorkspace(options);
-        await createProject(readStringOption(options, "project"), readStringOption(options, "title"));
+        await createProject({
+          projectId: readStringOption(options, "project"),
+          title: readStringOption(options, "title"),
+          proseFont: readStringOption(options, "prose-font"),
+          outputFormat: readStringOption(options, "format")
+        });
         return;
       case "new": {
         activateWorkspace(options);
@@ -290,7 +299,25 @@ async function main(): Promise<void> {
           readStringOption(options, "i"),
           readStringOption(options, "filename")
         );
-        logLine(`Created manuscript: ${createdPath}`);
+        const outputFormat = parseTextOrJsonFormat(readStringOption(options, "format"));
+        if (outputFormat === "json") {
+          process.stdout.write(
+            `${JSON.stringify(
+              {
+                ok: true,
+                operation: "new",
+                result: {
+                  projectId: project.id,
+                  filePath: createdPath
+                }
+              },
+              null,
+              2
+            )}\n`
+          );
+        } else {
+          logLine(`Created manuscript: ${createdPath}`);
+        }
         return;
       }
       case "validate": {
@@ -358,6 +385,20 @@ async function main(): Promise<void> {
       case "comments":
         await runCommentsCommand(options, process.cwd());
         return;
+      case "metadata":
+        await runMetadataCommand(options, process.cwd());
+        return;
+      case "spine": {
+        activateWorkspace(options);
+        const project = resolveProject(readStringOption(options, "project"));
+        runSpineCommand(options, {
+          id: project.id,
+          root: project.root,
+          spineDir: project.spineDir,
+          meta: project.meta
+        });
+        return;
+      }
       default:
         throw new Error(`Unknown command '${command}'. Run with 'help' for usage.`);
     }
@@ -389,6 +430,30 @@ function readBooleanOption(options: ParsedOptions, key: string): boolean {
   return options[key] === true;
 }
 
+function parseTextOrJsonFormat(raw: string | undefined): "text" | "json" {
+  if (!raw || raw === "text") {
+    return "text";
+  }
+  if (raw === "json") {
+    return "json";
+  }
+  throw new Error("Invalid --format value. Use 'text' or 'json'.");
+}
+
+function parseProseFontMode(raw: string | undefined): "yes" | "no" | "prompt" {
+  const normalized = (raw || "prompt").trim().toLowerCase();
+  if (normalized === "yes" || normalized === "true" || normalized === "y") {
+    return "yes";
+  }
+  if (normalized === "no" || normalized === "false" || normalized === "n") {
+    return "no";
+  }
+  if (normalized === "prompt" || normalized === "ask") {
+    return "prompt";
+  }
+  throw new Error("Invalid --prose-font value. Use 'yes', 'no', or 'prompt'.");
+}
+
 function activateWorkspace(options: ParsedOptions): WorkspaceContext {
   const workspace = resolveWorkspaceContext(readStringOption(options, "root"));
   repoRoot = workspace.repoRoot;
@@ -402,130 +467,6 @@ function isStageName(value: string): value is StageName {
 
 function isExportFormat(value: string): value is ExportFormat {
   return value === "md" || value === "docx" || value === "pdf" || value === "epub";
-}
-
-function resolveSpineSchema(project: ProjectContext): { schema: SpineSchema; issues: Issue[] } {
-  const issues: Issue[] = [];
-  const projectFile = path.relative(repoRoot, path.join(project.root, "stego-project.json"));
-  const rawCategories = project.meta.spineCategories;
-
-  if (rawCategories == null) {
-    return { schema: { categories: [], inlineIdRegex: null }, issues };
-  }
-
-  if (!Array.isArray(rawCategories)) {
-    issues.push(
-      makeIssue(
-        "error",
-        "metadata",
-        "Project 'spineCategories' must be an array when defined.",
-        projectFile
-      )
-    );
-    return { schema: { categories: [], inlineIdRegex: null }, issues };
-  }
-
-  const categories: SpineCategory[] = [];
-  const keySet = new Set<string>();
-  const prefixSet = new Set<string>();
-  const notesSet = new Set<string>();
-
-  for (const [index, categoryEntry] of rawCategories.entries()) {
-    if (!isPlainObject(categoryEntry)) {
-      issues.push(
-        makeIssue(
-          "error",
-          "metadata",
-          `Invalid spineCategories entry at index ${index}. Expected object with key, prefix, notesFile.`,
-          projectFile
-        )
-      );
-      continue;
-    }
-
-    const key = typeof categoryEntry.key === "string" ? categoryEntry.key.trim() : "";
-    const prefix = typeof categoryEntry.prefix === "string" ? categoryEntry.prefix.trim() : "";
-    const notesFile = typeof categoryEntry.notesFile === "string" ? categoryEntry.notesFile.trim() : "";
-
-    if (!/^[a-z][a-z0-9_-]*$/.test(key)) {
-      issues.push(
-        makeIssue(
-          "error",
-          "metadata",
-          `Invalid spine category key '${key || "<empty>"}'. Use lowercase key names like 'cast' or 'incidents'.`,
-          projectFile
-        )
-      );
-      continue;
-    }
-
-    if (!/^[A-Z][A-Z0-9-]*$/.test(prefix)) {
-      issues.push(
-        makeIssue(
-          "error",
-          "metadata",
-          `Invalid spine category prefix '${prefix || "<empty>"}'. Use uppercase prefixes like 'CHAR' or 'STATUTE'.`,
-          projectFile
-        )
-      );
-      continue;
-    }
-
-    if (prefix.toUpperCase() === RESERVED_COMMENT_PREFIX) {
-      issues.push(
-        makeIssue(
-          "error",
-          "metadata",
-          `Invalid spine category prefix '${prefix}'. '${RESERVED_COMMENT_PREFIX}' is reserved for Stego comment IDs (e.g. CMT-0001).`,
-          projectFile
-        )
-      );
-      continue;
-    }
-
-    if (!/^[A-Za-z0-9._-]+\.md$/.test(notesFile)) {
-      issues.push(
-        makeIssue(
-          "error",
-          "metadata",
-          `Invalid notesFile '${notesFile || "<empty>"}'. Use markdown filenames like 'characters.md' (resolved in spine/).`,
-          projectFile
-        )
-      );
-      continue;
-    }
-
-    if (keySet.has(key)) {
-      issues.push(makeIssue("error", "metadata", `Duplicate spine category key '${key}'.`, projectFile));
-      continue;
-    }
-    if (prefixSet.has(prefix)) {
-      issues.push(makeIssue("error", "metadata", `Duplicate spine category prefix '${prefix}'.`, projectFile));
-      continue;
-    }
-    if (notesSet.has(notesFile)) {
-      issues.push(makeIssue("error", "metadata", `Duplicate spine category notesFile '${notesFile}'.`, projectFile));
-      continue;
-    }
-
-    keySet.add(key);
-    prefixSet.add(prefix);
-    notesSet.add(notesFile);
-    categories.push({
-      key,
-      prefix,
-      notesFile,
-      idPattern: new RegExp(`^${escapeRegex(prefix)}-[A-Z0-9-]+$`)
-    });
-  }
-
-  return {
-    schema: {
-      categories,
-      inlineIdRegex: buildInlineIdRegex(categories)
-    },
-    issues
-  };
 }
 
 function resolveRequiredMetadata(
@@ -722,19 +663,6 @@ function resolveCompileStructure(project: ProjectContext): { levels: CompileStru
   }
 
   return { levels, issues };
-}
-
-function buildInlineIdRegex(categories: SpineCategory[]): RegExp | null {
-  if (categories.length === 0) {
-    return null;
-  }
-
-  const prefixes = categories.map((category) => escapeRegex(category.prefix)).join("|");
-  return new RegExp(`\\b(?:${prefixes})-[A-Z0-9-]+\\b`, "g");
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -1145,6 +1073,8 @@ function writeInitRootPackageJson(targetRoot: string): void {
       "list-projects": "stego list-projects",
       "new-project": "stego new-project",
       new: "stego new",
+      spine: "stego spine",
+      metadata: "stego metadata",
       lint: "stego lint",
       validate: "stego validate",
       build: "stego build",
@@ -1163,7 +1093,7 @@ function writeInitRootPackageJson(targetRoot: string): void {
 
 function printUsage() {
   console.log(
-    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--root <path>]\n  new --project <project-id> [--i <prefix>|-i <prefix>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n  comments read <manuscript> [--format <text|json>]\n  comments add <manuscript> [--message <text> | --input <path|->] [--author <name>] [--start-line <n> --start-col <n> --end-line <n> --end-col <n>] [--cursor-line <n>] [--format <text|json>]\n  comments reply <manuscript> --comment-id <CMT-####> [--message <text> | --input <path|->] [--author <name>] [--format <text|json>]\n  comments set-status <manuscript> --comment-id <CMT-####> --status <open|resolved> [--thread] [--format <text|json>]\n  comments delete <manuscript> --comment-id <CMT-####> [--format <text|json>]\n  comments clear-resolved <manuscript> [--format <text|json>]\n  comments sync-anchors <manuscript> --input <path|-> [--format <text|json>]\n`
+    `Stego CLI\n\nCommands:\n  init [--force]\n  list-projects [--root <path>]\n  new-project --project <project-id> [--title <title>] [--prose-font <yes|no|prompt>] [--format <text|json>] [--root <path>]\n  new --project <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--format <text|json>] [--root <path>]\n  validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]\n  build --project <project-id> [--root <path>]\n  check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]\n  lint --project <project-id> [--manuscript|--spine] [--root <path>]\n  export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]\n  spine read --project <project-id> [--format <text|json>] [--root <path>]\n  spine new-category --project <project-id> --key <category> [--label <label>] [--require-metadata] [--format <text|json>] [--root <path>]\n  spine new --project <project-id> --category <category> [--filename <relative-path>] [--format <text|json>] [--root <path>]\n  metadata read <markdown-path> [--format <text|json>]\n  metadata apply <markdown-path> --input <path|-> [--format <text|json>]\n  comments read <manuscript> [--format <text|json>]\n  comments add <manuscript> [--message <text> | --input <path|->] [--author <name>] [--start-line <n> --start-col <n> --end-line <n> --end-col <n>] [--cursor-line <n>] [--format <text|json>]\n  comments reply <manuscript> --comment-id <CMT-####> [--message <text> | --input <path|->] [--author <name>] [--format <text|json>]\n  comments set-status <manuscript> --comment-id <CMT-####> --status <open|resolved> [--thread] [--format <text|json>]\n  comments delete <manuscript> --comment-id <CMT-####> [--format <text|json>]\n  comments clear-resolved <manuscript> [--format <text|json>]\n  comments sync-anchors <manuscript> --input <path|-> [--format <text|json>]\n`
   );
 }
 
@@ -1180,8 +1110,13 @@ function listProjects(): void {
   }
 }
 
-async function createProject(projectIdOption?: string, titleOption?: string): Promise<void> {
-  const projectId = (projectIdOption || "").trim();
+async function createProject(options: {
+  projectId?: string;
+  title?: string;
+  proseFont?: string;
+  outputFormat?: string;
+}): Promise<void> {
+  const projectId = (options.projectId || "").trim();
   if (!projectId) {
     throw new Error("Project id is required. Use --project <project-id>.");
   }
@@ -1205,7 +1140,7 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
 
   const projectJson: Record<string, unknown> = {
     id: projectId,
-    title: titleOption?.trim() || toDisplayTitle(projectId),
+    title: options.title?.trim() || toDisplayTitle(projectId),
     requiredMetadata: ["status"],
     compileStructure: {
       levels: [
@@ -1218,14 +1153,7 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
           pageBreak: "between-groups"
         }
       ]
-    },
-    spineCategories: [
-      {
-        key: "characters",
-        prefix: "CHAR",
-        notesFile: "characters.md"
-      }
-    ]
+    }
   };
 
   const projectJsonPath = path.join(projectRoot, "stego-project.json");
@@ -1236,6 +1164,8 @@ async function createProject(projectIdOption?: string, titleOption?: string): Pr
     private: true,
     scripts: {
       new: "npx --no-install stego new",
+      "spine:new": "npx --no-install stego spine new",
+      "spine:new-category": "npx --no-install stego spine new-category",
       lint: "npx --no-install stego lint",
       validate: "npx --no-install stego validate",
       build: "npx --no-install stego build",
@@ -1262,20 +1192,74 @@ Start writing here.
     "utf8"
   );
 
-  const charactersNotesPath = path.join(spineDir, "characters.md");
-  fs.writeFileSync(charactersNotesPath, "# Characters\n\n", "utf8");
+  const charactersDir = path.join(spineDir, "characters");
+  fs.mkdirSync(charactersDir, { recursive: true });
+  const charactersCategoryPath = path.join(charactersDir, "_category.md");
+  fs.writeFileSync(
+    charactersCategoryPath,
+    `---
+label: Characters
+---
+
+# Characters
+
+`,
+    "utf8"
+  );
+
+  const charactersEntryPath = path.join(charactersDir, "example-character.md");
+  fs.writeFileSync(
+    charactersEntryPath,
+    `# Example Character
+
+`,
+    "utf8"
+  );
+
   const projectExtensionsPath = path.join(projectRoot, ".vscode", "extensions.json");
   ensureProjectExtensionsRecommendations(projectRoot);
   let projectSettingsPath: string | null = null;
-  const enableProseFont = await promptYesNo(PROSE_FONT_PROMPT, true);
+  const proseFontMode = parseProseFontMode(options.proseFont);
+  const enableProseFont = proseFontMode === "prompt"
+    ? await promptYesNo(PROSE_FONT_PROMPT, true)
+    : proseFontMode === "yes";
   if (enableProseFont) {
     projectSettingsPath = writeProseEditorSettingsForProject(projectRoot);
   }
+  const outputFormat = parseTextOrJsonFormat(options.outputFormat);
+  if (outputFormat === "json") {
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          ok: true,
+          operation: "new-project",
+          result: {
+            projectId,
+            projectPath: path.relative(repoRoot, projectRoot),
+            files: [
+              path.relative(repoRoot, projectJsonPath),
+              path.relative(repoRoot, projectPackagePath),
+              path.relative(repoRoot, starterManuscriptPath),
+              path.relative(repoRoot, charactersCategoryPath),
+              path.relative(repoRoot, charactersEntryPath),
+              path.relative(repoRoot, projectExtensionsPath),
+              ...(projectSettingsPath ? [path.relative(repoRoot, projectSettingsPath)] : [])
+            ]
+          }
+        },
+        null,
+        2
+      )}\n`
+    );
+    return;
+  }
+
   logLine(`Created project: ${path.relative(repoRoot, projectRoot)}`);
   logLine(`- ${path.relative(repoRoot, projectJsonPath)}`);
   logLine(`- ${path.relative(repoRoot, projectPackagePath)}`);
   logLine(`- ${path.relative(repoRoot, starterManuscriptPath)}`);
-  logLine(`- ${path.relative(repoRoot, charactersNotesPath)}`);
+  logLine(`- ${path.relative(repoRoot, charactersCategoryPath)}`);
+  logLine(`- ${path.relative(repoRoot, charactersEntryPath)}`);
   logLine(`- ${path.relative(repoRoot, projectExtensionsPath)}`);
   if (projectSettingsPath) {
     logLine(`- ${path.relative(repoRoot, projectSettingsPath)}`);
@@ -1523,13 +1507,24 @@ function inspectProject(
   options: InspectProjectOptions = {}
 ): ProjectInspection {
   const issues: Issue[] = [];
-  const emptySpineState: SpineState = { ids: new Set<string>(), issues: [] };
-  const spineSchema = resolveSpineSchema(project);
+  const emptySpineState: SpineState = { categories: [], entriesByCategory: new Map<string, Set<string>>(), issues: [] };
   const requiredMetadataState = resolveRequiredMetadata(project, runtimeConfig);
   const compileStructureState = resolveCompileStructure(project);
-  issues.push(...spineSchema.issues);
   issues.push(...requiredMetadataState.issues);
   issues.push(...compileStructureState.issues);
+  if (project.meta.spineCategories !== undefined) {
+    issues.push(
+      makeIssue(
+        "error",
+        "metadata",
+        "Legacy 'spineCategories' in stego-project.json is no longer supported. Use spine/ category directories and files.",
+        path.relative(repoRoot, path.join(project.root, "stego-project.json"))
+      )
+    );
+  }
+
+  const spineState = readSpine(project);
+  issues.push(...spineState.issues);
 
   let chapterFiles: string[] = [];
   const onlyFile = options.onlyFile?.trim();
@@ -1590,8 +1585,7 @@ function inspectProject(
       chapterPath,
       runtimeConfig,
       requiredMetadataState.requiredMetadata,
-      spineSchema.schema.categories,
-      spineSchema.schema.inlineIdRegex,
+      spineState.categories,
       compileStructureState.levels
     )
   );
@@ -1633,11 +1627,10 @@ function inspectProject(
     return a.order - b.order;
   });
 
-  const spineState = readSpine(project.spineDir, spineSchema.schema.categories, spineSchema.schema.inlineIdRegex);
-  issues.push(...spineState.issues);
-
   for (const chapter of chapters) {
-    issues.push(...findUnknownSpineIds(chapter.referenceIds, spineState.ids, chapter.relativePath));
+    issues.push(
+      ...findUnknownSpineReferences(chapter.referenceKeysByCategory, spineState.entriesByCategory, chapter.relativePath)
+    );
   }
 
   return {
@@ -1653,7 +1646,6 @@ function parseChapter(
   runtimeConfig: WritingConfig,
   requiredMetadata: string[],
   spineCategories: SpineCategory[],
-  inlineIdRegex: RegExp | null,
   compileStructureLevels: CompileStructureLevel[]
 ): ChapterEntry {
   const relativePath = path.relative(repoRoot, chapterPath);
@@ -1714,9 +1706,8 @@ function parseChapter(
     }
   }
 
-  const referenceValidation = extractReferenceIds(metadata, relativePath, spineCategories);
+  const referenceValidation = extractReferenceKeysByCategory(metadata, relativePath, spineCategories);
   chapterIssues.push(...referenceValidation.issues);
-  chapterIssues.push(...findInlineSpineIdMentions(body, relativePath, inlineIdRegex));
   chapterIssues.push(...validateMarkdownBody(body, chapterPath));
 
   return {
@@ -1725,7 +1716,7 @@ function parseChapter(
     title,
     order,
     status,
-    referenceIds: referenceValidation.ids,
+    referenceKeysByCategory: referenceValidation.referencesByCategory,
     groupValues,
     metadata,
     body,
@@ -1796,13 +1787,13 @@ function parseOrderFromFilename(chapterPath: string, relativePath: string, issue
   return Number(match[1]);
 }
 
-function extractReferenceIds(
+function extractReferenceKeysByCategory(
   metadata: Metadata,
   relativePath: string,
   spineCategories: SpineCategory[]
-): { ids: string[]; issues: Issue[] } {
+): { referencesByCategory: Record<string, string[]>; issues: Issue[] } {
   const issues: Issue[] = [];
-  const ids = new Set<string>();
+  const referencesByCategory: Record<string, string[]> = {};
 
   for (const category of spineCategories) {
     const rawValue = metadata[category.key];
@@ -1815,13 +1806,15 @@ function extractReferenceIds(
         makeIssue(
           "error",
           "metadata",
-          `Metadata '${category.key}' must be an array, for example: [\"${category.prefix}-...\"]`,
+          `Metadata '${category.key}' must be an array of spine entry keys (for example: [\"matthaeus\"]).`,
           relativePath
         )
       );
       continue;
     }
 
+    const seen = new Set<string>();
+    const values: string[] = [];
     for (const entry of rawValue) {
       if (typeof entry !== "string") {
         issues.push(
@@ -1830,53 +1823,25 @@ function extractReferenceIds(
         continue;
       }
 
-      const id = entry.trim();
-      if (!category.idPattern.test(id)) {
+      const normalized = entry.trim();
+      if (!normalized) {
         issues.push(
-          makeIssue(
-            "error",
-            "metadata",
-            `Invalid ${category.key} reference '${id}'. Expected pattern '${category.idPattern.source}'.`,
-            relativePath
-          )
+          makeIssue("error", "metadata", `Metadata '${category.key}' contains an empty entry key.`, relativePath)
         );
         continue;
       }
-      ids.add(id);
-    }
-  }
+      if (seen.has(normalized)) {
+        continue;
+      }
 
-  return { ids: [...ids], issues };
-}
-
-function findInlineSpineIdMentions(body: string, relativePath: string, inlineIdRegex: RegExp | null): Issue[] {
-  const issues: Issue[] = [];
-  if (!inlineIdRegex) {
-    return issues;
-  }
-
-  const lines = body.split(/\r?\n/);
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const matches = lines[index].match(inlineIdRegex);
-    if (!matches) {
-      continue;
+      seen.add(normalized);
+      values.push(normalized);
     }
 
-    for (const id of matches) {
-      issues.push(
-        makeIssue(
-          "error",
-          "continuity",
-          `Inline ID '${id}' found in prose. Move canon IDs to metadata fields only.`,
-          relativePath,
-          index + 1
-        )
-      );
-    }
+    referencesByCategory[category.key] = values;
   }
 
-  return issues;
+  return { referencesByCategory, issues };
 }
 
 function parseMetadata(raw: string, chapterPath: string, required: boolean): ParseMetadataResult {
@@ -2234,59 +2199,53 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function readSpine(
-  spineDir: string,
-  spineCategories: SpineCategory[],
-  inlineIdRegex: RegExp | null
-): SpineState {
+function readSpine(project: ProjectContext): SpineState {
+  const catalog = readSpineCatalog(project.root, project.spineDir);
+  const categories: SpineCategory[] = [];
+  const entriesByCategory = new Map<string, Set<string>>();
+
+  for (const category of catalog.categories) {
+    const entries = new Set<string>(category.entries.map((entry) => entry.key));
+    categories.push({ key: category.key, entries });
+    entriesByCategory.set(category.key, entries);
+  }
+
+  const issues = catalog.issues.map((message) => makeIssue("warning", "continuity", message));
+  return { categories, entriesByCategory, issues };
+}
+
+function findUnknownSpineReferences(
+  referencesByCategory: Record<string, string[]>,
+  entriesByCategory: Map<string, Set<string>>,
+  relativePath: string
+): Issue[] {
   const issues: Issue[] = [];
-  const ids = new Set<string>();
 
-  if (spineCategories.length === 0) {
-    return { ids, issues };
-  }
-
-  if (!fs.existsSync(spineDir)) {
-    issues.push(makeIssue("warning", "continuity", `Missing spine directory: ${spineDir}`));
-    return { ids, issues };
-  }
-
-  for (const category of spineCategories) {
-    const fullPath = path.join(spineDir, category.notesFile);
-    const relativePath = path.relative(repoRoot, fullPath);
-
-    if (!fs.existsSync(fullPath)) {
+  for (const [categoryKey, values] of Object.entries(referencesByCategory)) {
+    const known = entriesByCategory.get(categoryKey);
+    if (!known) {
       issues.push(
         makeIssue(
           "warning",
           "continuity",
-          `Missing spine file '${category.notesFile}' for category '${category.key}'.`,
+          `Metadata category '${categoryKey}' has references but no matching spine category directory was found in spine/.`,
           relativePath
         )
       );
       continue;
     }
 
-    const text = fs.readFileSync(fullPath, "utf8");
-    if (!inlineIdRegex) {
-      continue;
-    }
-    const matches = text.match(inlineIdRegex) || [];
-    for (const id of matches) {
-      ids.add(id);
-    }
-  }
-
-  return { ids, issues };
-}
-
-function findUnknownSpineIds(referenceIds: string[], knownIds: Set<string>, relativePath: string): Issue[] {
-  const issues: Issue[] = [];
-
-  for (const id of referenceIds) {
-    if (!knownIds.has(id)) {
+    for (const value of values) {
+      if (known.has(value)) {
+        continue;
+      }
       issues.push(
-        makeIssue("warning", "continuity", `Metadata reference '${id}' does not exist in the spine files.`, relativePath)
+        makeIssue(
+          "warning",
+          "continuity",
+          `Metadata reference '${categoryKey}: ${value}' does not exist in spine/${categoryKey}/.`,
+          relativePath
+        )
       );
     }
   }
@@ -2353,8 +2312,17 @@ function runStageCheck(
   }
 
   if (policy.requireSpine) {
+    if (report.spineState.categories.length === 0) {
+      issues.push(
+        makeIssue(
+          "error",
+          "continuity",
+          "No spine categories found. Add at least one category under spine/<category>/ before this stage."
+        )
+      );
+    }
     for (const spineIssue of report.issues.filter((issue) => issue.category === "continuity")) {
-      if (spineIssue.message.startsWith("Missing spine file")) {
+      if (spineIssue.message.startsWith("Missing spine directory")) {
         issues.push({ ...spineIssue, level: "error" });
       }
     }
@@ -2368,7 +2336,7 @@ function runStageCheck(
   }
 
   const chapterPaths = report.chapters.map((chapter) => chapter.path);
-  const spineWords = collectSpineWordsForSpellcheck(report.spineState.ids);
+  const spineWords = collectSpineWordsForSpellcheck(report.spineState.entriesByCategory);
 
   if (policy.enforceMarkdownlint) {
     issues.push(...runMarkdownlint(project, chapterPaths, true, "manuscript"));
@@ -2578,20 +2546,31 @@ function runMarkdownlint(
   }
 }
 
-function collectSpineWordsForSpellcheck(ids: Set<string>): string[] {
+function collectSpineWordsForSpellcheck(entriesByCategory: Map<string, Set<string>>): string[] {
   const words = new Set<string>();
 
-  for (const id of ids) {
-    const parts = id
-      .split("-")
+  for (const [category, entries] of entriesByCategory) {
+    const categoryParts = category
+      .split(/[-_/]+/)
       .map((part) => part.trim())
       .filter(Boolean);
-
-    for (const part of parts.slice(1)) {
-      if (!/[A-Za-z]/.test(part)) {
-        continue;
+    for (const part of categoryParts) {
+      if (/[A-Za-z]/.test(part)) {
+        words.add(part.toLowerCase());
       }
-      words.add(part.toLowerCase());
+    }
+
+    for (const entry of entries) {
+      const entryParts = entry
+        .split(/[-_/]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+      for (const part of entryParts) {
+        if (!/[A-Za-z]/.test(part)) {
+          continue;
+        }
+        words.add(part.toLowerCase());
+      }
     }
   }
 

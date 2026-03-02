@@ -42,9 +42,12 @@ function gateStateLabel(state: 'never' | 'success' | 'failed'): string {
 
 export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, extensionUri: vscode.Uri): string {
   const nonce = randomNonce();
-  const fileTitle = getSidebarFileTitle(state.documentPath);
+  const manuscriptLabel = state.mode === 'manuscript'
+    ? state.metadataEntries.find((entry) => entry.key === 'label' && !entry.isArray)?.valueText
+    : undefined;
+  const fileTitle = getSidebarFileTitle(state.documentPath, manuscriptLabel);
   const showDocumentTab = state.showDocumentTab ?? state.hasActiveMarkdown;
-  const showMetadataEditingControls = state.mode === 'manuscript' && state.metadataEditing;
+  const showMetadataEditingControls = state.showMetadataPanel && state.metadataEditing;
   const renderReferenceCards = (references: SidebarIdentifierLink[]): string => {
     if (references.length === 0) {
       return '';
@@ -286,9 +289,6 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `${showPinnedSummary && showSecondaryTitle
         ? `<div class="item-subtext">${escapeHtml(entry.title)}</div>`
         : ''}`
-      + `${showPinnedSummary && entry.description
-        ? `<div class="metadata-value">${renderMarkdownForExplorer(entry.description, entry.sourceFilePath ?? state.documentPath)}</div>`
-        : ''}`
       + `${entry.sourceFilePath && entry.sourceLine
         ? `<div class="explorer-source-row">`
           + `<span class="tiny-label">Source</span>`
@@ -467,7 +467,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `</section>`
     : '';
 
-  const metadataPanel = state.mode === 'manuscript'
+  const metadataPanel = state.showMetadataPanel
     ? `<section class="panel metadata-panel${state.metadataCollapsed ? ' collapsed' : ''}">`
       + `<div class="panel-heading">`
       + `<h2>Metadata</h2>`
@@ -662,8 +662,8 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       ${detachedDocumentBanner}
       ${statusPanel}
       ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
-      ${state.mode === 'manuscript' ? metadataPanel : tocPanel}
-      ${state.mode === 'manuscript' ? tocPanel : ''}
+      ${metadataPanel}
+      ${tocPanel}
       ${state.enableComments ? commentsPanel : ''}
     `;
 

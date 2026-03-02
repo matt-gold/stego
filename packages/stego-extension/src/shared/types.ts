@@ -40,6 +40,7 @@ export type SidebarState = {
   enableComments: boolean;
   statusControl?: SidebarStatusControl;
   metadataEntries: SidebarMetadataEntry[];
+  showMetadataPanel: boolean;
   explorer?: SidebarExplorerPage;
   pinnedExplorers: SidebarPinnedExplorerPanel[];
   canPinAllFromFile: boolean;

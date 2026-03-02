@@ -19,32 +19,5 @@
         "pageBreak": "between-groups"
       }
     ]
-  },
-  "spineCategories": [
-    {
-      "key": "commands",
-      "prefix": "CMD",
-      "notesFile": "commands.md"
-    },
-    {
-      "key": "concepts",
-      "prefix": "CON",
-      "notesFile": "concepts.md"
-    },
-    {
-      "key": "workflows",
-      "prefix": "FLOW",
-      "notesFile": "workflows.md"
-    },
-    {
-      "key": "configuration",
-      "prefix": "CFG",
-      "notesFile": "configuration.md"
-    },
-    {
-      "key": "integrations",
-      "prefix": "INT",
-      "notesFile": "integrations.md"
-    }
-  ]
+  }
 }

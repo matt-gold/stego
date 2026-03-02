@@ -51,8 +51,8 @@ Grouping metadata can be repeated at boundaries only, because Stego inherits mis
 
 ## Spine categories
 
-Projects that use continuity tracking or concept browsing define `spineCategories` in `stego-project.json`.
+Spine V2 infers categories from directory structure under `spine/`.
 
-Each category maps a metadata key to an ID prefix and a canonical notes file in `spine/`.
+Each category lives at `spine/<category>/`, category metadata lives in `spine/<category>/_category.md`, and each entry is its own markdown file in that category directory tree.
 
-This project uses Spine categories to model documentation entities such as commands, concepts, workflows, configuration topics, and integrations.
+This project uses spine categories to model documentation entities such as commands, concepts, workflows, configuration topics, and integrations.

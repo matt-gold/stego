@@ -32,10 +32,12 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
     : '';
 
   const scriptArgs = normalizedRequestedFilename ? ['--filename', normalizedRequestedFilename] : [];
+  scriptArgs.push('--format', 'json');
   const stegoArgs = ['new', '--project', context.projectId];
   if (normalizedRequestedFilename) {
     stegoArgs.push('--filename', normalizedRequestedFilename);
   }
+  stegoArgs.push('--format', 'json');
 
   const invocation = await resolveWorkflowCommandInvocation(context, {
     scriptName: 'new',
@@ -86,13 +88,9 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
     context.projectDir,
     manuscriptFilesBefore
   );
-  const finalPath = await applyRequestedFilenameFallback(
-    resolvedPath,
-    normalizedRequestedFilename
-  );
+  const finalPath = resolvedPath;
 
   if (finalPath) {
-    await removeScaffoldHeadingFromNewManuscript(finalPath);
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(finalPath));
     suppressAutoFoldFrontmatterForDocument(document.uri);
     await vscode.window.showTextDocument(document, { preview: false });
@@ -158,6 +156,19 @@ function extractCreatedManuscriptPath(result: ScriptRunResult): string | undefin
     return undefined;
   }
 
+  try {
+    const parsed = JSON.parse(result.stdout.trim()) as {
+      ok?: boolean;
+      operation?: string;
+      result?: { filePath?: string };
+    };
+    if (parsed?.ok && parsed.operation === 'new' && typeof parsed.result?.filePath === 'string') {
+      return parsed.result.filePath;
+    }
+  } catch {
+    // fallback to legacy text parsing
+  }
+
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -191,84 +202,6 @@ async function resolveCreatedManuscriptPath(
   }
 
   return detectCreatedManuscriptPath(projectDir, manuscriptFilesBefore);
-}
-
-async function applyRequestedFilenameFallback(
-  createdPath: string | undefined,
-  requestedFilename: string
-): Promise<string | undefined> {
-  if (!createdPath || !requestedFilename) {
-    return createdPath;
-  }
-
-  const currentName = path.basename(createdPath);
-  if (currentName.toLowerCase() === requestedFilename.toLowerCase()) {
-    return createdPath;
-  }
-
-  const targetPath = path.resolve(path.join(path.dirname(createdPath), requestedFilename));
-  if (targetPath === createdPath) {
-    return createdPath;
-  }
-
-  try {
-    const existing = await fs.stat(targetPath);
-    if (existing.isFile()) {
-      void vscode.window.showWarningMessage(
-        `Created manuscript as '${currentName}', but requested '${requestedFilename}'. `
-        + `Could not apply requested name because '${requestedFilename}' already exists.`
-      );
-      return createdPath;
-    }
-  } catch {
-    // Target does not exist.
-  }
-
-  try {
-    await fs.rename(createdPath, targetPath);
-    return targetPath;
-  } catch (error) {
-    void vscode.window.showWarningMessage(
-      `Created manuscript as '${currentName}', but requested '${requestedFilename}'. `
-      + `Could not rename automatically: ${errorToMessage(error)}`
-    );
-    return createdPath;
-  }
-}
-
-async function removeScaffoldHeadingFromNewManuscript(filePath: string): Promise<void> {
-  let raw: string;
-  try {
-    raw = await fs.readFile(filePath, 'utf8');
-  } catch {
-    return;
-  }
-
-  const next = stripSingleHeadingScaffold(raw);
-  if (next === raw) {
-    return;
-  }
-
-  try {
-    await fs.writeFile(filePath, next, 'utf8');
-  } catch {
-    // no-op
-  }
-}
-
-function stripSingleHeadingScaffold(text: string): string {
-  const frontmatterMatch = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/);
-  if (!frontmatterMatch) {
-    return text;
-  }
-
-  const frontmatterBlock = frontmatterMatch[0];
-  const remainder = text.slice(frontmatterBlock.length);
-  if (!/^\r?\n# [^\r\n]+\r?\n\s*$/.test(remainder)) {
-    return text;
-  }
-
-  return `${frontmatterBlock}\n`;
 }
 
 async function resolveCreatedPath(

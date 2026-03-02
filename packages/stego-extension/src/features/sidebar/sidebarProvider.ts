@@ -21,7 +21,7 @@ import { runProjectBuildWorkflow } from '../commands/buildWorkflow';
 import { runProjectGateStageWorkflow } from '../commands/stageCheckWorkflow';
 import { runLocalValidateWorkflow } from '../commands/localValidateWorkflow';
 import { runNewManuscriptWorkflow } from '../commands/newManuscriptWorkflow';
-import type { WorkflowRunResult } from '../commands/workflowUtils';
+import { resolveStegoCommandInvocation, runCommand, type WorkflowRunResult } from '../commands/workflowUtils';
 import { openMarkdownPreviewCommand } from '../commands/openMarkdownPreview';
 import { suppressAutoFoldFrontmatterForDocument, toggleFrontmatterFold } from '../commands/frontmatterFold';
 import { refreshVisibleMarkdownDocuments } from '../diagnostics/refreshDiagnostics';
@@ -40,7 +40,10 @@ import {
 } from '../metadata/frontmatterEdit';
 import { formatMetadataValue, parseMarkdownDocument } from '../metadata/frontmatterParse';
 import { buildStatusControl } from '../metadata/statusControl';
-import { collectIdentifierOccurrencesFromLines, getIdentifierPrefix } from '../identifiers/collectIdentifiers';
+import {
+  collectIdentifierOccurrencesFromLines,
+  extractIdentifierTokensFromValue
+} from '../identifiers/collectIdentifiers';
 import { openBacklinkFile, openExternalLink, openLineInActiveDocument } from '../navigation/openTargets';
 import {
   findNearestProjectConfig,
@@ -80,7 +83,6 @@ import {
 
 type RefreshMode = 'full' | 'fast';
 type OverviewBuildResult = { overview?: SidebarOverviewState; skippedFiles: number };
-type MutableProjectCategoryConfig = { key: string; prefix: string; notesFile?: string };
 
 export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private static readonly PIN_LIMIT = SPINE_PIN_LIMIT;
@@ -633,6 +635,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments,
         statusControl,
         metadataEntries,
+        showMetadataPanel: true,
         explorerCollapsed: this.explorerCollapsed,
         explorerCanGoBack: this.canExplorerGoBack(),
         explorerCanGoForward: this.canExplorerGoForward(),
@@ -661,6 +664,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments,
         statusControl: undefined,
         metadataEntries: [],
+        showMetadataPanel: true,
         explorerCollapsed: this.explorerCollapsed,
         explorerCanGoBack: this.canExplorerGoBack(),
         explorerCanGoForward: this.canExplorerGoForward(),
@@ -735,6 +739,75 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  private buildMetadataEntriesFromFrontmatter(
+    frontmatter: Record<string, unknown>,
+    structuralOrderByKey: Map<string, number>,
+    categoryByKey: Map<string, ProjectSpineCategory>,
+    categoryOrderByKey: Map<string, number>,
+    index: Map<string, SpineRecord>,
+    document: vscode.TextDocument,
+    pattern: string
+  ): SidebarState['metadataEntries'] {
+    return Object.entries(frontmatter)
+      .filter(([key]) => key !== 'status')
+      .sort(([a], [b]) => {
+        const aIsStructural = structuralOrderByKey.has(a);
+        const bIsStructural = structuralOrderByKey.has(b);
+        const aIsSpineCategory = categoryByKey.has(a);
+        const bIsSpineCategory = categoryByKey.has(b);
+
+        if (aIsStructural !== bIsStructural) {
+          return aIsStructural ? -1 : 1;
+        }
+
+        if (aIsStructural && bIsStructural) {
+          const aOrder = structuralOrderByKey.get(a) ?? Number.MAX_SAFE_INTEGER;
+          const bOrder = structuralOrderByKey.get(b) ?? Number.MAX_SAFE_INTEGER;
+          if (aOrder !== bOrder) {
+            return aOrder - bOrder;
+          }
+        }
+
+        if (aIsSpineCategory !== bIsSpineCategory) {
+          return aIsSpineCategory ? -1 : 1;
+        }
+
+        if (aIsSpineCategory && bIsSpineCategory) {
+          const aOrder = categoryOrderByKey.get(a) ?? Number.MAX_SAFE_INTEGER;
+          const bOrder = categoryOrderByKey.get(b) ?? Number.MAX_SAFE_INTEGER;
+          if (aOrder !== bOrder) {
+            return aOrder - bOrder;
+          }
+        }
+
+        return a.localeCompare(b);
+      })
+      .map(([key, value]) => buildMetadataEntry(
+        key,
+        value,
+        structuralOrderByKey.has(key),
+        categoryByKey.get(key),
+        index,
+        document,
+        pattern
+      ));
+  }
+
+  private isSpineEntryDocument(projectContext: ProjectScanContext | undefined, documentPath: string): boolean {
+    if (!projectContext) {
+      return false;
+    }
+
+    const resolved = path.resolve(documentPath);
+    if (path.basename(resolved).toLowerCase() === '_category.md' || path.extname(resolved).toLowerCase() !== '.md') {
+      return false;
+    }
+
+    const spineRoot = path.resolve(projectContext.projectDir, SPINE_DIR);
+    const relativeToSpine = path.relative(spineRoot, resolved);
+    return relativeToSpine.length > 0 && !relativeToSpine.startsWith('..') && !path.isAbsolute(relativeToSpine);
+  }
+
   private async getSidebarStateFull(): Promise<SidebarState> {
     const autoFollowedActiveMarkdown = this.maybeHandleActiveEditorNavigation();
 
@@ -807,6 +880,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments: true,
         statusControl: undefined,
         metadataEntries: [],
+        showMetadataPanel: false,
         explorer,
         pinnedExplorers,
         canPinAllFromFile: false,
@@ -894,6 +968,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     if (!manuscriptMode && projectContext) {
       spineCategoryForFile = await resolveCurrentSpineCategoryFile(projectContext.projectDir, projectContext.categories, document.uri.fsPath);
     }
+    const spineEntryMode = this.isSpineEntryDocument(projectContext, document.uri.fsPath);
 
     const index = await this.indexService.loadForDocument(document);
     const pattern = getConfig('spine', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
@@ -914,7 +989,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       : [];
     const canPinAllFromFile = !!projectContext
       && showExplorer
-      && this.collectReferencedSpineIdsInDocument(document, projectContext, pattern).length > 0;
+      && this.collectReferencedSpineIdsInDocument(document, projectContext, pattern, index).length > 0;
     const tocWithBacklinks = await buildTocWithBacklinks(
       tocEntries,
       spineCategoryForFile,
@@ -928,6 +1003,25 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     );
 
     if (!manuscriptMode) {
+      let metadataEntries: SidebarState['metadataEntries'] = [];
+      let parseError: string | undefined;
+      if (spineEntryMode) {
+        try {
+          const parsed = parseMarkdownDocument(document.getText());
+          metadataEntries = this.buildMetadataEntriesFromFrontmatter(
+            parsed.frontmatter,
+            structuralOrderByKey,
+            categoryByKey,
+            categoryOrderByKey,
+            index,
+            document,
+            pattern
+          );
+        } catch (error) {
+          parseError = errorToMessage(error);
+        }
+      }
+
       return {
         hasActiveMarkdown: true,
         showDocumentTab: true,
@@ -940,12 +1034,14 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         overview,
         activeTab: effectiveTab,
         mode: 'nonManuscript',
+        parseError,
         showExplorer,
-        metadataCollapsed: false,
-        metadataEditing: false,
+        metadataCollapsed: spineEntryMode ? this.metadataCollapsed : false,
+        metadataEditing: spineEntryMode ? this.metadataEditing : false,
         enableComments,
         statusControl: undefined,
-        metadataEntries: [],
+        metadataEntries,
+        showMetadataPanel: spineEntryMode,
         explorer,
         pinnedExplorers,
         canPinAllFromFile,
@@ -957,7 +1053,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         explorerCanGoHome: this.canExplorerGoHome(),
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: tocWithBacklinks,
-        showToc: true,
+        showToc: !spineEntryMode,
         isSpineCategoryFile: !!spineCategoryForFile,
         backlinkFilter: this.backlinkFilter,
         comments
@@ -968,49 +1064,15 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       const parsed = parseMarkdownDocument(document.getText());
       const structureSummary = await this.resolveStructureSummary(document, parsed.frontmatter, projectContext);
       const statusControl = await buildStatusControl(parsed.frontmatter, document);
-      const metadataEntries = Object.entries(parsed.frontmatter)
-        .filter(([key]) => key !== 'status')
-        .sort(([a], [b]) => {
-          const aIsStructural = structuralOrderByKey.has(a);
-          const bIsStructural = structuralOrderByKey.has(b);
-          const aIsSpineCategory = categoryByKey.has(a);
-          const bIsSpineCategory = categoryByKey.has(b);
-
-          if (aIsStructural !== bIsStructural) {
-            return aIsStructural ? -1 : 1;
-          }
-
-          if (aIsStructural && bIsStructural) {
-            const aOrder = structuralOrderByKey.get(a) ?? Number.MAX_SAFE_INTEGER;
-            const bOrder = structuralOrderByKey.get(b) ?? Number.MAX_SAFE_INTEGER;
-            if (aOrder !== bOrder) {
-              return aOrder - bOrder;
-            }
-          }
-
-          if (aIsSpineCategory !== bIsSpineCategory) {
-            return aIsSpineCategory ? -1 : 1;
-          }
-
-          if (aIsSpineCategory && bIsSpineCategory) {
-            const aOrder = categoryOrderByKey.get(a) ?? Number.MAX_SAFE_INTEGER;
-            const bOrder = categoryOrderByKey.get(b) ?? Number.MAX_SAFE_INTEGER;
-            if (aOrder !== bOrder) {
-              return aOrder - bOrder;
-            }
-          }
-
-          return a.localeCompare(b);
-        })
-        .map(([key, value]) => buildMetadataEntry(
-          key,
-          value,
-          structuralOrderByKey.has(key),
-          categoryByKey.get(key),
-          index,
-          document,
-          pattern
-        ));
+      const metadataEntries = this.buildMetadataEntriesFromFrontmatter(
+        parsed.frontmatter,
+        structuralOrderByKey,
+        categoryByKey,
+        categoryOrderByKey,
+        index,
+        document,
+        pattern
+      );
 
       return {
         hasActiveMarkdown: true,
@@ -1030,6 +1092,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments,
         statusControl,
         metadataEntries,
+        showMetadataPanel: true,
         explorer,
         pinnedExplorers,
         canPinAllFromFile,
@@ -1066,6 +1129,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments,
         statusControl: undefined,
         metadataEntries: [],
+        showMetadataPanel: true,
         explorer,
         pinnedExplorers,
         canPinAllFromFile,
@@ -1224,34 +1288,142 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private collectReferencedSpineIdsInDocument(
     document: vscode.TextDocument,
     projectContext: ProjectScanContext,
-    pattern: string
+    pattern: string,
+    index: Map<string, SpineRecord>
   ): string[] {
-    const allowedPrefixes = new Set(projectContext.categories.map((category) => category.prefix.trim().toUpperCase()));
-    if (allowedPrefixes.size === 0) {
+    if (index.size === 0) {
       return [];
     }
 
-    const lines = document.getText().split(/\r?\n/);
-    const occurrences = collectIdentifierOccurrencesFromLines(lines, pattern, true);
+    const byId = new Map<string, string>();
+    const byAlias = new Map<string, string>();
+    for (const [id, record] of index.entries()) {
+      const normalizedId = id.trim().toUpperCase();
+      if (!normalizedId) {
+        continue;
+      }
+      if (!byId.has(normalizedId)) {
+        byId.set(normalizedId, id);
+      }
+
+      for (const alias of this.collectSpineRecordAliases(record)) {
+        const normalizedAlias = alias.trim().toLowerCase();
+        if (!normalizedAlias || byAlias.has(normalizedAlias)) {
+          continue;
+        }
+        byAlias.set(normalizedAlias, id);
+      }
+    }
+
+    if (byId.size === 0 && byAlias.size === 0) {
+      return [];
+    }
+
     const result: string[] = [];
     const seen = new Set<string>();
+    const pushIfKnown = (rawValue: string): void => {
+      const candidate = rawValue.trim();
+      if (!candidate) {
+        return;
+      }
+
+      const byExactId = byId.get(candidate.toUpperCase());
+      if (byExactId && !seen.has(byExactId)) {
+        seen.add(byExactId);
+        result.push(byExactId);
+        return;
+      }
+
+      const byEntryAlias = byAlias.get(candidate.toLowerCase());
+      if (byEntryAlias && !seen.has(byEntryAlias)) {
+        seen.add(byEntryAlias);
+        result.push(byEntryAlias);
+      }
+    };
+
+    const lines = document.getText().split(/\r?\n/);
+    const occurrences = collectIdentifierOccurrencesFromLines(lines, pattern, true);
 
     for (const occurrence of occurrences) {
-      const id = occurrence.id.trim().toUpperCase();
-      if (!id || seen.has(id)) {
+      pushIfKnown(occurrence.id);
+    }
+
+    let parsed: ReturnType<typeof parseMarkdownDocument> | undefined;
+    try {
+      parsed = parseMarkdownDocument(document.getText());
+    } catch {
+      parsed = undefined;
+    }
+
+    if (!parsed) {
+      return result;
+    }
+
+    for (const category of projectContext.categories) {
+      const value = parsed.frontmatter[category.key];
+      if (typeof value === 'string') {
+        pushIfKnown(value);
+        for (const token of extractIdentifierTokensFromValue(value, pattern)) {
+          pushIfKnown(token);
+        }
         continue;
       }
 
-      const prefix = getIdentifierPrefix(id);
-      if (!prefix || !allowedPrefixes.has(prefix)) {
+      if (!Array.isArray(value)) {
         continue;
       }
 
-      seen.add(id);
-      result.push(id);
+      for (const item of value) {
+        if (typeof item !== 'string') {
+          continue;
+        }
+        pushIfKnown(item);
+        for (const token of extractIdentifierTokensFromValue(item, pattern)) {
+          pushIfKnown(token);
+        }
+      }
     }
 
     return result;
+  }
+
+  private collectSpineRecordAliases(record: SpineRecord): string[] {
+    const aliases: string[] = [];
+    const recordPath = record.path?.trim().replace(/\\/g, '/');
+    if (!recordPath) {
+      return aliases;
+    }
+
+    aliases.push(recordPath);
+    const spinePath = recordPath.toLowerCase().startsWith('spine/')
+      ? recordPath
+      : (() => {
+        const markerIndex = recordPath.toLowerCase().lastIndexOf('/spine/');
+        if (markerIndex >= 0) {
+          return recordPath.slice(markerIndex + 1);
+        }
+        return undefined;
+      })();
+    if (!spinePath) {
+      return aliases;
+    }
+
+    aliases.push(spinePath);
+    const match = spinePath.match(/^spine\/([^/]+)\/(.+)\.md$/i);
+    if (!match) {
+      return aliases;
+    }
+
+    const categoryKey = match[1].trim();
+    const entryKey = match[2].trim();
+    if (!entryKey || entryKey.toLowerCase() === '_category') {
+      return aliases;
+    }
+
+    aliases.push(entryKey);
+    aliases.push(path.posix.basename(entryKey));
+    aliases.push(`${categoryKey}/${entryKey}`);
+    return aliases;
   }
 
   private async buildPinnedExplorerPanels(
@@ -1585,7 +1757,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         }
 
         const pattern = getConfig('spine', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
-        const candidateIds = this.collectReferencedSpineIdsInDocument(document, projectContext, pattern);
+        const index = await this.indexService.loadForDocument(document);
+        const candidateIds = this.collectReferencedSpineIdsInDocument(document, projectContext, pattern, index);
 
         if (candidateIds.length === 0) {
           void vscode.window.showInformationMessage('No spine entries referenced in the current file.');
@@ -2360,19 +2533,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const projectFilePath = path.join(projectContext.projectDir, 'stego-project.json');
-    const parsedConfig = await this.readMutableProjectConfig(projectFilePath);
-    if (!parsedConfig) {
-      return;
-    }
-
     const existingCategoryKeys = new Set(
       projectContext.categories.map((category) => category.key.trim().toLowerCase()).filter((value) => value.length > 0)
     );
-    const existingPrefixes = new Set(
-      projectContext.categories.map((category) => category.prefix.trim().toUpperCase()).filter((value) => value.length > 0)
-    );
-    const existingRequiredMetadata = new Set(this.readStringArray(parsedConfig.record.requiredMetadata).map((key) => key.toLowerCase()));
 
     const categoryName = await vscode.window.showInputBox({
       title: 'New Category',
@@ -2407,44 +2570,6 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const suggestedPrefix = this.suggestSpinePrefix(categoryName, key, existingPrefixes);
-    const prefixInput = await vscode.window.showInputBox({
-      title: 'New Category',
-      prompt: 'Identifier prefix (uppercase)',
-      placeHolder: 'CHAR',
-      value: suggestedPrefix,
-      ignoreFocusOut: true,
-      validateInput: (value) => {
-        const prefix = value.trim().toUpperCase();
-        if (!prefix) {
-          return 'Prefix is required.';
-        }
-        if (!/^[A-Z][A-Z0-9]*$/.test(prefix)) {
-          return 'Use uppercase letters/numbers only, starting with a letter (for example CHAR).';
-        }
-        if (prefix === 'CMT') {
-          return "Prefix 'CMT' is reserved for comments.";
-        }
-        if (existingPrefixes.has(prefix)) {
-          return `Prefix '${prefix}' is already used in this project.`;
-        }
-        return undefined;
-      }
-    });
-    if (prefixInput === undefined) {
-      return;
-    }
-
-    const prefix = prefixInput.trim().toUpperCase();
-    if (!/^[A-Z][A-Z0-9]*$/.test(prefix) || prefix === 'CMT') {
-      void vscode.window.showErrorMessage('Invalid spine category prefix.');
-      return;
-    }
-    if (existingPrefixes.has(prefix)) {
-      void vscode.window.showWarningMessage(`Prefix '${prefix}' is already used in this project.`);
-      return;
-    }
-
     const requiredChoice = await vscode.window.showQuickPick(
       [
         { label: 'No', description: 'Optional metadata field (recommended default)', value: false },
@@ -2460,101 +2585,66 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const notesFile = `${key}.md`;
-    const nextCategory: MutableProjectCategoryConfig = { key, prefix, notesFile };
-    const nextRecord = this.addCategoryToProjectConfigRecord(parsedConfig.record, nextCategory, requiredChoice.value, existingRequiredMetadata);
+    const projectId = path.basename(projectContext.projectDir);
+    const label = this.toCategoryHeadingFromKey(key);
+    const stegoArgs = [
+      'spine',
+      'new-category',
+      '--project',
+      projectId,
+      '--key',
+      key,
+      '--label',
+      label,
+      '--format',
+      'json'
+    ];
+    if (requiredChoice.value) {
+      stegoArgs.push('--require-metadata');
+    }
 
-    await fs.writeFile(projectFilePath, `${JSON.stringify(nextRecord, null, 2)}\n`, 'utf8');
-    const categoryFilePath = await this.ensureSpineCategoryFile(projectContext.projectDir, notesFile, key);
+    const invocation = await resolveStegoCommandInvocation(
+      projectContext.projectDir,
+      stegoArgs,
+      'run stego spine new-category'
+    );
+    if (!invocation) {
+      return;
+    }
+
+    const commandResult = await runCommand(invocation.command, invocation.args, projectContext.projectDir);
+    if (commandResult.exitCode !== 0) {
+      const details = `${commandResult.stderr}\n${commandResult.stdout}`.trim();
+      void vscode.window.showErrorMessage(
+        details
+          ? `Could not add spine category: ${details.split(/\r?\n/).slice(-1)[0]}`
+          : `Could not add spine category (exit code ${commandResult.exitCode}).`
+      );
+      return;
+    }
+
+    const payload = this.parseJson<{
+      ok: boolean;
+      operation: string;
+      result?: { metadataPath?: string };
+    }>(commandResult.stdout);
+    const metadataPath = payload?.result?.metadataPath
+      ? path.resolve(projectContext.projectDir, payload.result.metadataPath)
+      : path.join(projectContext.projectDir, SPINE_DIR, key, '_category.md');
 
     this.indexService.clear();
     this.referenceUsageService.clear();
 
     this.setActiveTab('spine');
-    this.navigateExplorerToRoute({ kind: 'category', key, prefix }, { trackHistory: true });
+    this.navigateExplorerToRoute({ kind: 'category', key, prefix: key.toUpperCase() }, { trackHistory: true });
     try {
-      await openBacklinkFile(categoryFilePath, 1);
+      await openBacklinkFile(metadataPath, 1);
     } catch (error) {
       void vscode.window.showWarningMessage(`Added category, but could not open spine file: ${errorToMessage(error)}`);
     }
     void vscode.window.showInformationMessage(
-      `Added spine category '${key}' (${prefix})${requiredChoice.value ? ' and marked it as required metadata.' : '.'}`
+      `Added spine category '${key}'${requiredChoice.value ? ' and marked it as required metadata.' : '.'}`
     );
-  }
-
-  private async readMutableProjectConfig(projectFilePath: string): Promise<{ record: Record<string, unknown> } | undefined> {
-    let raw = '';
-    try {
-      raw = await fs.readFile(projectFilePath, 'utf8');
-    } catch (error) {
-      void vscode.window.showErrorMessage(`Could not read stego-project.json: ${errorToMessage(error)}`);
-      return undefined;
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw) as unknown;
-    } catch (error) {
-      void vscode.window.showErrorMessage(`Could not parse stego-project.json: ${errorToMessage(error)}`);
-      return undefined;
-    }
-
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      void vscode.window.showErrorMessage('stego-project.json must be a JSON object.');
-      return undefined;
-    }
-
-    return { record: { ...(parsed as Record<string, unknown>) } };
-  }
-
-  private addCategoryToProjectConfigRecord(
-    record: Record<string, unknown>,
-    category: MutableProjectCategoryConfig,
-    isRequiredMetadata: boolean,
-    existingRequiredMetadata: Set<string>
-  ): Record<string, unknown> {
-    const next = { ...record };
-
-    const rawCategories = Array.isArray(next.spineCategories) ? [...next.spineCategories] : [];
-    rawCategories.push({
-      key: category.key,
-      prefix: category.prefix,
-      notesFile: category.notesFile
-    });
-    next.spineCategories = rawCategories;
-
-    if (isRequiredMetadata && !existingRequiredMetadata.has(category.key.toLowerCase())) {
-      const rawRequired = Array.isArray(next.requiredMetadata)
-        ? next.requiredMetadata.filter((value): value is string => typeof value === 'string')
-        : [];
-      rawRequired.push(category.key);
-      next.requiredMetadata = rawRequired;
-    }
-
-    return next;
-  }
-
-  private async ensureSpineCategoryFile(projectDir: string, notesFile: string, categoryKey: string): Promise<string> {
-    const spineDir = path.join(projectDir, SPINE_DIR);
-    const targetPath = path.join(spineDir, notesFile);
-    try {
-      await fs.mkdir(spineDir, { recursive: true });
-      await fs.access(targetPath);
-    } catch {
-      await fs.writeFile(targetPath, `# ${this.toCategoryHeadingFromKey(categoryKey || path.basename(notesFile, '.md'))}\n\n`, 'utf8');
-    }
-
-    return targetPath;
-  }
-
-  private readStringArray(value: unknown): string[] {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-    return value
-      .filter((entry): entry is string => typeof entry === 'string')
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
   }
 
   private isValidMetadataKey(value: string): boolean {
@@ -2571,47 +2661,6 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       .replace(/-{2,}/g, '-');
   }
 
-  private suggestSpinePrefix(name: string, key: string, existingPrefixes: Set<string>): string {
-    const words = name
-      .trim()
-      .toUpperCase()
-      .split(/[^A-Z0-9]+/)
-      .filter((part) => part.length > 0);
-
-    const candidates: string[] = [];
-    if (words.length > 1) {
-      const initials = words.map((word) => word[0]).join('').slice(0, 6);
-      if (initials.length >= 2) {
-        candidates.push(initials);
-      }
-    }
-
-    const compact = key.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (compact.length >= 3) {
-      candidates.push(compact.slice(0, 4));
-      candidates.push(compact.slice(0, 3));
-    }
-    if (compact.length >= 2) {
-      candidates.push(compact.slice(0, 2));
-    }
-
-    for (const candidate of candidates) {
-      if (!candidate || candidate === 'CMT' || existingPrefixes.has(candidate)) {
-        continue;
-      }
-      if (/^[A-Z][A-Z0-9]*$/.test(candidate)) {
-        return candidate;
-      }
-    }
-
-    let fallback = 'CAT';
-    let suffix = 2;
-    while (existingPrefixes.has(fallback) || fallback === 'CMT') {
-      fallback = `CAT${suffix}`;
-      suffix += 1;
-    }
-    return fallback;
-  }
 
   private toCategoryHeadingFromKey(key: string): string {
     const normalized = key.replace(/[_-]+/g, ' ').trim();
@@ -2619,6 +2668,19 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       return 'Spine Category';
     }
     return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
+  }
+
+  private parseJson<T>(text: string): T | undefined {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    try {
+      return JSON.parse(trimmed) as T;
+    } catch {
+      return undefined;
+    }
   }
 
   private compareOverviewStatus(aStatus: string, bStatus: string): number {
