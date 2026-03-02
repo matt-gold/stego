@@ -99,6 +99,10 @@ function getNpxCommand(): string {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
 
+function getLocalStegoBinaryName(): string {
+  return process.platform === 'win32' ? 'stego.cmd' : 'stego';
+}
+
 async function canExecute(command: string, args: string[], cwd: string): Promise<boolean> {
   try {
     const result = await runCommand(command, args, cwd);
@@ -108,12 +112,35 @@ async function canExecute(command: string, args: string[], cwd: string): Promise
   }
 }
 
+async function findLocalStegoBinary(cwd: string): Promise<string | undefined> {
+  const binaryName = getLocalStegoBinaryName();
+  let current = path.resolve(cwd);
+
+  while (true) {
+    const candidate = path.join(current, 'node_modules', '.bin', binaryName);
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // continue searching parent directories
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return undefined;
+    }
+
+    current = parent;
+  }
+}
+
 async function detectStegoRunner(cwd: string): Promise<StegoRunner | undefined> {
-  if (await canExecute('stego', ['--version'], cwd)) {
+  const localBinary = await findLocalStegoBinary(cwd);
+  if (localBinary && await canExecute(localBinary, ['--version'], cwd)) {
     return {
-      command: 'stego',
+      command: localBinary,
       prefixArgs: [],
-      label: 'stego'
+      label: localBinary
     };
   }
 
@@ -123,6 +150,14 @@ async function detectStegoRunner(cwd: string): Promise<StegoRunner | undefined> 
       command: npxCommand,
       prefixArgs: ['--no-install', 'stego'],
       label: 'npx --no-install stego'
+    };
+  }
+
+  if (await canExecute('stego', ['--version'], cwd)) {
+    return {
+      command: 'stego',
+      prefixArgs: [],
+      label: 'stego'
     };
   }
 
@@ -248,13 +283,16 @@ export async function resolveWorkflowCommandInvocation(
 export async function resolveStegoCommandInvocation(
   cwd: string,
   stegoArgs: string[],
-  actionLabel: string
+  actionLabel: string,
+  options?: { showWarning?: boolean }
 ): Promise<WorkflowCommandInvocation | undefined> {
   const stegoRunner = await resolveStegoRunner(cwd);
   if (!stegoRunner) {
-    void vscode.window.showWarningMessage(
-      `Install stego-cli to run ${actionLabel}.`
-    );
+    if (options?.showWarning !== false) {
+      void vscode.window.showWarningMessage(
+        `Install stego-cli to run ${actionLabel}.`
+      );
+    }
     return undefined;
   }
 
