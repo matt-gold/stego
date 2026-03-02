@@ -43,7 +43,7 @@ export async function refreshDiagnosticsForDocument(
 
     const diagnostic = new vscode.Diagnostic(
       match.range,
-      `Unknown Spine identifier '${match.id}'. Add the category in stego-project.json (spineCategories) and define the identifier in spine/<notesFile>.md.`,
+      `Unknown Spine identifier '${match.id}'. Define it in a spine/<category>/ entry file.`,
       vscode.DiagnosticSeverity.Warning
     );
     diagnostic.source = 'stegoSpine';

@@ -54,9 +54,19 @@ stego validate --project fiction-example
 stego build --project fiction-example
 stego check-stage --project fiction-example --stage revise
 stego export --project fiction-example --format md
+stego spine read --project fiction-example
+stego spine new-category --project fiction-example --key characters
+stego spine new --project fiction-example --category characters --filename supporting/abigail
+stego metadata read projects/fiction-example/manuscript/100-the-commission.md --format json
 ```
 
 `stego new` also supports `--i <prefix>` for numeric prefix override and `--filename <name>` for an explicit manuscript filename.
+
+Spine V2 is directory-inferred:
+
+- categories are directories in `spine/<category>/`
+- category metadata lives at `spine/<category>/_category.md`
+- entries are markdown files in each category directory tree
 
 Projects also include local npm scripts so you can work from inside a project directory.
 

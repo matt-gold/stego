@@ -126,6 +126,9 @@ export async function parseIdentifierSectionFromFile(
     return undefined;
   }
 
+  const fileLabel = projectDir
+    ? path.relative(projectDir, filePath).split(path.sep).join('/')
+    : filePath;
   const lines = raw.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     const match = lines[index].match(/^(#{1,6})\s+(.+?)\s*$/);
@@ -143,9 +146,6 @@ export async function parseIdentifierSectionFromFile(
     const sectionLines = collectHeadingSectionLines(lines, index + 1, level);
     const { label, bodyLines } = extractLeadingSpineEntryLabel(sectionLines);
     const body = compactHeadingSectionBody(bodyLines);
-    const fileLabel = projectDir
-      ? path.relative(projectDir, filePath).split(path.sep).join('/')
-      : filePath;
 
     return {
       heading,
@@ -157,7 +157,23 @@ export async function parseIdentifierSectionFromFile(
     };
   }
 
-  return undefined;
+  if (path.basename(filePath).toLowerCase() === '_category.md') {
+    return undefined;
+  }
+
+  const fallback = buildWholeFilePreview(raw, filePath);
+  if (!fallback) {
+    return undefined;
+  }
+
+  return {
+    heading: fallback.heading,
+    label: fallback.label,
+    body: fallback.body,
+    filePath,
+    fileLabel,
+    line: fallback.line
+  };
 }
 
 export function collectHeadingSectionBody(lines: string[], startIndex: number, headingLevel: number): string {
@@ -208,6 +224,112 @@ function extractLeadingSpineEntryLabel(lines: string[]): { label?: string; bodyL
   }
 
   return { label, bodyLines };
+}
+
+function buildWholeFilePreview(
+  raw: string,
+  filePath: string
+): { heading: string; label?: string; body: string; line: number } | undefined {
+  const { frontmatter, bodyLines, bodyStartLine } = splitFrontmatter(raw);
+  const frontmatterLabel = parseFrontmatterLabel(frontmatter);
+  const firstHeading = findFirstHeadingInLines(bodyLines);
+
+  if (firstHeading) {
+    const sectionLines = collectHeadingSectionLines(bodyLines, firstHeading.index + 1, firstHeading.level);
+    const { label, bodyLines: cleanedSectionLines } = extractLeadingSpineEntryLabel(sectionLines);
+    return {
+      heading: firstHeading.text,
+      label: frontmatterLabel || label,
+      body: compactHeadingSectionBody(cleanedSectionLines),
+      line: bodyStartLine + firstHeading.index + 1
+    };
+  }
+
+  const firstContentLine = findFirstContentLine(bodyLines);
+  if (firstContentLine < 0 && !frontmatterLabel) {
+    return undefined;
+  }
+
+  return {
+    heading: frontmatterLabel || toDisplayLabelFromFilename(filePath),
+    label: frontmatterLabel,
+    body: compactHeadingSectionBody(bodyLines),
+    line: bodyStartLine + (firstContentLine >= 0 ? firstContentLine + 1 : 1)
+  };
+}
+
+function splitFrontmatter(raw: string): { frontmatter: string[]; bodyLines: string[]; bodyStartLine: number } {
+  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  if (!match) {
+    return {
+      frontmatter: [],
+      bodyLines: raw.split(/\r?\n/),
+      bodyStartLine: 0
+    };
+  }
+
+  const consumed = match[0];
+  const body = raw.slice(consumed.length);
+  const bodyStartLine = (consumed.match(/\r?\n/g) ?? []).length;
+  return {
+    frontmatter: match[1].split(/\r?\n/),
+    bodyLines: body.split(/\r?\n/),
+    bodyStartLine
+  };
+}
+
+function parseFrontmatterLabel(lines: string[]): string | undefined {
+  for (const line of lines) {
+    const match = line.match(/^\s*label\s*:\s*(.+?)\s*$/);
+    if (!match) {
+      continue;
+    }
+
+    const value = match[1].trim().replace(/^['"]|['"]$/g, '');
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function findFirstHeadingInLines(lines: string[]): { index: number; level: number; text: string } | undefined {
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(/^(#{1,6})\s+(.+?)\s*$/);
+    if (!match) {
+      continue;
+    }
+
+    return {
+      index,
+      level: match[1].length,
+      text: match[2].trim()
+    };
+  }
+
+  return undefined;
+}
+
+function findFirstContentLine(lines: string[]): number {
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index].trim();
+    if (raw && !raw.startsWith('<!--')) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function toDisplayLabelFromFilename(filePath: string): string {
+  const stem = path.basename(filePath, path.extname(filePath));
+  const normalized = stem.replace(/[_-]+/g, ' ').trim();
+  if (!normalized) {
+    return stem || 'Spine Entry';
+  }
+
+  return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
 }
 
 function compactHeadingSectionBody(lines: string[]): string {

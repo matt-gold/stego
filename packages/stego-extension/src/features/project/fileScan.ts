@@ -9,10 +9,17 @@ export async function buildProjectScanPlan(
   categories: ProjectSpineCategory[]
 ): Promise<{ files: string[]; prefixes: Set<string>; stampParts: string[] }> {
   const prefixes = new Set(categories.map((category) => category.prefix));
-  const notesFiles: string[] = [];
+  const spineCategoryFiles: string[] = [];
   let needsGlobalScan = false;
 
   for (const category of categories) {
+    const categoryDir = path.join(projectDir, SPINE_DIR, category.key);
+    if (await isDirectory(categoryDir)) {
+      const discovered = await collectMarkdownFiles(categoryDir);
+      spineCategoryFiles.push(...discovered);
+      continue;
+    }
+
     if (!category.notesFile) {
       needsGlobalScan = true;
       continue;
@@ -24,10 +31,10 @@ export async function buildProjectScanPlan(
       continue;
     }
 
-    notesFiles.push(resolved);
+    spineCategoryFiles.push(resolved);
   }
 
-  let files = uniqueResolvedPaths(notesFiles);
+  let files = uniqueResolvedPaths(spineCategoryFiles);
   if (needsGlobalScan || files.length === 0) {
     const discovered = await collectMarkdownFiles(projectDir);
     files = uniqueResolvedPaths([...files, ...discovered]);
@@ -38,13 +45,17 @@ export async function buildProjectScanPlan(
 }
 
 export async function resolveCategoryNotesFile(projectDir: string, notesFile: string): Promise<string | undefined> {
-  const trimmed = notesFile.trim();
-  if (!trimmed || path.isAbsolute(trimmed) || /[\\/]/.test(trimmed)) {
+  const trimmed = notesFile.trim().replace(/\\/g, '/');
+  if (!trimmed || path.isAbsolute(trimmed) || trimmed.startsWith('../') || trimmed.includes('/../')) {
     return undefined;
   }
 
-  const candidate = path.join(projectDir, SPINE_DIR, trimmed);
-  return (await isFile(candidate)) ? path.resolve(candidate) : undefined;
+  const spineRoot = path.resolve(path.join(projectDir, SPINE_DIR));
+  const candidate = path.resolve(path.join(spineRoot, trimmed));
+  if (!(candidate === spineRoot || candidate.startsWith(`${spineRoot}${path.sep}`))) {
+    return undefined;
+  }
+  return (await isFile(candidate)) ? candidate : undefined;
 }
 
 export async function isFile(filePath: string): Promise<boolean> {

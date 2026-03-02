@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { STRINGS } from '../../shared/strings';
 import { errorToMessage } from '../../shared/errors';
+import { MetadataCliClient } from './metadataCliClient';
 import {
   formatMetadataValue,
   isValidMetadataKey,
@@ -9,6 +10,8 @@ import {
   serializeMarkdownDocument
 } from './frontmatterParse';
 import { resolveAllowedStatuses } from './statusControl';
+
+const metadataCli = new MetadataCliClient();
 
 export function getActiveMarkdownDocument(showMessage: boolean): vscode.TextDocument | undefined {
   const editor = vscode.window.activeTextEditor;
@@ -24,8 +27,26 @@ export function getActiveMarkdownDocument(showMessage: boolean): vscode.TextDocu
 
 export async function writeParsedDocument(document: vscode.TextDocument, parsed: ReturnType<typeof parseMarkdownDocument>): Promise<boolean> {
   const nextText = serializeMarkdownDocument(parsed);
-  const changed = await replaceDocumentText(document, nextText);
+  const changed = document.getText() !== nextText;
   if (!changed) {
+    return false;
+  }
+
+  if (document.isDirty) {
+    try {
+      await document.save();
+    } catch (error) {
+      void vscode.window.showErrorMessage(`Could not save document before metadata update: ${errorToMessage(error)}`);
+      return false;
+    }
+  }
+
+  const applied = await metadataCli.apply(document.uri.fsPath, {
+    hasFrontmatter: parsed.hasFrontmatter || Object.keys(parsed.frontmatter).length > 0,
+    frontmatter: parsed.frontmatter,
+    body: parsed.body
+  });
+  if ('warning' in applied) {
     return false;
   }
 
@@ -35,7 +56,7 @@ export async function writeParsedDocument(document: vscode.TextDocument, parsed:
     void vscode.window.showErrorMessage(`Could not auto-save metadata changes: ${errorToMessage(error)}`);
   }
 
-  return true;
+  return applied.changed;
 }
 
 export async function replaceDocumentText(document: vscode.TextDocument, nextText: string): Promise<boolean> {

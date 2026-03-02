@@ -68,10 +68,15 @@ export function formatTitleWords(words: string[]): string {
   }).join(' ');
 }
 
-export function getSidebarFileTitle(documentPath: string): { title: string; filename: string } {
+export function getSidebarFileTitle(documentPath: string, preferredTitle?: string): { title: string; filename: string } {
   const filename = path.basename(documentPath || '');
   if (!filename) {
     return { title: '', filename: '' };
+  }
+
+  const trimmedPreferredTitle = (preferredTitle ?? '').trim();
+  if (trimmedPreferredTitle.length > 0) {
+    return { title: trimmedPreferredTitle, filename };
   }
 
   const extensionIndex = filename.lastIndexOf('.');

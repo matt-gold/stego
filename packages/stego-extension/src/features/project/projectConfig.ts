@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { promises as fs } from 'fs';
+import { promises as fs, type Dirent } from 'fs';
 import * as vscode from 'vscode';
 import { normalizeFsPath } from '../../shared/path';
 import type {
@@ -9,9 +9,7 @@ import type {
   ProjectStructuralLevel
 } from '../../shared/types';
 
-const RESERVED_COMMENT_PREFIX = 'CMT';
 const METADATA_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
-const CATEGORY_PREFIX_PATTERN = /^[A-Z][A-Z0-9]*$/;
 export const PROJECT_HEALTH_CHANNEL = 'Stego Project Health';
 
 const PROJECT_JSON_SCHEMA = {
@@ -20,7 +18,6 @@ const PROJECT_JSON_SCHEMA = {
     title: { type: 'string', optional: true },
     name: { type: 'string', optional: true },
     requiredMetadata: { type: 'array<string>', optional: true },
-    spineCategories: { type: 'array<object>', optional: true },
     compileStructure: { type: 'object', optional: true }
   }
 } as const;
@@ -121,17 +118,8 @@ function validateProjectJsonSchema(parsed: unknown): { record?: Record<string, u
     }
   }
 
-  const spineCategories = record.spineCategories;
-  if (spineCategories !== undefined && !Array.isArray(spineCategories)) {
-    issues.push(issue('$.spineCategories', 'Expected array of objects.'));
-  }
-
-  if (Array.isArray(spineCategories)) {
-    for (let index = 0; index < spineCategories.length; index += 1) {
-      if (!asObject(spineCategories[index])) {
-        issues.push(issue(`$.spineCategories[${index}]`, 'Expected object.'));
-      }
-    }
+  if (record.spineCategories !== undefined) {
+    issues.push(issue('$.spineCategories', 'Legacy spineCategories is unsupported in Spine V2. Use spine/<category>/ directories.'));
   }
 
   const compileStructure = record.compileStructure;
@@ -274,7 +262,7 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
   const structuralLevels = extractProjectStructuralLevels(source, issues);
   const structuralKeys = extractProjectStructuralKeysFromLevels(structuralLevels);
   const requiredMetadata = extractProjectRequiredMetadata(source, issues);
-  const categories = extractProjectCategories(source, issues);
+  const categories = await discoverProjectCategories(path.dirname(projectFilePath), requiredMetadata, issues);
   const dedupedIssues = dedupeIssues(issues);
 
   reportProjectConfigIssues(projectFilePath, dedupedIssues);
@@ -481,83 +469,98 @@ export function extractProjectStructuralKeysFromLevels(levels: ProjectStructural
   return keys;
 }
 
-export function extractProjectCategories(parsed: unknown, issues?: ProjectConfigIssue[]): ProjectSpineCategory[] {
-  const record = asObject(parsed);
-  if (!record) {
-    return [];
-  }
-
-  const rawCategories = record.spineCategories;
-  if (rawCategories === undefined) {
-    return [];
-  }
-  if (!Array.isArray(rawCategories)) {
-    if (issues) {
-      issues.push(issue('$.spineCategories', 'Ignored non-array spineCategories.'));
-    }
+async function discoverProjectCategories(
+  projectDir: string,
+  _requiredMetadata: string[],
+  issues?: ProjectConfigIssue[]
+): Promise<ProjectSpineCategory[]> {
+  const spineDir = path.join(projectDir, 'spine');
+  let entries: Dirent[];
+  try {
+    entries = await fs.readdir(spineDir, { withFileTypes: true });
+  } catch {
     return [];
   }
 
   const categories: ProjectSpineCategory[] = [];
-  const seenPrefixes = new Set<string>();
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) {
+      continue;
+    }
 
-  for (let index = 0; index < rawCategories.length; index += 1) {
-    const item = rawCategories[index];
-    const categoryPath = `$.spineCategories[${index}]`;
-    const category = asObject(item);
-    if (!category) {
+    const key = entry.name.trim().toLowerCase();
+    if (!METADATA_KEY_PATTERN.test(key)) {
       if (issues) {
-        issues.push(issue(categoryPath, 'Ignored non-object category.'));
+        issues.push(issue('spine', `Ignored invalid category directory '${entry.name}'.`));
       }
       continue;
     }
 
-    const key = asTrimmedString(category.key);
-    if (!key || !METADATA_KEY_PATTERN.test(key)) {
-      if (issues) {
-        issues.push(issue(`${categoryPath}.key`, 'Ignored category with invalid key.'));
-      }
-      continue;
-    }
-
-    const prefixRaw = asTrimmedString(category.prefix);
-    const prefix = prefixRaw?.toUpperCase();
-    if (!prefix || !CATEGORY_PREFIX_PATTERN.test(prefix)) {
-      if (issues) {
-        issues.push(issue(`${categoryPath}.prefix`, 'Ignored category with invalid prefix.'));
-      }
-      continue;
-    }
-
-    if (prefix === RESERVED_COMMENT_PREFIX) {
-      if (issues) {
-        issues.push(issue(`${categoryPath}.prefix`, `Ignored reserved prefix '${RESERVED_COMMENT_PREFIX}'.`));
-      }
-      continue;
-    }
-
-    if (seenPrefixes.has(prefix)) {
-      if (issues) {
-        issues.push(issue(`${categoryPath}.prefix`, `Ignored duplicate prefix '${prefix}'.`));
-      }
-      continue;
-    }
-
-    const notesFileRaw = category.notesFile;
-    if (notesFileRaw !== undefined && typeof notesFileRaw !== 'string' && issues) {
-      issues.push(issue(`${categoryPath}.notesFile`, 'Ignored non-string notesFile.'));
-    }
-    const notesFile = asTrimmedString(notesFileRaw);
-
-    seenPrefixes.add(prefix);
+    const categoryDir = path.join(spineDir, entry.name);
+    const inferredPrefix = await inferIdentifierPrefixFromCategoryEntries(categoryDir);
+    const compact = key.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const fallbackPrefix = compact && /^[A-Z]/.test(compact) ? compact : `CAT${categories.length + 1}`;
+    const prefix = inferredPrefix ?? fallbackPrefix;
     categories.push({
       key,
       prefix,
-      notesFile
+      notesFile: `${key}/_category.md`
     });
   }
 
   return categories;
+}
+
+async function inferIdentifierPrefixFromCategoryEntries(categoryDir: string): Promise<string | undefined> {
+  const counts = new Map<string, number>();
+  const stack = [categoryDir];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    let entries: Dirent[];
+    try {
+      entries = await fs.readdir(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) {
+        continue;
+      }
+
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.md') || entry.name.toLowerCase() === '_category.md') {
+        continue;
+      }
+
+      const stem = path.basename(entry.name, '.md').trim();
+      const match = stem.match(/^([A-Za-z][A-Za-z0-9]*)-[A-Za-z0-9][A-Za-z0-9-]*$/);
+      if (!match) {
+        continue;
+      }
+
+      const prefix = match[1].toUpperCase();
+      counts.set(prefix, (counts.get(prefix) ?? 0) + 1);
+    }
+  }
+
+  const ranked = [...counts.entries()].sort((a, b) => {
+    if (a[1] !== b[1]) {
+      return b[1] - a[1];
+    }
+    return a[0].localeCompare(b[0]);
+  });
+  return ranked[0]?.[0];
 }
 
 export function getConfig(section: 'spine' | 'editor' | 'comments', scopeUri?: vscode.Uri): vscode.WorkspaceConfiguration {
