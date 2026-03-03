@@ -513,9 +513,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         ? ''
         : `<button class="btn subtle inline-toggle" data-action="toggleCommentResolved" data-id="${escapeAttribute(item.id)}"${item.threadPosition === 'first' ? ' data-resolve-thread="true"' : ''}>${item.status === 'resolved' ? (item.threadPosition === 'first' ? 'Unresolve Thread' : 'Unresolve') : (item.threadPosition === 'first' ? 'Resolve Thread' : 'Resolve')}</button>`}`
       + `<button class="btn subtle inline-toggle" data-action="replyComment" data-id="${escapeAttribute(item.id)}">Reply</button>`
-      + `${item.author && state.comments.currentAuthor && item.author.toLowerCase() === state.comments.currentAuthor.toLowerCase()
-        ? `<button class="btn danger inline-toggle" data-action="deleteComment" data-id="${escapeAttribute(item.id)}">Delete</button>`
-        : ''}`
+      + `<button class="btn danger inline-toggle" data-action="deleteComment" data-id="${escapeAttribute(item.id)}">Delete</button>`
       + `</div>`
       + `</article>`
     )).join('')
