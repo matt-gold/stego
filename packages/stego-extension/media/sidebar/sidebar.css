@@ -823,6 +823,15 @@ code {
 .comment-list-item {
   flex-direction: column;
 }
+.comment-message {
+  display: block;
+  line-height: 1.4;
+  min-width: 0;
+  margin-bottom: 4px;
+}
+.comment-message .md-rendered {
+  color: var(--vscode-foreground);
+}
 .comment-list-item + .comment-list-item {
   margin-top: 8px;
 }

@@ -494,10 +494,10 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       `<article class="item metadata-item comment-list-item${item.status === 'resolved' ? ' resolved' : ''}${item.isSelected ? ' selected' : ''}${item.threadPosition ? ` thread-${item.threadPosition}` : ''}" data-id="${escapeAttribute(item.id)}" data-action="openCommentThread">`
       + `<div class="item-main">`
       + `<div class="item-title-row">`
-      + `<span class="comment-message">${escapeHtml(item.message)}</span>`
       + `<span class="badge${item.status === 'resolved' ? '' : ' warn'}">${item.status === 'resolved' ? 'Resolved' : 'Unresolved'}</span>`
       + `${item.degraded ? '<span class="badge warn">Moved</span>' : ''}`
       + `</div>`
+      + `<div class="comment-message">${renderMarkdownForExplorer(item.message, state.documentPath)}</div>`
       + `${item.threadPosition && item.threadPosition !== 'first'
         ? ''
         : `<div class="item-subtext comment-anchor-excerpt">&quot;${escapeHtml(item.excerpt.length > 100 ? item.excerpt.slice(0, 100) + '…' : item.excerpt)}&quot;</div>`}`

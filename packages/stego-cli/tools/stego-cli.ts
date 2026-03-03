@@ -169,6 +169,7 @@ const RESERVED_COMMENT_PREFIX = "CMT";
 const DEFAULT_NEW_MANUSCRIPT_SLUG = "new-document";
 const ROOT_CONFIG_FILENAME = "stego.config.json";
 const PROSE_FONT_PROMPT = "Switch workspace to proportional (prose-style) font? (recommended)";
+const COMMENT_AUTHOR_PROMPT = "Default comment author for stego.comments.author?";
 const SCAFFOLD_GITIGNORE_CONTENT = `node_modules/
 /dist/
 .DS_Store
@@ -236,6 +237,103 @@ stego new-project --project my-book --title "My Book"
 stego new --project fiction-example
 \`\`\`
 `;
+const SCAFFOLD_AGENTS_CONTENT = `# AGENTS.md
+
+## Purpose
+
+This workspace is designed to be AI-friendly for writing workflows.
+
+## Canonical CLI Interface
+
+- Run \`stego --help\` for the full command reference.
+- Run \`stego --version\` to confirm which CLI is active.
+- Run project docs commands in \`projects/stego-docs\` when available.
+
+## CLI Resolution Rules
+
+- Prefer local CLI over global CLI:
+  - \`npm exec -- stego ...\`
+  - \`npx --no-install stego ...\`
+- At the start of mutation tasks, run \`stego --version\` and report the version used.
+
+## Workspace Discovery Checklist
+
+1. Confirm workspace root contains \`stego.config.json\`.
+2. Run \`stego list-projects\`.
+3. Use explicit \`--project <id>\` for project-scoped commands.
+
+## CLI-First Policy (Required)
+
+When asked to edit Stego project content, use documented Stego CLI commands first.
+
+Typical targets:
+
+- manuscript files
+- spine categories and entries
+- frontmatter metadata
+- comments
+- stage/build/export workflows
+
+Preferred commands include:
+
+- \`stego new\`
+- \`stego spine read\`
+- \`stego spine new-category\`
+- \`stego spine new\`
+- \`stego metadata read\`
+- \`stego metadata apply\`
+- \`stego comments ...\`
+
+## Machine-Mode Output
+
+- For automation and integrations, prefer \`--format json\` and parse structured output.
+- Use text output only for human-facing summaries.
+
+## Mutation Protocol
+
+1. Read current state first (\`metadata read\`, \`spine read\`, \`comments read\`).
+2. Mutate via CLI commands.
+3. Verify after writes (\`stego validate --project <id>\` and relevant read commands).
+
+## Manual Edit Fallback
+
+Manual file edits are a last resort.
+
+If manual edits are required, the agent must:
+
+1. warn that CLI was bypassed,
+2. explain why CLI could not be used, and
+3. list which files were manually edited.
+
+## Failure Contract
+
+When CLI fails:
+
+1. show the attempted command,
+2. summarize the error briefly,
+3. report the recovery attempt, and
+4. if fallback is required, apply the Manual Edit Fallback policy.
+
+## Validation Expectations
+
+After mutations, run relevant checks when feasible (for example \`stego validate --project <id>\`) and report results.
+
+## Scope Guardrails
+
+- Do not manually edit \`dist/\` outputs or compiled export artifacts.
+- Do not modify files outside the requested project scope unless the user explicitly asks.
+
+## Task To Command Quick Map
+
+- New manuscript: \`stego new --project <id> [--filename <name>]\`
+- Read spine: \`stego spine read --project <id> --format json\`
+- New spine category: \`stego spine new-category --project <id> --key <category>\`
+- New spine entry: \`stego spine new --project <id> --category <category> [--filename <path>]\`
+- Read metadata: \`stego metadata read <markdown-path> --format json\`
+- Apply metadata: \`stego metadata apply <markdown-path> --input <path|-> --format json\`
+- Read comments: \`stego comments read <manuscript> --format json\`
+- Mutate comments: \`stego comments add|reply|set-status|delete|clear-resolved|sync-anchors ... --format json\`
+`;
 const PROSE_MARKDOWN_EDITOR_SETTINGS: Record<string, unknown> = {
   "[markdown]": {
     "editor.fontFamily": "Inter, Helvetica Neue, Helvetica, Arial, sans-serif",
@@ -249,7 +347,8 @@ const PROSE_MARKDOWN_EDITOR_SETTINGS: Record<string, unknown> = {
 };
 const PROJECT_EXTENSION_RECOMMENDATIONS = [
   "matt-gold.stego-extension",
-  "matt-gold.saurus-extension"
+  "matt-gold.saurus-extension",
+  "streetsidesoftware.code-spell-checker"
 ] as const;
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(scriptDir, "..");
@@ -811,6 +910,7 @@ async function initWorkspace(options: { force: boolean }): Promise<void> {
 
   writeScaffoldGitignore(targetRoot, copiedPaths);
   writeScaffoldReadme(targetRoot, copiedPaths);
+  writeScaffoldAgents(targetRoot, copiedPaths);
   copyTemplateAsset(".markdownlint.json", targetRoot, copiedPaths);
   copyTemplateAsset(".markdownlint.manuscript.json", targetRoot, copiedPaths);
   copyTemplateAsset(".cspell.json", targetRoot, copiedPaths);
@@ -821,8 +921,13 @@ async function initWorkspace(options: { force: boolean }): Promise<void> {
 
   rewriteTemplateProjectPackageScripts(targetRoot);
   const enableProseFont = await promptYesNo(PROSE_FONT_PROMPT, true);
-  if (enableProseFont) {
-    writeProjectProseEditorSettings(targetRoot, copiedPaths);
+  const suggestedCommentAuthor = resolveSuggestedCommentAuthor(targetRoot);
+  const commentAuthor = (await promptText(COMMENT_AUTHOR_PROMPT, suggestedCommentAuthor)).trim();
+  if (enableProseFont || commentAuthor) {
+    writeProjectProseEditorSettings(targetRoot, copiedPaths, {
+      enableProseFont,
+      commentAuthor
+    });
   }
   writeInitRootPackageJson(targetRoot);
 
@@ -869,6 +974,50 @@ async function promptYesNo(question: string, defaultYes: boolean): Promise<boole
   }
 }
 
+async function promptText(question: string, defaultValue = ""): Promise<string> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    return defaultValue;
+  }
+
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  const suffix = defaultValue ? ` [${defaultValue}] ` : " ";
+
+  try {
+    const answer = (await rl.question(`${question}${suffix}`)).trim();
+    if (!answer) {
+      return defaultValue;
+    }
+    return answer;
+  } finally {
+    rl.close();
+  }
+}
+
+function resolveSuggestedCommentAuthor(cwd: string): string {
+  const gitAuthor = spawnSync("git", ["config", "--get", "user.name"], {
+    cwd,
+    encoding: "utf8"
+  });
+  const fromGit = (gitAuthor.stdout || "").trim();
+  if (gitAuthor.status === 0 && fromGit) {
+    return fromGit;
+  }
+
+  try {
+    const username = os.userInfo().username.trim();
+    if (username) {
+      return username;
+    }
+  } catch {
+    // ignore lookup failure and fall back to empty
+  }
+
+  return "";
+}
+
 function copyTemplateAsset(
   sourceRelativePath: string,
   targetRoot: string,
@@ -911,6 +1060,12 @@ function writeScaffoldReadme(targetRoot: string, copiedPaths: string[]): void {
   const destinationPath = path.join(targetRoot, "README.md");
   fs.writeFileSync(destinationPath, SCAFFOLD_README_CONTENT, "utf8");
   copiedPaths.push("README.md");
+}
+
+function writeScaffoldAgents(targetRoot: string, copiedPaths: string[]): void {
+  const destinationPath = path.join(targetRoot, "AGENTS.md");
+  fs.writeFileSync(destinationPath, SCAFFOLD_AGENTS_CONTENT, "utf8");
+  copiedPaths.push("AGENTS.md");
 }
 
 function shouldCopyTemplatePath(currentSourcePath: string): boolean {
@@ -1003,7 +1158,11 @@ function ensureProjectExtensionsRecommendations(projectRoot: string): void {
   fs.writeFileSync(extensionsPath, `${JSON.stringify(extensionsConfig, null, 2)}\n`, "utf8");
 }
 
-function writeProjectProseEditorSettings(targetRoot: string, copiedPaths: string[]): void {
+function writeProjectProseEditorSettings(
+  targetRoot: string,
+  copiedPaths: string[],
+  options?: { enableProseFont?: boolean; commentAuthor?: string }
+): void {
   const projectsRoot = path.join(targetRoot, "projects");
   if (!fs.existsSync(projectsRoot)) {
     return;
@@ -1015,15 +1174,21 @@ function writeProjectProseEditorSettings(targetRoot: string, copiedPaths: string
     }
 
     const projectRoot = path.join(projectsRoot, entry.name);
-    const settingsPath = writeProseEditorSettingsForProject(projectRoot);
+    const settingsPath = writeProseEditorSettingsForProject(projectRoot, options);
     copiedPaths.push(path.relative(targetRoot, settingsPath));
   }
 }
 
-function writeProseEditorSettingsForProject(projectRoot: string): string {
+function writeProseEditorSettingsForProject(
+  projectRoot: string,
+  options?: { enableProseFont?: boolean; commentAuthor?: string }
+): string {
   const vscodeDir = path.join(projectRoot, ".vscode");
   const settingsPath = path.join(vscodeDir, "settings.json");
   fs.mkdirSync(vscodeDir, { recursive: true });
+
+  const enableProseFont = options?.enableProseFont ?? true;
+  const commentAuthor = (options?.commentAuthor ?? "").trim();
 
   let existingSettings: Record<string, unknown> = {};
   if (fs.existsSync(settingsPath)) {
@@ -1040,18 +1205,24 @@ function writeProseEditorSettingsForProject(projectRoot: string): string {
   const proseMarkdownSettings = isPlainObject(PROSE_MARKDOWN_EDITOR_SETTINGS["[markdown]"])
     ? (PROSE_MARKDOWN_EDITOR_SETTINGS["[markdown]"] as Record<string, unknown>)
     : {};
-  const existingMarkdownSettings = isPlainObject(existingSettings["[markdown]"])
-    ? (existingSettings["[markdown]"] as Record<string, unknown>)
-    : {};
-
   const nextSettings: Record<string, unknown> = {
-    ...existingSettings,
-    "[markdown]": {
+    ...existingSettings
+  };
+
+  if (enableProseFont) {
+    const existingMarkdownSettings = isPlainObject(existingSettings["[markdown]"])
+      ? (existingSettings["[markdown]"] as Record<string, unknown>)
+      : {};
+    nextSettings["[markdown]"] = {
       ...existingMarkdownSettings,
       ...proseMarkdownSettings
-    },
-    "markdown.preview.fontFamily": PROSE_MARKDOWN_EDITOR_SETTINGS["markdown.preview.fontFamily"]
-  };
+    };
+    nextSettings["markdown.preview.fontFamily"] = PROSE_MARKDOWN_EDITOR_SETTINGS["markdown.preview.fontFamily"];
+  }
+
+  if (commentAuthor) {
+    nextSettings["stego.comments.author"] = commentAuthor;
+  }
 
   fs.writeFileSync(settingsPath, `${JSON.stringify(nextSettings, null, 2)}\n`, "utf8");
   return settingsPath;
