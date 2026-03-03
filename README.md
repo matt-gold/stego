@@ -26,6 +26,11 @@ It combines a CLI workflow (`stego-cli`) with a VS Code UI (`stego-extension`) s
 For complete docs, start here:
 
 - [`packages/stego-cli/projects/stego-docs/README.md`](packages/stego-cli/projects/stego-docs/README.md)
+- [`packages/stego-cli/README.md`](packages/stego-cli/README.md) (includes complete CLI command reference)
+
+## Agent Guidance
+
+- [`AGENTS.md`](AGENTS.md): CLI-first instructions for AI agents operating on Stego projects.
 
 ## CLI Commands (High-Level)
 

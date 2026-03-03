@@ -70,6 +70,41 @@ Spine V2 is directory-inferred:
 
 Projects also include local npm scripts so you can work from inside a project directory.
 
+## Complete CLI command reference
+
+The full command surface is available via:
+
+```bash
+stego --help
+stego --version
+```
+
+Current `stego --help` command index:
+
+```text
+init [--force]
+list-projects [--root <path>]
+new-project --project <project-id> [--title <title>] [--prose-font <yes|no|prompt>] [--format <text|json>] [--root <path>]
+new --project <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--format <text|json>] [--root <path>]
+validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]
+build --project <project-id> [--root <path>]
+check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]
+lint --project <project-id> [--manuscript|--spine] [--root <path>]
+export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]
+spine read --project <project-id> [--format <text|json>] [--root <path>]
+spine new-category --project <project-id> --key <category> [--label <label>] [--require-metadata] [--format <text|json>] [--root <path>]
+spine new --project <project-id> --category <category> [--filename <relative-path>] [--format <text|json>] [--root <path>]
+metadata read <markdown-path> [--format <text|json>]
+metadata apply <markdown-path> --input <path|-> [--format <text|json>]
+comments read <manuscript> [--format <text|json>]
+comments add <manuscript> [--message <text> | --input <path|->] [--author <name>] [--start-line <n> --start-col <n> --end-line <n> --end-col <n>] [--cursor-line <n>] [--format <text|json>]
+comments reply <manuscript> --comment-id <CMT-####> [--message <text> | --input <path|->] [--author <name>] [--format <text|json>]
+comments set-status <manuscript> --comment-id <CMT-####> --status <open|resolved> [--thread] [--format <text|json>]
+comments delete <manuscript> --comment-id <CMT-####> [--format <text|json>]
+comments clear-resolved <manuscript> [--format <text|json>]
+comments sync-anchors <manuscript> --input <path|-> [--format <text|json>]
+```
+
 ## Advanced integration command
 
 `stego comments add` is a machine-facing command for editor/tool integrations.

@@ -168,7 +168,16 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       void refreshDiagnosticsForDocument(event.document, indexService, diagnostics);
       commentDecorations.refreshVisibleEditors();
+      const commentsChanged = event.document.languageId === 'markdown'
+        && event.contentChanges.length > 0
+        && changesLikelyAffectCommentAppendix(event);
+      if (commentsChanged) {
+        void syncCommentStateAndTracker(event.document, false);
+      }
       if (event.document === vscode.window.activeTextEditor?.document) {
+        if (commentsChanged) {
+          return;
+        }
         if (event.document.languageId === 'markdown') {
           sidebarProvider.scheduleRefresh({ mode: 'fast', debounceMs: 180 });
         } else {
@@ -281,6 +290,27 @@ export function activate(context: vscode.ExtensionContext): void {
     await syncCommentStateAndTracker(document, false);
     commentDecorations.refreshVisibleEditors();
     void sidebarProvider.refresh();
+  }
+
+  function changesLikelyAffectCommentAppendix(event: vscode.TextDocumentChangeEvent): boolean {
+    const commentsRange = getStegoCommentsLineRange(event.document);
+    const markerPattern = /<!--\s*(?:stego-comments:start|stego-comments:end|comment:|meta64:)/i;
+
+    for (const change of event.contentChanges) {
+      if (markerPattern.test(change.text)) {
+        return true;
+      }
+
+      if (commentsRange) {
+        const startsBeforeOrAtEnd = change.range.start.line <= commentsRange.end;
+        const endsAfterOrAtStart = change.range.end.line >= commentsRange.start;
+        if (startsBeforeOrAtEnd && endsAfterOrAtStart) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 }
 
