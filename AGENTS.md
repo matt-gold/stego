@@ -2,17 +2,29 @@
 
 ## Purpose
 
-This repository is designed to be AI-friendly for writing workflows. Agents should default to Stego CLI operations whenever possible.
+This repository is AI-friendly for Stego writing workflows and CLI/extension development.
+Default to Stego CLI commands for Stego-managed content changes.
+
+## Current Architecture Snapshot
+
+- CLI runtime entrypoint: `packages/stego-cli/src/main.ts`
+- CLI architecture notes: `packages/stego-cli/docs/architecture.md`
+- CLI app boundary: `packages/stego-cli/src/app/*`
+- CLI domain modules: `packages/stego-cli/src/modules/*`
+- Shared contracts/domain primitives: `packages/shared/src/*`
+- Extension source: `packages/stego-extension/src/*`
+
+Important: `packages/stego-cli/tools/stego-cli.ts` is legacy compatibility surface, not the primary architecture.
 
 ## Canonical CLI Locations
 
-- User-facing CLI docs: `packages/stego-cli/README.md`
+- User-facing docs: `packages/stego-cli/README.md`
 - Full command index: `stego --help`
-- CLI source entrypoint: `packages/stego-cli/tools/stego-cli.ts`
+- Version check: `stego --version`
 
 ## CLI Resolution Rules
 
-- Prefer local CLI over global CLI:
+- Prefer local CLI over global:
   - `npm exec -- stego ...`
   - `npx --no-install stego ...`
 - At the start of mutation tasks, run `stego --version` and report the version used.
@@ -25,7 +37,7 @@ This repository is designed to be AI-friendly for writing workflows. Agents shou
 
 ## CLI-First Policy (Required)
 
-When asked to edit Stego project content, **attempt to use documented Stego CLI commands first**.
+When asked to edit Stego project content, attempt documented CLI commands first.
 
 Typical targets:
 
@@ -35,7 +47,7 @@ Typical targets:
 - comments
 - stage/build/export workflows
 
-Preferred commands include:
+Preferred commands:
 
 - `stego new`
 - `stego spine read`
@@ -47,45 +59,74 @@ Preferred commands include:
 
 ## Machine-Mode Output
 
-- For automation and integrations, prefer `--format json` and parse structured output.
-- Use text output only for human-facing summaries.
+- For automation/integrations, prefer `--format json`.
+- Parse structured envelopes; avoid parsing human text output when JSON exists.
 
 ## Mutation Protocol
 
 1. Read current state first (`metadata read`, `spine read`, `comments read`).
-2. Mutate via CLI commands.
+2. Mutate via CLI.
 3. Verify after writes (`stego validate --project <id>` and relevant read commands).
 
 ## Manual Edit Fallback
 
-Manual edits to configuration files, metadata frontmatter, or other stego-managed content is a last resort. Use them only when:
+Manual edits to Stego-managed content are last resort. Use only when:
 
-1. no documented CLI command exists for the requested operation, or
-2. the CLI command fails and cannot be reasonably recovered.
+1. no documented CLI command exists, or
+2. CLI fails and cannot be reasonably recovered.
 
-If manual edits to stego configuration are required, the agent must:
+If manual edits are required:
 
-1. explicitly warn the user that CLI was bypassed,
-2. explain why CLI could not be used, and
-3. list which files were manually edited.
+1. warn that CLI was bypassed,
+2. explain why, and
+3. list edited files.
 
 ## Failure Contract
 
 When CLI fails:
 
-1. show the attempted command,
-2. summarize the error briefly,
-3. report the recovery attempt, and
-4. if fallback is required, apply the Manual Edit Fallback policy.
+1. show attempted command,
+2. summarize error,
+3. report recovery attempt,
+4. if still blocked, apply Manual Edit Fallback policy.
+
+## Architecture Guardrails (Code Changes)
+
+For CLI code edits:
+
+1. Treat each `src/modules/<name>/` directory as a module boundary.
+2. Import other modules via `src/modules/<name>/index.ts` only (no deep cross-module imports).
+3. Keep shared primitives/contracts in `packages/shared/src/**/index.ts` and consume from there.
+4. Keep process exit, stdout/stderr rendering, and top-level error mapping in app boundary (`src/app/*`), not in domain logic.
+
+For extension code edits:
+
+1. Keep extension UX/editor behavior in extension package.
+2. Keep canonical mutation semantics in CLI/shared domain logic.
+3. Reuse shared CLI contracts/domain parsers where parity is required.
+
+## Shared Package Build Hygiene
+
+- Do not commit generated files in `packages/shared/src`.
+- Build output belongs in `packages/shared/dist`.
+- Never manually edit generated outputs in `dist/` or `out/`.
 
 ## Validation Expectations
 
-After CLI or manual mutations, run relevant checks when feasible (for example `stego validate --project <id>`) and report results.
+After CLI/content mutations, run relevant checks when feasible.
+
+For architecture/code changes, prefer:
+
+- `npm run -w packages/stego-cli check:module-apis`
+- `npm run -w packages/stego-cli check:boundaries`
+- `npm run -w packages/stego-cli test`
+- `npm run -w packages/stego-extension test:pure` (when extension/shared touched)
+- `npm --prefix packages/shared run build` (when shared touched)
 
 ## Scope Guardrails
 
 - Do not manually edit `dist/` outputs or compiled export artifacts.
-- Do not modify files outside the requested project scope unless the user explicitly asks.
+- Do not modify files outside requested scope unless explicitly asked.
 
 ## Task To Command Quick Map
 

@@ -2,6 +2,7 @@ import * as path from 'path';
 import { promises as fs, type Dirent } from 'fs';
 import * as vscode from 'vscode';
 import { normalizeFsPath } from '../../shared/path';
+import { isValidMetadataKey } from '../../../../shared/src/domain/frontmatter';
 import type {
   ProjectSpineCategory,
   ProjectConfigIssue,
@@ -9,7 +10,6 @@ import type {
   ProjectStructuralLevel
 } from '../../shared/types';
 
-const METADATA_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
 export const PROJECT_HEALTH_CHANNEL = 'Stego Project Health';
 
 const PROJECT_JSON_SCHEMA = {
@@ -336,7 +336,7 @@ export function extractProjectRequiredMetadata(parsed: unknown, issues?: Project
       continue;
     }
 
-    if (!METADATA_KEY_PATTERN.test(key)) {
+    if (!isValidMetadataKey(key)) {
       if (issues) {
         issues.push(issue(`$.requiredMetadata[${index}]`, `Ignored invalid metadata key '${key}'.`));
       }
@@ -402,7 +402,7 @@ export function extractProjectStructuralLevels(parsed: unknown, issues?: Project
 
     const key = asTrimmedString(levelRecord.key);
     const label = asTrimmedString(levelRecord.label);
-    if (!key || !METADATA_KEY_PATTERN.test(key)) {
+    if (!key || !isValidMetadataKey(key)) {
       if (issues) {
         issues.push(issue(`${levelPath}.key`, 'Ignored level with invalid key.'));
       }
@@ -423,7 +423,7 @@ export function extractProjectStructuralLevels(parsed: unknown, issues?: Project
     }
 
     const titleKey = asTrimmedString(levelRecord.titleKey);
-    if (titleKey && !METADATA_KEY_PATTERN.test(titleKey)) {
+    if (titleKey && !isValidMetadataKey(titleKey)) {
       if (issues) {
         issues.push(issue(`${levelPath}.titleKey`, `Ignored invalid titleKey '${titleKey}'.`));
       }
@@ -489,7 +489,7 @@ async function discoverProjectCategories(
     }
 
     const key = entry.name.trim().toLowerCase();
-    if (!METADATA_KEY_PATTERN.test(key)) {
+    if (!isValidMetadataKey(key)) {
       if (issues) {
         issues.push(issue('spine', `Ignored invalid category directory '${entry.name}'.`));
       }

@@ -42,6 +42,12 @@ Start by reading the manuscript files in order, or build the docs project:
 stego build --project stego-docs
 ```
 
+## Architecture
+
+Internal architecture notes for the domain-first module layout live in:
+
+- `docs/architecture.md`
+
 ## Core commands
 
 Run commands from the workspace root and target a project with `--project`.

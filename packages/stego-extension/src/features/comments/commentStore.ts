@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import { errorToMessage } from '../../shared/errors';
 import type { SidebarCommentsState } from '../../shared/types';
+import {
+  normalizeAuthor as normalizeSharedAuthor,
+  parseCommentAppendix
+} from '../../../../shared/src/domain/comments';
 import { CommentCliClient } from './commentCliClient';
 import {
   buildAddCommentPayload,
@@ -332,38 +336,11 @@ export async function persistExcerptUpdates(
 }
 
 export function normalizeAuthor(value: string): string {
-  const author = value.trim();
-  if (author) {
-    return author;
-  }
-
-  return process.env.GIT_AUTHOR_NAME
-    || process.env.USER
-    || process.env.USERNAME
-    || 'Unknown';
+  return normalizeSharedAuthor(value);
 }
 
 export function stripStegoCommentsAppendix(markdown: string): string {
-  const lineEnding = markdown.includes('\r\n') ? '\r\n' : '\n';
-  const lines = markdown.split(/\r?\n/);
-  const start = findSingleLineIndex(lines, '<!-- stego-comments:start -->');
-  const end = findSingleLineIndex(lines, '<!-- stego-comments:end -->');
-
-  if (start === undefined || end === undefined || end <= start) {
-    return markdown;
-  }
-
-  let removeStart = start;
-  if (removeStart > 0 && lines[removeStart - 1].trim().length === 0) {
-    removeStart -= 1;
-  }
-
-  const kept = [...lines.slice(0, removeStart), ...lines.slice(end + 1)];
-  while (kept.length > 0 && kept[kept.length - 1].trim().length === 0) {
-    kept.pop();
-  }
-
-  return kept.join(lineEnding);
+  return parseCommentAppendix(markdown).contentWithoutComments;
 }
 
 async function getOrRefreshState(
@@ -406,22 +383,4 @@ async function ensureDocumentSaved(document: vscode.TextDocument): Promise<{ war
   } catch (error) {
     return { warning: `Could not save manuscript before updating comments: ${errorToMessage(error)}` };
   }
-}
-
-function findSingleLineIndex(lines: string[], needle: string): number | undefined {
-  let found: number | undefined;
-
-  for (let index = 0; index < lines.length; index += 1) {
-    if (lines[index].trim() !== needle) {
-      continue;
-    }
-
-    if (found !== undefined) {
-      return undefined;
-    }
-
-    found = index;
-  }
-
-  return found;
 }

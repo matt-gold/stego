@@ -6,8 +6,8 @@ import type { ScriptRunResult } from '../../shared/types';
 import { pickToastDetails, resolveWorkspaceCommandInvocation, runCommand } from './workflowUtils';
 import type { WorkflowRunResult } from './workflowUtils';
 import { resolveStegoWorkspaceRoot } from '../project/openMode';
+import { isValidProjectId } from '../../../../shared/src/domain/project';
 
-const PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const DEFAULT_PROJECTS_DIR = 'projects';
 
 type ProseFontOption = vscode.QuickPickItem & { enableProseFont: boolean };
@@ -104,7 +104,7 @@ async function promptProjectId(): Promise<string | undefined> {
       if (!candidate) {
         return 'Project id is required.';
       }
-      if (!PROJECT_ID_PATTERN.test(candidate)) {
+      if (!isValidProjectId(candidate)) {
         return 'Project id must match /^[a-z0-9][a-z0-9-]*$/.';
       }
       return undefined;

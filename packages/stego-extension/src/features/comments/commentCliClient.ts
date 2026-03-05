@@ -1,72 +1,24 @@
-import * as os from 'os';
 import * as path from 'path';
-import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { pickToastDetails, resolveStegoCommandInvocation, runCommand } from '../commands/workflowUtils';
-import type { StegoCommentDocumentState } from './commentTypes';
+import {
+  type CommentAddPayload,
+  type CommentReplyPayload,
+  type CommentSyncAnchorsPayload,
+  type CommentsSubcommand,
+  type CommentsSuccessEnvelope
+} from '../../../../shared/src/contracts/cli';
+import { extractCliErrorMessage, tryParseJson } from '../../shared/cli/json';
+import { withJsonPayloadFile } from '../../shared/cli/payload-file';
 
-export type CommentCliOperation =
-  | 'read'
-  | 'add'
-  | 'reply'
-  | 'set-status'
-  | 'delete'
-  | 'clear-resolved'
-  | 'sync-anchors';
-
-export type CommentRangePayload = {
-  start: { line: number; col: number };
-  end: { line: number; col: number };
-};
-
-export type CommentAddPayload = {
-  message: string;
-  author?: string;
-  anchor?: {
-    range?: CommentRangePayload;
-    cursor_line?: number;
-    excerpt?: string;
-  };
-  meta?: Record<string, unknown>;
-};
-
-export type CommentReplyPayload = {
-  message: string;
-  author?: string;
-};
-
-export type CommentSyncAnchorsPayload = {
-  updates?: Array<{
-    id: string;
-    start: { line: number; col: number };
-    end: { line: number; col: number };
-  }>;
-  delete_ids?: string[];
-};
-
-type CommentCliErrorEnvelope = {
-  ok: false;
-  code?: string;
-  message?: string;
-};
-
-type CommentCliSuccessEnvelope = {
-  ok: true;
-  operation: CommentCliOperation;
-  state: StegoCommentDocumentState;
-  commentId?: string;
-  changedIds?: string[];
-  removed?: number;
-  updatedCount?: number;
-  deletedCount?: number;
-};
+export type CommentCliOperation = CommentsSubcommand;
 
 export type CommentCliWarningResult = {
   warning: string;
 };
 
 export type CommentCliSuccessResult<T extends CommentCliOperation> =
-  CommentCliSuccessEnvelope & { operation: T };
+  Extract<CommentsSuccessEnvelope, { operation: T }>;
 
 export type CommentCliResult<T extends CommentCliOperation> =
   | CommentCliWarningResult
@@ -159,18 +111,7 @@ export class CommentCliClient {
     options?: CallOptions
   ): Promise<CommentCliResult<T>> {
     const cwd = path.dirname(manuscriptPath);
-    let payloadPath: string | undefined;
-    let payloadDir: string | undefined;
-
-    try {
-      const args = ['comments', subcommand, manuscriptPath, ...extraArgs];
-      if (payload) {
-        payloadPath = await this.writePayload(payload);
-        payloadDir = path.dirname(payloadPath);
-        args.push('--input', payloadPath);
-      }
-      args.push('--format', 'json');
-
+    const runWithArgs = async (args: string[]): Promise<CommentCliResult<T>> => {
       const invocation = await resolveStegoCommandInvocation(
         cwd,
         args,
@@ -178,9 +119,8 @@ export class CommentCliClient {
         { showWarning: options?.showWarning }
       );
       if (!invocation) {
-        const message = `Could not ${actionLabel} because stego-cli is unavailable.`;
         return {
-          warning: message
+          warning: `Could not ${actionLabel} because stego-cli is unavailable.`
         };
       }
 
@@ -197,7 +137,7 @@ export class CommentCliClient {
       }
 
       if (result.exitCode !== 0) {
-        const failureMessage = this.extractErrorMessage(result.stdout, result.stderr)
+        const failureMessage = extractCliErrorMessage(result.stdout, result.stderr)
           || pickToastDetails(result)
           || `Exit code ${result.exitCode}`;
         return {
@@ -205,8 +145,8 @@ export class CommentCliClient {
         };
       }
 
-      const parsed = tryParseJson<CommentCliSuccessEnvelope>(result.stdout);
-      if (!parsed || parsed.ok !== true || !parsed.state || parsed.operation !== subcommand) {
+      const parsed = tryParseJson<CommentsSuccessEnvelope>(result.stdout);
+      if (!parsed || parsed.ok !== true || !('state' in parsed) || parsed.operation !== subcommand) {
         return {
           warning: this.reportWarning(
             `Could not ${actionLabel}: stego-cli returned an unexpected response.`,
@@ -216,29 +156,16 @@ export class CommentCliClient {
       }
 
       return parsed as CommentCliSuccessResult<T>;
-    } finally {
-      if (payloadPath) {
-        try {
-          await fs.unlink(payloadPath);
-        } catch {
-          // no-op
-        }
-      }
-      if (payloadDir) {
-        try {
-          await fs.rmdir(payloadDir);
-        } catch {
-          // no-op
-        }
-      }
-    }
-  }
+    };
 
-  private async writePayload(payload: Record<string, unknown>): Promise<string> {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'stego-comments-'));
-    const payloadPath = path.join(dir, 'payload.json');
-    await fs.writeFile(payloadPath, `${JSON.stringify(payload)}\n`, 'utf8');
-    return payloadPath;
+    const baseArgs = ['comments', subcommand, manuscriptPath, ...extraArgs];
+    if (!payload) {
+      return runWithArgs([...baseArgs, '--format', 'json']);
+    }
+
+    return withJsonPayloadFile('stego-comments-', payload, async (payloadPath) => (
+      runWithArgs([...baseArgs, '--input', payloadPath, '--format', 'json'])
+    ));
   }
 
   private reportWarning(message: string, options?: CallOptions): string {
@@ -246,32 +173,5 @@ export class CommentCliClient {
       void vscode.window.showWarningMessage(message);
     }
     return message;
-  }
-
-  private extractErrorMessage(stdout: string, stderr: string): string | undefined {
-    const fromStderr = tryParseJson<CommentCliErrorEnvelope>(stderr);
-    if (fromStderr && fromStderr.ok === false && typeof fromStderr.message === 'string') {
-      return fromStderr.message;
-    }
-
-    const fromStdout = tryParseJson<CommentCliErrorEnvelope>(stdout);
-    if (fromStdout && fromStdout.ok === false && typeof fromStdout.message === 'string') {
-      return fromStdout.message;
-    }
-
-    return undefined;
-  }
-}
-
-function tryParseJson<T>(text: string): T | undefined {
-  const trimmed = text.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-
-  try {
-    return JSON.parse(trimmed) as T;
-  } catch {
-    return undefined;
   }
 }

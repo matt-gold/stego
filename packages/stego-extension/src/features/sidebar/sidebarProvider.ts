@@ -40,6 +40,8 @@ import {
 } from '../metadata/frontmatterEdit';
 import { formatMetadataValue, parseMarkdownDocument } from '../metadata/frontmatterParse';
 import { buildStatusControl } from '../metadata/statusControl';
+import { isValidMetadataKey as isSharedMetadataKey } from '../../../../shared/src/domain/frontmatter';
+import { getStageRank, isStageName } from '../../../../shared/src/domain/stages';
 import {
   collectIdentifierOccurrencesFromLines,
   extractIdentifierTokensFromValue
@@ -2648,7 +2650,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private isValidMetadataKey(value: string): boolean {
-    return /^[A-Za-z0-9_-]+$/.test(value);
+    return isSharedMetadataKey(value);
   }
 
   private toSpineCategoryKey(name: string): string {
@@ -2685,15 +2687,13 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
   private compareOverviewStatus(aStatus: string, bStatus: string): number {
     const rank = (status: string): number => {
-      switch (status) {
-        case 'draft': return 0;
-        case 'revise': return 1;
-        case 'line-edit': return 2;
-        case 'proof': return 3;
-        case 'final': return 4;
-        case '(missing)': return 5;
-        default: return 100;
+      if (status === '(missing)') {
+        return 5;
       }
+      if (isStageName(status)) {
+        return getStageRank(status);
+      }
+      return 100;
     };
 
     const aRank = rank(aStatus);
