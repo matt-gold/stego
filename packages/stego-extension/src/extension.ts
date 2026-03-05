@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { END_SENTINEL, START_SENTINEL } from '../../shared/src/domain/comments';
 import { METADATA_VIEW_ID } from './shared/constants';
 import { maybeAutoFoldFrontmatter, toggleFrontmatterFold } from './features/commands/frontmatterFold';
 import { runProjectBuildWorkflow } from './features/commands/buildWorkflow';
@@ -294,10 +295,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   function changesLikelyAffectCommentAppendix(event: vscode.TextDocumentChangeEvent): boolean {
     const commentsRange = getStegoCommentsLineRange(event.document);
-    const markerPattern = /<!--\s*(?:stego-comments:start|stego-comments:end|comment:|meta64:)/i;
+    const appendixMarkers = [START_SENTINEL, END_SENTINEL, '<!-- comment:', '<!-- meta64:'];
 
     for (const change of event.contentChanges) {
-      if (markerPattern.test(change.text)) {
+      if (appendixMarkers.some((marker) => change.text.includes(marker))) {
         return true;
       }
 

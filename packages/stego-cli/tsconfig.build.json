@@ -3,10 +3,11 @@
   "compilerOptions": {
     "noEmit": false,
     "outDir": "./dist",
-    "rootDir": "./tools",
+    "rootDir": "..",
     "rewriteRelativeImportExtensions": true
   },
   "include": [
-    "tools/**/*.ts"
+    "src/**/*.ts",
+    "../shared/src/**/*.ts"
   ]
 }

@@ -29,7 +29,7 @@
     "onCommand:stegoSpine.toggleFrontmatter",
     "onView:stegoSpine.metadataView"
   ],
-  "main": "./out/extension.js",
+  "main": "./out/stego-extension/src/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -181,7 +181,7 @@
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "npm run compile",
     "test": "npm run test:pure",
-    "test:pure": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\" && npm run compile && node --test out/test/pure/*.js",
+    "test:pure": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\" && npm run compile && node --test out/stego-extension/src/test/pure/*.js",
     "package": "vsce package",
     "changeset": "changeset",
     "release:version": "changeset version"

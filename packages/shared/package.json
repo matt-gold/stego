@@ -1,0 +1,9 @@
+{
+  "name": "@stego/shared",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "compile": "npm run build"
+  }
+}

@@ -11,9 +11,20 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@cli/*": [
+        "src/*"
+      ],
+      "@shared/*": [
+        "../shared/src/*"
+      ]
+    }
   },
   "include": [
-    "tools/**/*.ts"
+    "src/**/*.ts",
+    "tools/stego-cli.ts",
+    "../shared/src/**/*.ts"
   ]
 }

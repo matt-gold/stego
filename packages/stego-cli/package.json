@@ -1,6 +1,6 @@
 {
   "name": "stego-cli",
-  "version": "0.4.0",
+  "version": "0.4.2-beta.0",
   "type": "module",
   "description": "Installable CLI for the Stego writing monorepo workflow.",
   "license": "Apache-2.0",
@@ -14,7 +14,7 @@
   },
   "homepage": "https://github.com/matt-gold/stego/tree/main/packages/stego-cli#readme",
   "bin": {
-    "stego": "dist/stego-cli.js"
+    "stego": "dist/stego-cli/src/main.js"
   },
   "engines": {
     "node": ">=20"
@@ -41,25 +41,34 @@
     "pack:dry-run": "npm pack --dry-run",
     "changeset": "changeset",
     "release:version": "changeset version",
-    "list-projects": "node --experimental-strip-types tools/stego-cli.ts list-projects",
-    "new-project": "node --experimental-strip-types tools/stego-cli.ts new-project",
-    "new": "node --experimental-strip-types tools/stego-cli.ts new",
-    "lint": "node --experimental-strip-types tools/stego-cli.ts lint",
-    "validate": "node --experimental-strip-types tools/stego-cli.ts validate",
-    "build": "node --experimental-strip-types tools/stego-cli.ts build",
-    "check-stage": "node --experimental-strip-types tools/stego-cli.ts check-stage",
-    "export": "node --experimental-strip-types tools/stego-cli.ts export",
+    "list-projects": "node --experimental-strip-types src/main.ts list-projects",
+    "new-project": "node --experimental-strip-types src/main.ts new-project",
+    "new": "node --experimental-strip-types src/main.ts new",
+    "lint": "node --experimental-strip-types src/main.ts lint",
+    "validate": "node --experimental-strip-types src/main.ts validate",
+    "build": "node --experimental-strip-types src/main.ts build",
+    "check-stage": "node --experimental-strip-types src/main.ts check-stage",
+    "export": "node --experimental-strip-types src/main.ts export",
     "test:compile-structure": "node --test tools/test/compile-structure.test.mjs",
     "test:comments": "node --test tools/test/comments-add.test.mjs",
+    "test:cli-core": "node --test tools/test/cli-core.test.mjs",
     "test:spine-v2": "node --test tools/test/spine-v2.test.mjs",
-    "test": "npm run test:compile-structure && npm run test:comments && npm run test:spine-v2"
+    "test:workspace-project": "node --test tools/test/workspace-project.test.mjs",
+    "test": "npm run test:compile-structure && npm run test:comments && npm run test:cli-core && npm run test:spine-v2 && npm run test:workspace-project && npm run check:module-apis && npm run check:boundaries",
+    "check:boundaries": "node scripts/check-module-boundaries.mjs",
+    "check:module-apis": "node scripts/check-module-apis.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.2.3",
     "cspell": "^9.6.4",
     "markdownlint-cli": "^0.47.0",
     "pandoc": "^0.2.0",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "cac": "^7.0.0",
+    "js-yaml": "^4.1.1"
   }
 }
