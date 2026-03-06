@@ -1,6 +1,5 @@
 {
   "name": "stego-cli",
-  "version": "0.4.2-beta.0",
   "version": "0.4.1",
   "type": "module",
   "description": "Installable CLI for the Stego writing monorepo workflow.",
