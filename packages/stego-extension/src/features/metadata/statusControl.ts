@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { asString } from '../../shared/value';
 import type { SidebarStatusControl } from '../../shared/types';
-import { findNearestFileUpward } from '../project/projectConfig';
+import { findNearestFileUpward } from '../project';
 import { DEFAULT_ALLOWED_STATUSES } from '../../../../shared/src/domain/stages';
 
 export async function buildStatusControl(

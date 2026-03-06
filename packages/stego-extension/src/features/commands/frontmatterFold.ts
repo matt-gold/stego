@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { STRINGS } from '../../shared/strings';
-import { getConfig } from '../project/projectConfig';
-import { getFrontmatterLineRange, getStegoCommentsLineRange } from '../metadata/frontmatterParse';
+import { getFrontmatterLineRange, getStegoCommentsLineRange } from '../metadata';
+import { getConfig } from '../project';
 
 const AUTO_FOLD_SUPPRESSION_MS = 4000;
 const autoFoldSuppressedUntilByDocument = new Map<string, number>();

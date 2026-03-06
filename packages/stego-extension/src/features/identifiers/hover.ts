@@ -2,10 +2,10 @@ import * as vscode from 'vscode';
 import { DEFAULT_IDENTIFIER_PATTERN } from '../../shared/constants';
 import { escapeMarkdown } from '../../shared/markdown';
 import { collectIdentifiers } from './collectIdentifiers';
-import { createExploreIdentifierCommandUri } from '../navigation/openTargets';
-import { getConfig } from '../project/projectConfig';
-import { SpineIndexService } from '../indexing/spineIndexService';
-import { isCommentIdentifier, normalizeCommentIdentifier } from '../comments/commentIds';
+import { isCommentIdentifier, normalizeCommentIdentifier } from '../comments';
+import { SpineIndexService } from '../indexing';
+import { createExploreIdentifierCommandUri } from '../navigation';
+import { getConfig } from '../project';
 
 export function createHoverProvider(indexService: SpineIndexService): vscode.HoverProvider {
   return {

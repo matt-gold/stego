@@ -7,8 +7,8 @@ import type {
   ProjectReferenceIndex,
   SidebarBacklink
 } from '../../shared/types';
-import { collectReferenceMarkdownFiles } from '../project/fileScan';
-import { compileGlobalRegex } from '../identifiers/collectIdentifiers';
+import { compileGlobalRegex } from '../identifiers';
+import { collectReferenceMarkdownFiles } from '../project';
 
 export class ReferenceUsageIndexService {
   private readonly cache = new Map<string, ProjectReferenceIndex>();

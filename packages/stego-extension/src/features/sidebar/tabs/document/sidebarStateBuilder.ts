@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { normalizeSpineEntryLabel } from '../../shared/spineEntryMetadata';
+import { normalizeSpineEntryLabel } from '../../../../shared/spineEntryMetadata';
 import type {
   SpineRecord,
   ProjectSpineCategory,
@@ -8,14 +8,14 @@ import type {
   SidebarExplorerPage,
   SidebarBacklink,
   SidebarMetadataEntry
-} from '../../shared/types';
-import { formatMetadataValue } from '../metadata/frontmatterParse';
-import { extractIdentifierTokensFromValue, getIdentifierPrefix, tryParseIdentifierFromHeading } from '../identifiers/collectIdentifiers';
-import { resolveTarget } from '../navigation/openTargets';
-import { ReferenceUsageIndexService } from '../indexing/referenceUsageIndexService';
+} from '../../../../shared/types';
+import { extractIdentifierTokensFromValue, getIdentifierPrefix, tryParseIdentifierFromHeading } from '../../../identifiers';
+import { ReferenceUsageIndexService } from '../../../indexing';
+import { formatMetadataValue } from '../../../metadata';
+import { resolveTarget } from '../../../navigation';
 import { applyBacklinkFilter } from './sidebarToc';
-import { collectExplorerCategoryItems, collectExplorerCategorySummaries, resolveSpineSectionPreview } from './sidebarExplorer';
-import type { SidebarTocEntry } from '../../shared/types';
+import { collectExplorerCategoryItems, collectExplorerCategorySummaries, resolveSpineSectionPreview } from '../spine/sidebarExplorer';
+import type { SidebarTocEntry } from '../../../../shared/types';
 
 export function buildMetadataEntry(
   key: string,

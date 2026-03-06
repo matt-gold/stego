@@ -1,9 +1,9 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { MINOR_TITLE_WORDS } from '../../shared/constants';
-import { normalizeFsPath } from '../../shared/path';
-import { slugifyHeading } from '../../shared/markdown';
-import type { SidebarBacklink, SidebarTocEntry } from '../../shared/types';
+import { MINOR_TITLE_WORDS } from '../../../../shared/constants';
+import { normalizeFsPath } from '../../../../shared/path';
+import { slugifyHeading } from '../../../../shared/markdown';
+import type { SidebarBacklink, SidebarTocEntry } from '../../../../shared/types';
 
 export function collectTocEntries(document: vscode.TextDocument): SidebarTocEntry[] {
   const entries: SidebarTocEntry[] = [];

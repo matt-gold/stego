@@ -2,8 +2,7 @@ import * as vscode from 'vscode';
 import { errorToMessage } from '../../shared/errors';
 import { asString } from '../../shared/value';
 import type { ScriptRunResult } from '../../shared/types';
-import { parseMarkdownDocument } from '../metadata/frontmatterParse';
-import { resolveAllowedStatuses } from '../metadata/statusControl';
+import { parseMarkdownDocument, resolveAllowedStatuses } from '../metadata';
 import { pickToastDetails, resolveProjectScriptContext, resolveWorkflowCommandInvocation, runCommand } from './workflowUtils';
 import type { WorkflowRunResult } from './workflowUtils';
 

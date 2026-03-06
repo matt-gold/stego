@@ -2,7 +2,7 @@ import * as path from 'path';
 import { promises as fs } from 'fs';
 import type { Dirent, Stats } from 'fs';
 import * as vscode from 'vscode';
-import { resolveStegoWorkspaceRoot } from '../project/openMode';
+import { resolveStegoWorkspaceRoot } from '../project';
 
 const DEFAULT_PROJECTS_DIR = 'projects';
 

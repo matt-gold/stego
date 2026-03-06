@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { getCachedCommentState } from './commentStore';
-import { getConfig } from '../project/projectConfig';
+import { getConfig } from '../project';
 import type { CommentExcerptTracker } from './commentExcerptTracker';
 import { buildDecorationCommentEntries } from './commentModel';
 

@@ -9,7 +9,7 @@ import type {
   SidebarPinnedExplorerPanel,
   SidebarState
 } from '../../../shared/types';
-import { getSidebarFileTitle } from '../sidebarToc';
+import { getSidebarFileTitle } from '../tabs/document/sidebarToc';
 import { getSidebarAssetUris } from './sidebarAssetUris';
 import { renderMarkdownForExplorer } from './renderMarkdownForExplorer';
 import { escapeAttribute, escapeHtml, randomNonce } from './renderUtils';

@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { pickToastDetails, resolveStegoCommandInvocation, runCommand } from '../commands/workflowUtils';
+import { pickToastDetails, resolveStegoCommandInvocation, runCommand } from '../commands';
 import type { MetadataApplyEnvelope, MetadataApplyPayload } from '../../../../shared/src/contracts/cli';
 import { extractCliErrorMessage, tryParseJson } from '../../shared/cli/json';
 import { withJsonPayloadFile } from '../../shared/cli/payload-file';
