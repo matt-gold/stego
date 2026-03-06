@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+
+### Patch Changes
+
+- 3a64f57: codex/extension module api seams
+
 ## 0.6.0
 
 ### Minor Changes
