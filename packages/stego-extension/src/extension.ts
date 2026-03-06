@@ -295,10 +295,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   function changesLikelyAffectCommentAppendix(event: vscode.TextDocumentChangeEvent): boolean {
     const commentsRange = getStegoCommentsLineRange(event.document);
-    const appendixMarkers = [START_SENTINEL, END_SENTINEL, '<!-- comment:', '<!-- meta64:'];
 
     for (const change of event.contentChanges) {
-      if (appendixMarkers.some((marker) => change.text.includes(marker))) {
+      if (containsCommentAppendixMarker(change.text)) {
         return true;
       }
 
@@ -312,6 +311,24 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     return false;
+  }
+
+  function containsCommentAppendixMarker(text: string): boolean {
+    if (!text) {
+      return false;
+    }
+
+    const normalizeSentinel = (value: string): string => value.toLowerCase().replace(/\s+/g, '');
+    const normalizedText = text.toLowerCase().replace(/\s+/g, '');
+    const normalizedStart = normalizeSentinel(START_SENTINEL);
+    const normalizedEnd = normalizeSentinel(END_SENTINEL);
+
+    if (normalizedText.includes(normalizedStart) || normalizedText.includes(normalizedEnd)) {
+      return true;
+    }
+
+    // tolerate extra spacing and case changes in legacy markers
+    return /<!--\s*(comment|meta64)\s*:/i.test(text);
   }
 }
 

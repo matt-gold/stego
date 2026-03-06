@@ -15,13 +15,7 @@ export async function withJsonPayloadFile<TResult>(
     return await run(payloadPath);
   } finally {
     try {
-      await fs.unlink(payloadPath);
-    } catch {
-      // no-op
-    }
-
-    try {
-      await fs.rmdir(dir);
+      await fs.rm(dir, { recursive: true, force: true });
     } catch {
       // no-op
     }
