@@ -160,8 +160,12 @@ jobs:
       - name: Prepare isolated stego-extension package dir
         if: ${{ env.EXT_CHANGED == 'true' }}
         run: |
+          SHARED_PKG_DIR="$RUNNER_TEMP/shared"
           EXT_PKG_DIR="$RUNNER_TEMP/stego-extension-package"
+          rm -rf "$SHARED_PKG_DIR" "$EXT_PKG_DIR"
+          mkdir -p "$SHARED_PKG_DIR"
           mkdir -p "$EXT_PKG_DIR"
+          cp -R packages/shared/. "$SHARED_PKG_DIR/"
           cp -R packages/stego-extension/. "$EXT_PKG_DIR/"
           echo "EXT_PKG_DIR=$EXT_PKG_DIR" >> "$GITHUB_ENV"
 
