@@ -10,7 +10,7 @@ import type {
   ProjectScanContext,
   ProjectStructuralLevel
 } from '../../shared/types';
-import { parseProjectImageDefaults } from '../metadata/imageMetadata';
+import { parseProjectImageDefaults } from '../metadata';
 
 export const PROJECT_HEALTH_CHANNEL = 'Stego Project Health';
 

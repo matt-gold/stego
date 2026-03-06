@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { errorToMessage } from '../../shared/errors';
 import type { SpineRecord } from '../../shared/types';
-import { getConfig } from '../project/projectConfig';
+import { getConfig } from '../project';
 
 export function resolveTarget(id: string, record: SpineRecord | undefined, document: vscode.TextDocument): vscode.Uri | undefined {
   const config = getConfig('spine', document.uri);

@@ -1,31 +1,30 @@
 import * as vscode from 'vscode';
 import { END_SENTINEL, START_SENTINEL } from '../../shared/src/domain/comments';
 import { METADATA_VIEW_ID } from './shared/constants';
-import { maybeAutoFoldFrontmatter, toggleFrontmatterFold } from './features/commands/frontmatterFold';
-import { runProjectBuildWorkflow } from './features/commands/buildWorkflow';
-import { runProjectGateStageWorkflow } from './features/commands/stageCheckWorkflow';
-import { runLocalValidateWorkflow } from './features/commands/localValidateWorkflow';
-import { runNewManuscriptWorkflow } from './features/commands/newManuscriptWorkflow';
-import { runNewProjectWorkflow } from './features/commands/newProjectWorkflow';
-import { runOpenProjectWorkflow } from './features/commands/openProjectWorkflow';
-import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments } from './features/diagnostics/refreshDiagnostics';
-import { createDocumentLinkProvider } from './features/identifiers/documentLinks';
-import { createHoverProvider } from './features/identifiers/hover';
-import { SpineIndexService } from './features/indexing/spineIndexService';
-import { ReferenceUsageIndexService } from './features/indexing/referenceUsageIndexService';
-import { getFrontmatterLineRange, getStegoCommentsLineRange } from './features/metadata/frontmatterParse';
-import { getActiveMarkdownDocument } from './features/metadata/frontmatterEdit';
-import { getConfig, isProjectFile } from './features/project/projectConfig';
-import { detectStegoOpenMode } from './features/project/openMode';
-import { MetadataSidebarProvider } from './features/sidebar/sidebarProvider';
-import { CommentDecorationsService } from './features/comments/commentDecorations';
-import { CommentExcerptTracker } from './features/comments/commentExcerptTracker';
+import {
+  maybeAutoFoldFrontmatter,
+  runLocalValidateWorkflow,
+  runNewManuscriptWorkflow,
+  runNewProjectWorkflow,
+  runOpenProjectWorkflow,
+  runProjectBuildWorkflow,
+  runProjectGateStageWorkflow,
+  toggleFrontmatterFold
+} from './features/commands';
+import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments } from './features/diagnostics';
+import { createDocumentLinkProvider, createHoverProvider } from './features/identifiers';
+import { ReferenceUsageIndexService, SpineIndexService } from './features/indexing';
+import { getActiveMarkdownDocument, getFrontmatterLineRange, getStegoCommentsLineRange } from './features/metadata';
+import { detectStegoOpenMode, getConfig, isProjectFile } from './features/project';
+import { MetadataSidebarProvider } from './features/sidebar';
 import {
   addCommentAtSelection,
   clearCachedCommentState,
+  CommentDecorationsService,
+  CommentExcerptTracker,
   persistExcerptUpdates,
   refreshCommentState
-} from './features/comments/commentStore';
+} from './features/comments';
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection('stegoSpine');

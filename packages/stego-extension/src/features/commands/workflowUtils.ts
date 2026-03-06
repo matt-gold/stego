@@ -4,8 +4,8 @@ import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { errorToMessage } from '../../shared/errors';
 import type { ProjectScriptContext, ScriptRunResult } from '../../shared/types';
-import { findNearestProjectConfig } from '../project/projectConfig';
-import { getActiveMarkdownDocument } from '../metadata/frontmatterEdit';
+import { getActiveMarkdownDocument } from '../metadata';
+import { findNearestProjectConfig } from '../project';
 
 export type WorkflowRunResult = {
   ok: boolean;

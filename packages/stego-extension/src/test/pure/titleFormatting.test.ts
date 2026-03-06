@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatTitleWords, getSidebarFileTitle } from '../../features/sidebar/sidebarToc';
+import { formatTitleWords, getSidebarFileTitle } from '../../features/sidebar/tabs/document/sidebarToc';
 
 test('getSidebarFileTitle converts numbered kebab case filenames', () => {
   const parsed = getSidebarFileTitle('/tmp/200-the-fall-of-rome.md');

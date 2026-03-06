@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { pickToastDetails, resolveStegoCommandInvocation, runCommand } from '../commands/workflowUtils';
+import { pickToastDetails, resolveStegoCommandInvocation, runCommand } from '../commands';
 import {
   type CommentAddPayload,
   type CommentReplyPayload,

@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { promises as fs } from 'fs';
-import { DEFAULT_IDENTIFIER_PATTERN, SPINE_DIR } from '../../shared/constants';
-import { errorToMessage } from '../../shared/errors';
-import { asNumber, asRecord } from '../../shared/value';
+import { DEFAULT_IDENTIFIER_PATTERN, SPINE_DIR } from '../../../shared/constants';
+import { errorToMessage } from '../../../shared/errors';
+import { asNumber, asRecord } from '../../../shared/value';
 import type {
   ExplorerRoute,
   ProjectScanContext,
@@ -16,18 +16,27 @@ import type {
   SidebarOverviewState,
   SidebarState,
   SidebarViewTab
-} from '../../shared/types';
-import { runProjectBuildWorkflow } from '../commands/buildWorkflow';
-import { runProjectGateStageWorkflow } from '../commands/stageCheckWorkflow';
-import { runLocalValidateWorkflow } from '../commands/localValidateWorkflow';
-import { runNewManuscriptWorkflow } from '../commands/newManuscriptWorkflow';
-import { resolveStegoCommandInvocation, runCommand, type WorkflowRunResult } from '../commands/workflowUtils';
-import { openMarkdownPreviewCommand } from '../commands/openMarkdownPreview';
-import { suppressAutoFoldFrontmatterForDocument, toggleFrontmatterFold } from '../commands/frontmatterFold';
-import { refreshVisibleMarkdownDocuments } from '../diagnostics/refreshDiagnostics';
-import { SpineIndexService } from '../indexing/spineIndexService';
-import { ReferenceUsageIndexService } from '../indexing/referenceUsageIndexService';
+} from '../../../shared/types';
 import {
+  openMarkdownPreviewCommand,
+  resolveStegoCommandInvocation,
+  runCommand,
+  runLocalValidateWorkflow,
+  runNewManuscriptWorkflow,
+  runProjectBuildWorkflow,
+  runProjectGateStageWorkflow,
+  suppressAutoFoldFrontmatterForDocument,
+  toggleFrontmatterFold,
+  type WorkflowRunResult
+} from '../../commands';
+import { refreshVisibleMarkdownDocuments } from '../../diagnostics';
+import { ReferenceUsageIndexService, SpineIndexService } from '../../indexing';
+import {
+  buildSidebarImageEntries,
+  buildStatusControl,
+  formatMetadataValue,
+  getActiveMarkdownDocument,
+  parseMarkdownDocument,
   promptAndAddMetadataArrayItem,
   promptAndAddMetadataField,
   promptAndEditMetadataArrayItem,
@@ -37,30 +46,29 @@ import {
   removeMetadataArrayItem,
   removeMetadataField,
   setMetadataStatus,
-  promptAndFillRequiredMetadata,
-  getActiveMarkdownDocument
-} from '../metadata/frontmatterEdit';
-import { formatMetadataValue, parseMarkdownDocument } from '../metadata/frontmatterParse';
-import { buildSidebarImageEntries } from '../metadata/imageMetadata';
-import { buildStatusControl } from '../metadata/statusControl';
-import { isValidMetadataKey as isSharedMetadataKey } from '../../../../shared/src/domain/frontmatter';
-import { getStageRank, isStageName } from '../../../../shared/src/domain/stages';
+  promptAndFillRequiredMetadata
+} from '../../metadata';
+import { isValidMetadataKey as isSharedMetadataKey } from '../../../../../shared/src/domain/frontmatter';
+import { collectIdentifierOccurrencesFromLines, extractIdentifierTokensFromValue } from '../../identifiers';
+import { openBacklinkFile, openExternalLink, openLineInActiveDocument } from '../../navigation';
 import {
-  collectIdentifierOccurrencesFromLines,
-  extractIdentifierTokensFromValue
-} from '../identifiers/collectIdentifiers';
-import { openBacklinkFile, openExternalLink, openLineInActiveDocument } from '../navigation/openTargets';
-import {
+  PROJECT_HEALTH_CHANNEL,
   findNearestProjectConfig,
   getConfig,
   logProjectHealthIssue,
-  PROJECT_HEALTH_CHANNEL
-} from '../project/projectConfig';
-import { collectManuscriptMarkdownFiles, resolveCurrentSpineCategoryFile } from '../project/fileScan';
-import { buildExplorerState, buildMetadataEntry, buildTocWithBacklinks } from './sidebarStateBuilder';
-import { normalizeExplorerRoute, isSameExplorerRoute } from './sidebarRoutes';
-import { collectTocEntries, isManuscriptPath } from './sidebarToc';
-import { renderSidebarHtml } from './render/renderSidebarHtml';
+  collectManuscriptMarkdownFiles,
+  resolveCurrentSpineCategoryFile
+} from '../../project';
+import { buildExplorerState, buildMetadataEntry, buildTocWithBacklinks, collectTocEntries, isManuscriptPath } from '../tabs/document';
+import { normalizeExplorerRoute, isSameExplorerRoute } from '../tabs/spine';
+import { compareOverviewStatus, countOverviewWords } from '../tabs/overview';
+import { renderSidebarHtml } from '../webview';
+import type {
+  GateSnapshotByProject,
+  OverviewBuildResult,
+  OverviewFileCache,
+  RefreshMode
+} from './sidebarProvider.types';
 import {
   SPINE_PIN_LIMIT,
   type ActiveExplorerState,
@@ -71,7 +79,7 @@ import {
   togglePinnedSpineCollapse,
   togglePinnedSpineBacklinks,
   unpinSpineEntry
-} from './spinePins';
+} from '../tabs/spine';
 import {
   addCommentAtSelection,
   buildSidebarCommentsState,
@@ -84,10 +92,7 @@ import {
   replyToComment,
   stripStegoCommentsAppendix,
   toggleCommentResolved
-} from '../comments/commentStore';
-
-type RefreshMode = 'full' | 'fast';
-type OverviewBuildResult = { overview?: SidebarOverviewState; skippedFiles: number };
+} from '../../comments';
 
 export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private static readonly PIN_LIMIT = SPINE_PIN_LIMIT;
@@ -111,15 +116,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private explorerLoadToken = 0;
   private readonly pinnedByProject = new Map<string, PinnedSpineEntryState[]>();
   private readonly expandedTocBacklinks = new Set<string>();
-  private readonly overviewFileCache = new Map<string, Map<string, {
-    mtimeMs: number;
-    frontmatter: Record<string, unknown>;
-    wordCount: number;
-    unresolvedCount: number;
-    firstUnresolvedCommentId?: string;
-    status: string;
-  }>>();
-  private readonly gateSnapshotByProject = new Map<string, SidebarOverviewGateSnapshot>();
+  private readonly overviewFileCache = new Map<string, OverviewFileCache>();
+  private readonly gateSnapshotByProject: GateSnapshotByProject = new Map();
   private lastRenderedState?: SidebarState;
   private lastDocumentTabSnapshot?: SidebarState;
   private refreshInFlight = false;
@@ -2338,7 +2336,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
             : stripStegoCommentsAppendix(text);
           const parsed = parseMarkdownDocument(contentWithoutComments);
           frontmatter = parsed.frontmatter;
-          const fileWordCount = this.countWords(parsed.body);
+          const fileWordCount = countOverviewWords(parsed.body);
           wordCount += fileWordCount;
 
           unresolvedCount = commentState.state?.unresolvedCount ?? 0;
@@ -2454,7 +2452,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
     const stageBreakdown = [...stageCounts.entries()]
       .map(([status, count]) => ({ status, count }))
-      .sort((a, b) => this.compareOverviewStatus(a.status, b.status));
+      .sort((a, b) => compareOverviewStatus(a.status, b.status));
 
     return {
       overview: {
@@ -2474,14 +2472,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     };
   }
 
-  private getOverviewCache(projectDir: string): Map<string, {
-    mtimeMs: number;
-    frontmatter: Record<string, unknown>;
-    wordCount: number;
-    unresolvedCount: number;
-    firstUnresolvedCommentId?: string;
-    status: string;
-  }> {
+  private getOverviewCache(projectDir: string): OverviewFileCache {
     let cache = this.overviewFileCache.get(projectDir);
     if (!cache) {
       cache = new Map();
@@ -2734,38 +2725,6 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     } catch {
       return undefined;
     }
-  }
-
-  private compareOverviewStatus(aStatus: string, bStatus: string): number {
-    const rank = (status: string): number => {
-      if (status === '(missing)') {
-        return 5;
-      }
-      if (isStageName(status)) {
-        return getStageRank(status);
-      }
-      return 100;
-    };
-
-    const aRank = rank(aStatus);
-    const bRank = rank(bStatus);
-    if (aRank !== bRank) {
-      return aRank - bRank;
-    }
-
-    return aStatus.localeCompare(bStatus);
-  }
-
-  private countWords(text: string): number {
-    const normalized = text
-      .replace(/```[\s\S]*?```/g, ' ')
-      .replace(/~~~[\s\S]*?~~~/g, ' ')
-      .trim();
-    if (!normalized) {
-      return 0;
-    }
-
-    return normalized.split(/\s+/).filter((token) => token.length > 0).length;
   }
 
 }

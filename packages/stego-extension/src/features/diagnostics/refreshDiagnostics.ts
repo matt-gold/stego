@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { DEFAULT_IDENTIFIER_PATTERN } from '../../shared/constants';
-import { collectIdentifiers } from '../identifiers/collectIdentifiers';
-import { getConfig } from '../project/projectConfig';
-import { SpineIndexService } from '../indexing/spineIndexService';
-import { isCommentIdentifier } from '../comments/commentIds';
+import { isCommentIdentifier } from '../comments';
+import { collectIdentifiers } from '../identifiers';
+import { SpineIndexService } from '../indexing';
+import { getConfig } from '../project';
 
 export async function refreshDiagnosticsForDocument(
   document: vscode.TextDocument,

@@ -9,7 +9,7 @@ import {
   type PinnedSpineEntryState,
   togglePinnedSpineCollapse,
   unpinSpineEntry
-} from '../../features/sidebar/spinePins';
+} from '../../features/sidebar/tabs/spine/spinePins';
 
 test('pinSpineEntry only allows identifier routes', () => {
   const homeRoute: ExplorerRoute = { kind: 'home' };

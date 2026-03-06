@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { errorToMessage } from '../../shared/errors';
 import { asString } from '../../shared/value';
 import type { ScriptRunResult } from '../../shared/types';
-import { parseMarkdownDocument } from '../metadata/frontmatterParse';
+import { parseMarkdownDocument } from '../metadata';
 import { getStageCheckDetails } from './stageCheckWorkflow';
 import {
   pickToastDetails,

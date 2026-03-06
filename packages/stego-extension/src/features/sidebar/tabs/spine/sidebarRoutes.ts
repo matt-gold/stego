@@ -1,4 +1,4 @@
-import type { ExplorerRoute } from '../../shared/types';
+import type { ExplorerRoute } from '../../../../shared/types';
 
 export function normalizeExplorerRoute(route: ExplorerRoute): ExplorerRoute | undefined {
   if (route.kind === 'home') {

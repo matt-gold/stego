@@ -5,9 +5,8 @@ import { slugifyHeading } from '../../shared/markdown';
 import { toWorkspacePath } from '../../shared/path';
 import { parseLeadingSpineEntryLabelLine } from '../../shared/spineEntryMetadata';
 import type { ProjectSpineCategory, SpineRecord } from '../../shared/types';
-import { parseMarkdownDocument } from '../metadata/frontmatterParse';
-import { buildProjectScanPlan } from '../project/fileScan';
-import { findNearestProjectConfig } from '../project/projectConfig';
+import { parseMarkdownDocument } from '../metadata';
+import { buildProjectScanPlan, findNearestProjectConfig } from '../project';
 
 export class SpineIndexService {
   private readonly inferredCache = new Map<string, { stamp: string; index: Map<string, SpineRecord> }>();

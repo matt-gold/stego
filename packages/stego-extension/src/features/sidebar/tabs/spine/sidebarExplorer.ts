@@ -1,8 +1,8 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
-import { uniqueResolvedPaths } from '../../shared/path';
-import { parseLeadingSpineEntryLabelLine } from '../../shared/spineEntryMetadata';
+import { uniqueResolvedPaths } from '../../../../shared/path';
+import { parseLeadingSpineEntryLabelLine } from '../../../../shared/spineEntryMetadata';
 import type {
   SpineRecord,
   SpineSectionPreview,
@@ -10,10 +10,10 @@ import type {
   ProjectScanContext,
   SidebarExplorerCategoryItem,
   SidebarExplorerCategorySummary
-} from '../../shared/types';
-import { getIdentifierPrefix, tryParseIdentifierFromHeading } from '../identifiers/collectIdentifiers';
-import { resolveCategoryNotesFile } from '../project/fileScan';
-import { resolveRecordPathToFile } from '../indexing/spineIndexService';
+} from '../../../../shared/types';
+import { getIdentifierPrefix, tryParseIdentifierFromHeading } from '../../../identifiers';
+import { resolveRecordPathToFile } from '../../../indexing';
+import { resolveCategoryNotesFile } from '../../../project';
 
 export function collectExplorerCategorySummaries(
   categories: ProjectSpineCategory[],

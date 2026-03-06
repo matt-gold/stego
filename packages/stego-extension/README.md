@@ -102,6 +102,33 @@ If you need custom behavior, wrap `stego-cli` in your own scripts and keep these
 - Comment anchors track edits so comments remain attached to the intended text
 - The sidebar supports resolving and clearing resolved threads
 
+## Architecture (Module Layout)
+
+The extension is organized as feature modules under `src/features/*`. The sidebar now uses explicit tab modules:
+
+- `src/features/sidebar/core/`
+  - sidebar provider orchestration, refresh loop, command routing, and state integration
+- `src/features/sidebar/tabs/document/`
+  - document-tab TOC, metadata/reference projection, and document-tab state builders
+- `src/features/sidebar/tabs/spine/`
+  - spine explorer routing, category/item collection, pin state helpers
+- `src/features/sidebar/tabs/overview/`
+  - overview/manuscript metrics and stage-sorting helpers
+- `src/features/sidebar/webview/`
+  - HTML rendering and webview-focused render helpers
+
+Other first-class modules:
+
+- `src/features/comments/` comment model/store/decorations + CLI client wiring
+- `src/features/metadata/` frontmatter parsing/editing + metadata/image helpers
+- `src/features/indexing/` spine/reference indexes
+- `src/features/commands/` command workflows that execute Stego CLI/project scripts
+- `src/features/project/` project discovery, config parsing, open-mode logic
+
+For contributions, prefer extending an existing module boundary instead of adding cross-cutting logic directly in the provider.
+Each non-sidebar feature module now exposes a public API from `src/features/<module>/index.ts`; prefer importing from module entrypoints instead of deep file paths.
+Detailed architecture notes: [`docs/architecture.md`](docs/architecture.md).
+
 ## Development
 
 ```bash

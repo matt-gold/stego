@@ -1,4 +1,4 @@
-import type { ExplorerRoute } from '../../shared/types';
+import type { ExplorerRoute } from '../../../../shared/types';
 
 export const SPINE_PIN_LIMIT = 10;
 
