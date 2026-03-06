@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3
+
+### Patch Changes
+
+- 4f46fd3: Fix the release workflow packaging step for `stego-extension` so the shared package directory is prepared and copied into the isolated build context before packaging.
+
+  Also remove unused placeholder domain files in `stego-cli` as part of the same cleanup.
+
 ## 0.5.2
 
 ### Patch Changes
