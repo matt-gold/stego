@@ -43,7 +43,19 @@ export function normalizeFrontmatterRecord(raw: unknown): FrontmatterRecord {
 
 function normalizeFrontmatterValue(value: unknown, key: string): FrontmatterValue {
   if (Array.isArray(value)) {
-    return value.map((item) => normalizeFrontmatterScalar(item, key));
+    return value.map((item) => normalizeFrontmatterValue(item, key));
+  }
+
+  if (isPlainObject(value)) {
+    const result: Record<string, FrontmatterValue> = {};
+    for (const [entryKey, entryValue] of Object.entries(value)) {
+      const normalizedKey = entryKey.trim();
+      if (!normalizedKey) {
+        throw new Error(`Metadata key '${key}' contains an empty nested key.`);
+      }
+      result[normalizedKey] = normalizeFrontmatterValue(entryValue, key);
+    }
+    return result;
   }
 
   return normalizeFrontmatterScalar(value, key);
@@ -58,5 +70,13 @@ function normalizeFrontmatterScalar(value: unknown, key: string): FrontmatterSca
     return value;
   }
 
-  throw new Error(`Metadata key '${key}' must be a scalar or array of scalars.`);
+  throw new Error(`Metadata key '${key}' must be scalar, array, or object.`);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }

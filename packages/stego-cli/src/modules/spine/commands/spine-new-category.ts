@@ -10,9 +10,8 @@ export function registerSpineNewCategoryCommand(registry: CommandRegistry): void
   registry.register({
     name: "spine new-category",
     description: "Create a new spine category",
-    allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--key <category>", description: "Category key" },
       { flags: "--label <label>", description: "Category display label" },
       { flags: "--require-metadata", description: "Append key to required metadata" },

@@ -9,9 +9,8 @@ export function registerCheckStageCommand(registry: CommandRegistry): void {
   registry.register({
     name: "check-stage",
     description: "Run stage-specific quality gates",
-    allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--stage <stage>", description: "draft|revise|line-edit|proof|final" },
       { flags: "--file <path>", description: "Project-relative manuscript path" },
       { flags: "--root <path>", description: "Workspace root path" }

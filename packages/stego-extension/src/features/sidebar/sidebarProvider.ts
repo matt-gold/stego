@@ -32,6 +32,8 @@ import {
   promptAndAddMetadataField,
   promptAndEditMetadataArrayItem,
   promptAndEditMetadataField,
+  promptAndEditImageOverride,
+  clearImageOverride,
   removeMetadataArrayItem,
   removeMetadataField,
   setMetadataStatus,
@@ -39,6 +41,7 @@ import {
   getActiveMarkdownDocument
 } from '../metadata/frontmatterEdit';
 import { formatMetadataValue, parseMarkdownDocument } from '../metadata/frontmatterParse';
+import { buildSidebarImageEntries } from '../metadata/imageMetadata';
 import { buildStatusControl } from '../metadata/statusControl';
 import { isValidMetadataKey as isSharedMetadataKey } from '../../../../shared/src/domain/frontmatter';
 import { getStageRank, isStageName } from '../../../../shared/src/domain/stages';
@@ -620,6 +623,14 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       const parsed = parseMarkdownDocument(document.getText());
       const statusControl = await buildStatusControl(parsed.frontmatter, document);
       const metadataEntries = this.buildFastMetadataEntries(parsed.frontmatter, previous.metadataEntries);
+      const projectDir = previous.projectDir ?? path.dirname(document.uri.fsPath);
+      const imageEntries = buildSidebarImageEntries({
+        body: parsed.body,
+        frontmatter: parsed.frontmatter,
+        chapterPath: document.uri.fsPath,
+        projectDir,
+        projectDefaults: previous.projectImageDefaults
+      });
 
       return {
         ...previous,
@@ -628,6 +639,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         activeEditorPath: document.uri.fsPath,
         documentTabDetached: false,
         documentPath: document.uri.fsPath,
+        projectDir,
         canShowOverview,
         activeTab: effectiveTab,
         mode: 'manuscript',
@@ -637,6 +649,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments,
         statusControl,
         metadataEntries,
+        imageEntries,
         showMetadataPanel: true,
         explorerCollapsed: this.explorerCollapsed,
         explorerCanGoBack: this.canExplorerGoBack(),
@@ -657,6 +670,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         activeEditorPath: document.uri.fsPath,
         documentTabDetached: false,
         documentPath: document.uri.fsPath,
+        projectDir: previous.projectDir,
         canShowOverview,
         activeTab: effectiveTab,
         mode: 'manuscript',
@@ -666,6 +680,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments,
         statusControl: undefined,
         metadataEntries: [],
+        imageEntries: [],
+        projectImageDefaults: previous.projectImageDefaults,
         showMetadataPanel: true,
         explorerCollapsed: this.explorerCollapsed,
         explorerCanGoBack: this.canExplorerGoBack(),
@@ -871,6 +887,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         activeEditorPath,
         documentTabDetached: false,
         documentPath: activeDocument?.uri.fsPath ?? '',
+        projectDir: projectContext?.projectDir,
         structureSummary: undefined,
         warnings,
         canShowOverview,
@@ -882,6 +899,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments: true,
         statusControl: undefined,
         metadataEntries: [],
+        imageEntries: [],
+        projectImageDefaults: projectContext?.imageDefaults ?? {},
         showMetadataPanel: false,
         explorer,
         pinnedExplorers,
@@ -1030,6 +1049,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         activeEditorPath: document.uri.fsPath,
         documentTabDetached: false,
         documentPath: document.uri.fsPath,
+        projectDir: projectContext?.projectDir,
         structureSummary: undefined,
         warnings,
         canShowOverview,
@@ -1043,6 +1063,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments,
         statusControl: undefined,
         metadataEntries,
+        imageEntries: [],
+        projectImageDefaults: projectContext?.imageDefaults ?? {},
         showMetadataPanel: spineEntryMode,
         explorer,
         pinnedExplorers,
@@ -1064,6 +1086,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
     try {
       const parsed = parseMarkdownDocument(document.getText());
+      const projectDir = projectContext?.projectDir ?? path.dirname(document.uri.fsPath);
+      const projectImageDefaults = projectContext?.imageDefaults ?? {};
       const structureSummary = await this.resolveStructureSummary(document, parsed.frontmatter, projectContext);
       const statusControl = await buildStatusControl(parsed.frontmatter, document);
       const metadataEntries = this.buildMetadataEntriesFromFrontmatter(
@@ -1075,6 +1099,13 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         document,
         pattern
       );
+      const imageEntries = buildSidebarImageEntries({
+        body: parsed.body,
+        frontmatter: parsed.frontmatter,
+        chapterPath: document.uri.fsPath,
+        projectDir,
+        projectDefaults: projectImageDefaults
+      });
 
       return {
         hasActiveMarkdown: true,
@@ -1082,6 +1113,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         activeEditorPath: document.uri.fsPath,
         documentTabDetached: false,
         documentPath: document.uri.fsPath,
+        projectDir,
         structureSummary,
         warnings,
         canShowOverview,
@@ -1094,6 +1126,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments,
         statusControl,
         metadataEntries,
+        imageEntries,
+        projectImageDefaults,
         showMetadataPanel: true,
         explorer,
         pinnedExplorers,
@@ -1118,6 +1152,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         activeEditorPath: document.uri.fsPath,
         documentTabDetached: false,
         documentPath: document.uri.fsPath,
+        projectDir: projectContext?.projectDir,
         structureSummary: undefined,
         warnings,
         canShowOverview,
@@ -1131,6 +1166,8 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         enableComments,
         statusControl: undefined,
         metadataEntries: [],
+        imageEntries: [],
+        projectImageDefaults: projectContext?.imageDefaults ?? {},
         showMetadataPanel: true,
         explorer,
         pinnedExplorers,
@@ -1641,6 +1678,20 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
           && index >= 0
         ) {
           await removeMetadataArrayItem(payload.key.trim(), index);
+        }
+        break;
+      }
+      case 'editImageOverride': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.key === 'string' && payload.key.trim().length > 0) {
+          await promptAndEditImageOverride(payload.key.trim());
+        }
+        break;
+      }
+      case 'clearImageOverride': {
+        shouldRefreshDiagnostics = false;
+        if (typeof payload.key === 'string' && payload.key.trim().length > 0) {
+          await clearImageOverride(payload.key.trim());
         }
         break;
       }

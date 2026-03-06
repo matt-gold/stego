@@ -8,9 +8,8 @@ export function registerValidateCommand(registry: CommandRegistry): void {
   registry.register({
     name: "validate",
     description: "Validate manuscript and project state",
-    allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--file <path>", description: "Project-relative manuscript path" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],

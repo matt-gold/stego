@@ -33,7 +33,7 @@ Important: `packages/stego-cli/tools/stego-cli.ts` is legacy compatibility surfa
 
 1. Confirm workspace root contains `stego.config.json`.
 2. Run `stego list-projects`.
-3. Use explicit `--project <id>` for project-scoped commands.
+3. Use explicit `--project/-p <id>` for project-scoped commands.
 
 ## CLI-First Policy (Required)
 
@@ -66,7 +66,7 @@ Preferred commands:
 
 1. Read current state first (`metadata read`, `spine read`, `comments read`).
 2. Mutate via CLI.
-3. Verify after writes (`stego validate --project <id>` and relevant read commands).
+3. Verify after writes (`stego validate --project/-p <id>` and relevant read commands).
 
 ## Manual Edit Fallback
 
@@ -130,10 +130,10 @@ For architecture/code changes, prefer:
 
 ## Task To Command Quick Map
 
-- New manuscript: `stego new --project <id> [--filename <name>]`
-- Read spine: `stego spine read --project <id> --format json`
-- New spine category: `stego spine new-category --project <id> --key <category>`
-- New spine entry: `stego spine new --project <id> --category <category> [--filename <path>]`
+- New manuscript: `stego new --project/-p <id> [--filename <name>]`
+- Read spine: `stego spine read --project/-p <id> --format json`
+- New spine category: `stego spine new-category --project/-p <id> --key <category>`
+- New spine entry: `stego spine new --project/-p <id> --category <category> [--filename <path>]`
 - Read metadata: `stego metadata read <markdown-path> --format json`
 - Apply metadata: `stego metadata apply <markdown-path> --input <path|-> --format json`
 - Read comments: `stego comments read <manuscript> --format json`

@@ -26,7 +26,7 @@ const PROSE_MARKDOWN_EDITOR_SETTINGS: Record<string, unknown> = {
 export function createProject(input: CreateProjectInput): CreateProjectResult {
   const projectId = (input.projectId || "").trim();
   if (!projectId) {
-    throw new CliError("INVALID_USAGE", "Project id is required. Use --project <project-id>.");
+    throw new CliError("INVALID_USAGE", "Project id is required. Use --project/-p <project-id>.");
   }
 
   if (!isValidProjectId(projectId)) {
@@ -41,11 +41,13 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
   const manuscriptDir = path.join(projectRoot, input.workspace.config.chapterDir);
   const spineDir = path.join(projectRoot, input.workspace.config.spineDir);
   const notesDir = path.join(projectRoot, input.workspace.config.notesDir);
+  const assetsDir = path.join(projectRoot, "assets");
   const distDir = path.join(projectRoot, input.workspace.config.distDir);
 
   ensureDirectory(manuscriptDir);
   ensureDirectory(spineDir);
   ensureDirectory(notesDir);
+  ensureDirectory(assetsDir);
   ensureDirectory(distDir);
 
   const projectJsonPath = path.join(projectRoot, "stego-project.json");
@@ -130,6 +132,47 @@ label: Characters
   const charactersEntryPath = path.join(charactersDir, "example-character.md");
   writeTextFile(charactersEntryPath, "# Example Character\n\n");
 
+  const assetsReadmePath = path.join(assetsDir, "README.md");
+  writeTextFile(
+    assetsReadmePath,
+    `# Assets
+
+Store manuscript images in this directory (or subdirectories).
+
+Use standard Markdown image syntax in manuscript files, typically with paths like:
+
+\`\`\`md
+![Map](../assets/maps/city-plan.png)
+\`\`\`
+
+Optional manuscript frontmatter image settings:
+
+\`\`\`json
+// stego-project.json
+{
+  "images": {
+    "layout": "block",
+    "align": "center",
+    "width": "50%"
+  }
+}
+\`\`\`
+
+\`\`\`yaml
+# manuscript frontmatter overrides
+images:
+  assets/maps/city-plan.png:
+    layout: inline
+    align: left
+    width: 100%
+\`\`\`
+
+Manuscript frontmatter \`images\` is for per-path overrides.
+Global defaults belong in \`stego-project.json\` under \`images\`.
+
+`
+  );
+
   const projectExtensionsPath = ensureProjectExtensionsRecommendations(projectRoot);
   let projectSettingsPath: string | undefined;
   if (input.enableProseFont) {
@@ -145,6 +188,7 @@ label: Characters
       path.relative(input.workspace.repoRoot, starterManuscriptPath),
       path.relative(input.workspace.repoRoot, charactersCategoryPath),
       path.relative(input.workspace.repoRoot, charactersEntryPath),
+      path.relative(input.workspace.repoRoot, assetsReadmePath),
       path.relative(input.workspace.repoRoot, projectExtensionsPath),
       ...(projectSettingsPath ? [path.relative(input.workspace.repoRoot, projectSettingsPath)] : [])
     ]

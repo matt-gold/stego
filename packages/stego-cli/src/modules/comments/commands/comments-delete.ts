@@ -8,7 +8,6 @@ export function registerCommentsDeleteCommand(registry: CommandRegistry): void {
   registry.register({
     name: "comments delete <manuscript>",
     description: "Delete a comment",
-    allowUnknownOptions: true,
     options: [
       { flags: "--comment-id <id>", description: "Comment id (CMT-####)" },
       { flags: "--format <format>", description: "text|json" }

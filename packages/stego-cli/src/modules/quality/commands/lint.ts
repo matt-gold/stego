@@ -13,9 +13,8 @@ export function registerLintCommand(registry: CommandRegistry): void {
   registry.register({
     name: "lint",
     description: "Run markdown and spelling checks",
-    allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--manuscript", description: "Lint manuscript files only" },
       { flags: "--spine", description: "Lint spine/notes files only" },
       { flags: "--root <path>", description: "Workspace root path" }

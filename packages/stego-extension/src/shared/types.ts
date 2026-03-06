@@ -21,12 +21,36 @@ export type ParsedMarkdownDocument = {
   body: string;
 };
 
+export type ImageStyle = {
+  width?: string;
+  height?: string;
+  id?: string;
+  classes?: string[];
+  attrs?: Record<string, string>;
+  layout?: 'block' | 'inline';
+  align?: 'left' | 'center' | 'right';
+};
+
+export type SidebarImageEntry = {
+  key: string;
+  displayPath: string;
+  destination: string;
+  line: number;
+  occurrenceCount: number;
+  isExternal: boolean;
+  hasOverride: boolean;
+  defaultStyle: ImageStyle;
+  overrideStyle: ImageStyle;
+  effectiveStyle: ImageStyle;
+};
+
 export type SidebarState = {
   hasActiveMarkdown: boolean;
   showDocumentTab?: boolean;
   activeEditorPath?: string;
   documentTabDetached?: boolean;
   documentPath: string;
+  projectDir?: string;
   structureSummary?: string;
   warnings: string[];
   canShowOverview: boolean;
@@ -40,6 +64,8 @@ export type SidebarState = {
   enableComments: boolean;
   statusControl?: SidebarStatusControl;
   metadataEntries: SidebarMetadataEntry[];
+  imageEntries: SidebarImageEntry[];
+  projectImageDefaults: ImageStyle;
   showMetadataPanel: boolean;
   explorer?: SidebarExplorerPage;
   pinnedExplorers: SidebarPinnedExplorerPanel[];
@@ -287,6 +313,7 @@ export type ProjectScanContext = {
   structuralKeys: string[];
   structuralLevels: ProjectStructuralLevel[];
   requiredMetadata: string[];
+  imageDefaults: ImageStyle;
   categories: ProjectSpineCategory[];
   issues: ProjectConfigIssue[];
 };
@@ -348,6 +375,8 @@ export type SidebarMessage =
   | { type: 'addMetadataArrayItem'; key: string }
   | { type: 'editMetadataArrayItem'; key: string; index: number }
   | { type: 'removeMetadataArrayItem'; key: string; index: number }
+  | { type: 'editImageOverride'; key: string }
+  | { type: 'clearImageOverride'; key: string }
   | { type: 'toggleMetadataEditing' }
   | { type: 'runLocalValidate' }
   | { type: 'fillRequiredMetadata' }

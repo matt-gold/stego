@@ -9,9 +9,8 @@ export function registerBuildCommand(registry: CommandRegistry): void {
   registry.register({
     name: "build",
     description: "Compile manuscript output",
-    allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],
     action: (context) => {

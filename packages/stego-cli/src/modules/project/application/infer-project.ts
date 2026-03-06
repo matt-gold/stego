@@ -9,7 +9,7 @@ export function resolveProjectContext(input: ResolveProjectInput): ProjectContex
   const projectId = resolveProjectIdCandidate(input, projectIds);
 
   if (!projectId) {
-    throw new CliError("PROJECT_NOT_FOUND", "Project id is required. Use --project <project-id>.");
+    throw new CliError("PROJECT_NOT_FOUND", "Project id is required. Use --project/-p <project-id>.");
   }
 
   const projectRoot = path.join(input.workspace.repoRoot, input.workspace.config.projectsDir, projectId);

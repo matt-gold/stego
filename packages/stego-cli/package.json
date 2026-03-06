@@ -21,6 +21,7 @@
   },
   "files": [
     "dist/**",
+    "filters/**",
     "projects/**",
     "!projects/local-only/**",
     "!projects/*/dist/*.md",
@@ -52,9 +53,10 @@
     "test:compile-structure": "node --test tools/test/compile-structure.test.mjs",
     "test:comments": "node --test tools/test/comments-add.test.mjs",
     "test:cli-core": "node --test tools/test/cli-core.test.mjs",
+    "test:image-support": "node --test tools/test/image-support.test.mjs",
     "test:spine-v2": "node --test tools/test/spine-v2.test.mjs",
     "test:workspace-project": "node --test tools/test/workspace-project.test.mjs",
-    "test": "npm run test:compile-structure && npm run test:comments && npm run test:cli-core && npm run test:spine-v2 && npm run test:workspace-project && npm run check:module-apis && npm run check:boundaries",
+    "test": "npm run test:compile-structure && npm run test:comments && npm run test:cli-core && npm run test:image-support && npm run test:spine-v2 && npm run test:workspace-project && npm run check:module-apis && npm run check:boundaries",
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
     "check:module-apis": "node scripts/check-module-apis.mjs"
   },

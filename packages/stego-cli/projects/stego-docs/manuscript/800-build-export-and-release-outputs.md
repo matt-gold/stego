@@ -36,6 +36,10 @@ Generated files in `dist/` should not be hand-edited.
 
 `stego export` supports markdown output directly and optional richer formats through Pandoc, including docx, pdf, and epub.
 
+For local manuscript images, keep files in `assets/`. Stego exports with project-aware resource paths so image references in compiled markdown can resolve during Pandoc conversion.
+
+EPUB exports include a default stylesheet for image layout metadata (`data-layout` and `data-align`), so block/inline and left/center/right image alignment rules apply without extra setup.
+
 If you export pdf through Pandoc, you also need a compatible PDF engine installed on your machine.
 
 ## Recommended release sequence

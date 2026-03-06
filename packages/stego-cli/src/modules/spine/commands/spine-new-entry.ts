@@ -10,9 +10,8 @@ export function registerSpineNewEntryCommand(registry: CommandRegistry): void {
   registry.register({
     name: "spine new",
     description: "Create a new spine entry",
-    allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--category <category>", description: "Category key" },
       { flags: "--filename <path>", description: "Relative entry path" },
       { flags: "--format <format>", description: "text|json" },

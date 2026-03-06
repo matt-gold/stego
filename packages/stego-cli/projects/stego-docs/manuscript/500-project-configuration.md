@@ -41,6 +41,43 @@ Stego reports missing keys as warnings so teams can standardize frontmatter with
 
 Common keys include `status`, grouping fields such as `chapter`, and project-specific metadata such as point of view or timeline.
 
+## Manuscript image settings
+
+Stego projects use `assets/` for local manuscript images.
+
+Project-level image defaults belong in `stego-project.json`:
+
+```json
+{
+  "images": {
+    "layout": "block",
+    "align": "center",
+    "width": "50%",
+    "classes": ["illustration"]
+  }
+}
+```
+
+Manuscript files can define per-path overrides with `images` frontmatter:
+
+```yaml
+images:
+  assets/maps/city-plan.png:
+    layout: inline
+    align: left
+    width: 100%
+```
+
+Global keys are `width`, `height`, `classes`, `id`, `attrs`, `layout`, and `align`, but those defaults should be set in project config.
+
+All manuscript-frontmatter keys under `images` are treated as per-image overrides by project-relative asset path.
+
+`layout` and `align` are emitted in compiled markdown as `data-layout` and `data-align` image attrs.
+
+When the same image also has inline Pandoc attrs in markdown, inline attrs win.
+
+Validation warns if a local image target is outside `assets/`.
+
 ## Compile structure
 
 Projects can define `compileStructure.levels` to group manuscript files during build.

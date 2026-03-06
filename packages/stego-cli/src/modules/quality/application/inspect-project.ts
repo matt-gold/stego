@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseCommentAppendix } from "../../../../../shared/src/domain/comments/index.ts";
+import { parseMarkdownDocument } from "../../../../../shared/src/domain/frontmatter/index.ts";
 import { isStageName } from "../../../../../shared/src/domain/stages/index.ts";
 import { readSpineCatalogForProject } from "../../spine/index.ts";
 import type {
@@ -11,7 +12,6 @@ import type {
   Issue,
   IssueLevel,
   MetadataRecord,
-  MetadataValue,
   ParsedCommentThread,
   ProjectInspection,
   RequiredMetadataResult,
@@ -32,6 +32,7 @@ export function inspectProject(
   const compileStructureState = resolveCompileStructure(project);
   issues.push(...requiredMetadataState.issues);
   issues.push(...compileStructureState.issues);
+  issues.push(...validateProjectImagesConfiguration(project));
 
   if (project.meta.spineCategories !== undefined) {
     issues.push(
@@ -361,7 +362,8 @@ function parseChapter(
 
   const referenceValidation = extractReferenceKeysByCategory(metadata, relativePath, spineCategories);
   chapterIssues.push(...referenceValidation.issues);
-  chapterIssues.push(...validateMarkdownBody(body, chapterPath, repoRoot));
+  chapterIssues.push(...validateImagesMetadata(metadata, relativePath));
+  chapterIssues.push(...validateMarkdownBody(body, chapterPath, repoRoot, project.root));
 
   return {
     path: chapterPath,
@@ -379,7 +381,7 @@ function parseChapter(
 }
 
 function normalizeGroupingValue(
-  rawValue: MetadataValue | undefined,
+  rawValue: unknown,
   relativePath: string,
   issues: Issue[],
   key: string
@@ -387,7 +389,7 @@ function normalizeGroupingValue(
   if (rawValue == null || rawValue === "") {
     return undefined;
   }
-  if (Array.isArray(rawValue)) {
+  if (Array.isArray(rawValue) || isPlainObject(rawValue)) {
     issues.push(makeIssue("error", "metadata", `Metadata '${key}' must be a scalar value.`, relativePath));
     return undefined;
   }
@@ -395,7 +397,7 @@ function normalizeGroupingValue(
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function deriveEntryTitle(rawTitle: MetadataValue | undefined, chapterPath: string): string {
+function deriveEntryTitle(rawTitle: unknown, chapterPath: string): string {
   if (typeof rawTitle === "string" && rawTitle.trim()) {
     return rawTitle.trim();
   }
@@ -464,6 +466,159 @@ function extractReferenceKeysByCategory(
   return { referencesByCategory, issues };
 }
 
+function validateImagesMetadata(metadata: MetadataRecord, relativePath: string): Issue[] {
+  const issues: Issue[] = [];
+  const rawImages = metadata.images;
+  if (rawImages == null) {
+    return issues;
+  }
+
+  if (!isPlainObject(rawImages)) {
+    issues.push(makeIssue("warning", "metadata", "Metadata 'images' must be an object.", relativePath));
+    return issues;
+  }
+
+  const reservedGlobalKeys = new Set(["width", "height", "classes", "id", "attrs", "layout", "align"]);
+  for (const [key, value] of Object.entries(rawImages)) {
+    if (reservedGlobalKeys.has(key)) {
+      issues.push(
+        makeIssue(
+          "warning",
+          "metadata",
+          `Manuscript frontmatter 'images.${key}' is reserved for project defaults. Put defaults in stego-project.json 'images.${key}'.`,
+          relativePath
+        )
+      );
+      continue;
+    }
+
+    if (!isPlainObject(value)) {
+      issues.push(
+        makeIssue(
+          "warning",
+          "metadata",
+          `Metadata 'images.${key}' must be an object of style keys (width, height, classes, id, attrs, layout, align).`,
+          relativePath
+        )
+      );
+      continue;
+    }
+
+    for (const [styleKey, styleValue] of Object.entries(value)) {
+      issues.push(...validateImageStyleField(styleValue, styleKey, `images.${key}.${styleKey}`, relativePath));
+    }
+  }
+
+  return issues;
+}
+
+function validateProjectImagesConfiguration(project: ProjectContext): Issue[] {
+  const issues: Issue[] = [];
+  const rawImages = project.meta.images;
+  const projectConfigPath = path.relative(project.workspace.repoRoot, path.join(project.root, "stego-project.json"));
+  if (rawImages == null) {
+    return issues;
+  }
+
+  if (!isPlainObject(rawImages)) {
+    issues.push(makeIssue("warning", "metadata", "Project 'images' must be an object.", projectConfigPath));
+    return issues;
+  }
+
+  const reservedGlobalKeys = new Set(["width", "height", "classes", "id", "attrs", "layout", "align"]);
+  for (const [key, value] of Object.entries(rawImages)) {
+    if (reservedGlobalKeys.has(key)) {
+      issues.push(...validateImageStyleField(value, key, `images.${key}`, projectConfigPath));
+      continue;
+    }
+
+    issues.push(
+      makeIssue(
+        "warning",
+        "metadata",
+        `Project image defaults do not support key 'images.${key}'. Use only width, height, classes, id, attrs, layout, align in stego-project.json.`,
+        projectConfigPath
+      )
+    );
+  }
+
+  return issues;
+}
+
+function validateImageStyleField(
+  value: unknown,
+  key: string,
+  metadataPath: string,
+  relativePath: string
+): Issue[] {
+  const issues: Issue[] = [];
+
+  if (key === "width" || key === "height" || key === "id") {
+    if (!isStyleScalar(value)) {
+      issues.push(makeIssue("warning", "metadata", `Metadata '${metadataPath}' must be a scalar value.`, relativePath));
+    }
+    return issues;
+  }
+
+  if (key === "classes") {
+    if (typeof value === "string") {
+      return issues;
+    }
+    if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.trim().length === 0)) {
+      issues.push(makeIssue("warning", "metadata", `Metadata '${metadataPath}' must be a string or array of strings.`, relativePath));
+    }
+    return issues;
+  }
+
+  if (key === "attrs") {
+    if (!isPlainObject(value)) {
+      issues.push(makeIssue("warning", "metadata", `Metadata '${metadataPath}' must be an object of scalar values.`, relativePath));
+      return issues;
+    }
+    for (const [attrKey, attrValue] of Object.entries(value)) {
+      if (!isStyleScalar(attrValue)) {
+        issues.push(
+          makeIssue(
+            "warning",
+            "metadata",
+            `Metadata '${metadataPath}.${attrKey}' must be a scalar value.`,
+            relativePath
+          )
+        );
+      }
+    }
+    return issues;
+  }
+
+  if (key === "layout") {
+    if (value !== "block" && value !== "inline") {
+      issues.push(makeIssue("warning", "metadata", `Metadata '${metadataPath}' must be either 'block' or 'inline'.`, relativePath));
+    }
+    return issues;
+  }
+
+  if (key === "align") {
+    if (value !== "left" && value !== "center" && value !== "right") {
+      issues.push(makeIssue("warning", "metadata", `Metadata '${metadataPath}' must be one of: left, center, right.`, relativePath));
+    }
+    return issues;
+  }
+
+  issues.push(
+    makeIssue(
+      "warning",
+      "metadata",
+      `Unsupported image style key '${key}' in '${metadataPath}'. Allowed keys: width, height, classes, id, attrs, layout, align.`,
+      relativePath
+    )
+  );
+  return issues;
+}
+
+function isStyleScalar(value: unknown): value is string | number | boolean {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
 function parseMetadata(raw: string, chapterPath: string, repoRoot: string, required: boolean): {
   metadata: MetadataRecord;
   body: string;
@@ -472,27 +627,8 @@ function parseMetadata(raw: string, chapterPath: string, repoRoot: string, requi
 } {
   const relativePath = path.relative(repoRoot, chapterPath);
   const issues: Issue[] = [];
-
-  if (!raw.startsWith("---\n") && !raw.startsWith("---\r\n")) {
-    const commentsResult = parseStegoCommentsAppendix(raw, relativePath, 1);
-    if (!required) {
-      return {
-        metadata: {},
-        body: commentsResult.bodyWithoutComments,
-        comments: commentsResult.comments,
-        issues: commentsResult.issues
-      };
-    }
-    return {
-      metadata: {},
-      body: commentsResult.bodyWithoutComments,
-      comments: commentsResult.comments,
-      issues: [makeIssue("error", "metadata", "Missing metadata block at top of file.", relativePath), ...commentsResult.issues]
-    };
-  }
-
-  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!match) {
+  const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  if ((raw.startsWith("---\n") || raw.startsWith("---\r\n")) && !frontmatterMatch) {
     return {
       metadata: {},
       body: raw,
@@ -501,76 +637,30 @@ function parseMetadata(raw: string, chapterPath: string, repoRoot: string, requi
     };
   }
 
-  const metadataText = match[1];
-  const body = raw.slice(match[0].length);
-  const metadata: MetadataRecord = {};
-  const lines = metadataText.split(/\r?\n/);
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i].trim();
-    if (!line || line.startsWith("#")) {
-      continue;
-    }
-
-    const separatorIndex = line.indexOf(":");
-    if (separatorIndex === -1) {
-      issues.push(makeIssue("error", "metadata", `Invalid metadata line '${line}'. Expected 'key: value' format.`, relativePath, i + 1));
-      continue;
-    }
-
-    const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim();
-    if (!value) {
-      let lookahead = i + 1;
-      while (lookahead < lines.length) {
-        const nextTrimmed = lines[lookahead].trim();
-        if (!nextTrimmed || nextTrimmed.startsWith("#")) {
-          lookahead += 1;
-          continue;
-        }
-        break;
-      }
-      if (lookahead < lines.length) {
-        const firstValueLine = lines[lookahead];
-        const firstValueTrimmed = firstValueLine.trim();
-        const firstValueIndent = firstValueLine.length - firstValueLine.trimStart().length;
-        if (firstValueIndent > 0 && firstValueTrimmed.startsWith("- ")) {
-          const items: string[] = [];
-          let j = lookahead;
-          while (j < lines.length) {
-            const candidateRaw = lines[j];
-            const candidateTrimmed = candidateRaw.trim();
-            if (!candidateTrimmed || candidateTrimmed.startsWith("#")) {
-              j += 1;
-              continue;
-            }
-            const indent = candidateRaw.length - candidateRaw.trimStart().length;
-            if (indent === 0) {
-              break;
-            }
-            if (!candidateTrimmed.startsWith("- ")) {
-              issues.push(makeIssue("error", "metadata", `Unsupported metadata list line '${candidateTrimmed}'. Expected '- value'.`, relativePath, j + 1));
-              j += 1;
-              continue;
-            }
-            const itemValue = candidateTrimmed.slice(2).trim().replace(/^['"]|['"]$/g, "");
-            items.push(itemValue);
-            j += 1;
-          }
-          metadata[key] = items;
-          i = j - 1;
-          continue;
-        }
-      }
-    }
-
-    metadata[key] = coerceMetadataValue(value);
+  let parsed;
+  try {
+    parsed = parseMarkdownDocument(raw);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      metadata: {},
+      body: raw,
+      comments: [],
+      issues: [makeIssue("error", "metadata", `Could not parse frontmatter: ${message}`, relativePath)]
+    };
   }
 
-  const bodyStartLine = match[0].split(/\r?\n/).length;
-  const commentsResult = parseStegoCommentsAppendix(body, relativePath, bodyStartLine);
+  if (!parsed.hasFrontmatter && required) {
+    issues.push(makeIssue("error", "metadata", "Missing metadata block at top of file.", relativePath));
+  }
+
+  const bodyStartLine = frontmatterMatch
+    ? frontmatterMatch[0].split(/\r?\n/).length
+    : 1;
+  const commentsResult = parseStegoCommentsAppendix(parsed.body, relativePath, bodyStartLine);
   issues.push(...commentsResult.issues);
   return {
-    metadata,
+    metadata: parsed.frontmatter as MetadataRecord,
     body: commentsResult.bodyWithoutComments,
     comments: commentsResult.comments,
     issues
@@ -608,33 +698,7 @@ function parseCommentIssueFromParserError(error: string, relativePath: string, b
   return makeIssue("error", "comments", lineMatch[2], relativePath, absoluteLine);
 }
 
-function coerceMetadataValue(value: string): MetadataValue {
-  if (!value) {
-    return "";
-  }
-  if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-    return value.slice(1, -1);
-  }
-  if (value.startsWith("[") && value.endsWith("]")) {
-    const inner = value.slice(1, -1).trim();
-    if (!inner) {
-      return [];
-    }
-    return inner.split(",").map((entry) => entry.trim().replace(/^['\"]|['\"]$/g, ""));
-  }
-  if (/^-?\d+$/.test(value)) {
-    return Number(value);
-  }
-  if (value === "true") {
-    return true;
-  }
-  if (value === "false") {
-    return false;
-  }
-  return value;
-}
-
-function validateMarkdownBody(body: string, chapterPath: string, repoRoot: string): Issue[] {
+function validateMarkdownBody(body: string, chapterPath: string, repoRoot: string, projectRoot: string): Issue[] {
   const relativePath = path.relative(repoRoot, chapterPath);
   const issues: Issue[] = [];
   const lines = body.split(/\r?\n/);
@@ -673,18 +737,21 @@ function validateMarkdownBody(body: string, chapterPath: string, repoRoot: strin
     issues.push(makeIssue("error", "structure", `Unclosed code fence opened at line ${openFence.line}.`, relativePath, openFence.line));
   }
 
-  issues.push(...checkLocalMarkdownLinks(body, chapterPath, repoRoot));
+  issues.push(...checkLocalMarkdownLinks(body, chapterPath, repoRoot, projectRoot));
   issues.push(...runStyleHeuristics(body, relativePath));
   return issues;
 }
 
-function checkLocalMarkdownLinks(body: string, chapterPath: string, repoRoot: string): Issue[] {
+function checkLocalMarkdownLinks(body: string, chapterPath: string, repoRoot: string, projectRoot: string): Issue[] {
   const relativePath = path.relative(repoRoot, chapterPath);
   const issues: Issue[] = [];
-  const linkRegex = /!?\[[^\]]*\]\(([^)]+)\)/g;
+  const assetsDir = path.resolve(projectRoot, "assets");
+  const warnedOutsideAssets = new Set<string>();
+  const linkRegex = /(!?)\[[^\]]*\]\(([^)]+)\)/g;
   let match: RegExpExecArray | null = null;
   while ((match = linkRegex.exec(body)) !== null) {
-    let target = match[1].trim();
+    const isImage = match[1] === "!";
+    let target = match[2].trim();
     if (!target) {
       continue;
     }
@@ -695,7 +762,7 @@ function checkLocalMarkdownLinks(body: string, chapterPath: string, repoRoot: st
     if (isExternalTarget(target) || target.startsWith("#")) {
       continue;
     }
-    const cleanTarget = target.split("#")[0];
+    const cleanTarget = target.split("#")[0].split("?")[0];
     if (!cleanTarget) {
       continue;
     }
@@ -703,6 +770,28 @@ function checkLocalMarkdownLinks(body: string, chapterPath: string, repoRoot: st
     if (!fs.existsSync(resolved)) {
       issues.push(makeIssue("warning", "links", `Broken local link/image target '${cleanTarget}'.`, relativePath));
     }
+
+    if (!isImage) {
+      continue;
+    }
+
+    if (isPathInside(resolved, assetsDir)) {
+      continue;
+    }
+
+    const warningKey = `${relativePath}|${cleanTarget}`;
+    if (warnedOutsideAssets.has(warningKey)) {
+      continue;
+    }
+    warnedOutsideAssets.add(warningKey);
+    issues.push(
+      makeIssue(
+        "warning",
+        "assets",
+        `Local image target '${cleanTarget}' is outside project assets/. Store manuscript images under 'assets/'.`,
+        relativePath
+      )
+    );
   }
   return issues;
 }
@@ -711,9 +800,18 @@ function isExternalTarget(target: string): boolean {
   return (
     target.startsWith("http://")
     || target.startsWith("https://")
+    || target.startsWith("data:")
     || target.startsWith("mailto:")
     || target.startsWith("tel:")
   );
+}
+
+function isPathInside(candidatePath: string, parentPath: string): boolean {
+  const relative = path.relative(path.resolve(parentPath), path.resolve(candidatePath));
+  if (!relative) {
+    return true;
+  }
+  return !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 function runStyleHeuristics(body: string, relativePath: string): Issue[] {

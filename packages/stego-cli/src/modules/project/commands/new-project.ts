@@ -11,7 +11,7 @@ export function registerNewProjectCommand(registry: CommandRegistry): void {
     name: "new-project",
     description: "Create a new Stego project",
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--title <title>", description: "Project title" },
       { flags: "--prose-font <mode>", description: "yes|no|prompt" },
       { flags: "--format <format>", description: "text|json" },

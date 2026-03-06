@@ -51,7 +51,7 @@ For complete docs, start here:
 ```bash
 npm install -g stego-cli
 stego init
-stego new-project --project hello-world
+stego new-project -p hello-world
 ```
 
  - Open `./projects/hello-world` in VSCode

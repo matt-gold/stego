@@ -10,9 +10,8 @@ export function registerExportCommand(registry: CommandRegistry): void {
   registry.register({
     name: "export",
     description: "Export manuscript formats",
-    allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--format <format>", description: "md|docx|pdf|epub" },
       { flags: "--output <path>", description: "Explicit output path" },
       { flags: "--root <path>", description: "Workspace root path" }

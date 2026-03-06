@@ -6,7 +6,7 @@ export function registerSpineDeprecatedAliases(registry: CommandRegistry): void 
     description: "Deprecated alias for spine new-category",
     allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--key <category>", description: "Category key" },
       { flags: "--label <label>", description: "Category display label" },
       { flags: "--require-metadata", description: "Append key to required metadata" },
@@ -23,7 +23,7 @@ export function registerSpineDeprecatedAliases(registry: CommandRegistry): void 
     description: "Deprecated alias for spine new",
     allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--category <category>", description: "Category key" },
       { flags: "--filename <path>", description: "Relative entry path" },
       { flags: "--format <format>", description: "text|json" },

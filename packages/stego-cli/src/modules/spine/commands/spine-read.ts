@@ -9,9 +9,8 @@ export function registerSpineReadCommand(registry: CommandRegistry): void {
   registry.register({
     name: "spine read",
     description: "Read spine catalog",
-    allowUnknownOptions: true,
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--format <format>", description: "text|json" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],

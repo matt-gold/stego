@@ -8,7 +8,6 @@ export function registerCommentsAddCommand(registry: CommandRegistry): void {
   registry.register({
     name: "comments add <manuscript>",
     description: "Add a new comment",
-    allowUnknownOptions: true,
     options: [
       { flags: "--message <text>", description: "Comment text" },
       { flags: "--author <name>", description: "Comment author" },

@@ -9,7 +9,7 @@ export function registerNewManuscriptCommand(registry: CommandRegistry): void {
     name: "new",
     description: "Create a new manuscript file",
     options: [
-      { flags: "--project <project-id>", description: "Project id" },
+      { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "-i, --i <prefix>", description: "Numeric filename prefix override" },
       { flags: "--filename <name>", description: "Explicit manuscript filename" },
       { flags: "--format <format>", description: "text|json" },
