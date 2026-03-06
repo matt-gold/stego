@@ -291,6 +291,48 @@ h2 {
   font-size: 13px;
   line-height: 1.45;
 }
+.images-widget {
+  margin-top: 12px;
+  border-top: 1px solid var(--vscode-panel-border);
+  padding-top: 10px;
+}
+.images-widget-head {
+  margin-bottom: 8px;
+}
+.images-widget h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+.images-widget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.image-metadata-item .item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.image-style-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.image-style-label {
+  min-width: 56px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.image-style-value {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .meta-reference-list {
   margin-top: 8px;
   display: flex;

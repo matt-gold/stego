@@ -42,8 +42,11 @@ function gateStateLabel(state: 'never' | 'success' | 'failed'): string {
 
 export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, extensionUri: vscode.Uri): string {
   const nonce = randomNonce();
+  const visibleMetadataEntries = state.mode === 'manuscript'
+    ? state.metadataEntries.filter((entry) => entry.key !== 'images')
+    : state.metadataEntries;
   const manuscriptLabel = state.mode === 'manuscript'
-    ? state.metadataEntries.find((entry) => entry.key === 'label' && !entry.isArray)?.valueText
+    ? visibleMetadataEntries.find((entry) => entry.key === 'label' && !entry.isArray)?.valueText
     : undefined;
   const fileTitle = getSidebarFileTitle(state.documentPath, manuscriptLabel);
   const showDocumentTab = state.showDocumentTab ?? state.hasActiveMarkdown;
@@ -73,9 +76,41 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       }).join('')
       + `</div>`;
   };
+  const renderImageStyle = (style: SidebarState['imageEntries'][number]['effectiveStyle']): string => {
+    const chips: string[] = [];
+    if (style.layout) {
+      chips.push(`<span class="badge">layout=${escapeHtml(style.layout)}</span>`);
+    }
+    if (style.align) {
+      chips.push(`<span class="badge">align=${escapeHtml(style.align)}</span>`);
+    }
+    if (style.width) {
+      chips.push(`<span class="badge">width=${escapeHtml(style.width)}</span>`);
+    }
+    if (style.height) {
+      chips.push(`<span class="badge">height=${escapeHtml(style.height)}</span>`);
+    }
+    if (style.id) {
+      chips.push(`<span class="badge">#${escapeHtml(style.id)}</span>`);
+    }
+    if (style.classes && style.classes.length > 0) {
+      chips.push(`<span class="badge">classes=${escapeHtml(style.classes.join(', '))}</span>`);
+    }
+    if (style.attrs && Object.keys(style.attrs).length > 0) {
+      const attrs = Object.entries(style.attrs)
+        .filter(([key]) => key !== 'data-layout' && key !== 'data-align')
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => `${key}=${value}`)
+        .join(', ');
+      if (attrs.length > 0) {
+        chips.push(`<span class="badge">attrs={${escapeHtml(attrs)}}</span>`);
+      }
+    }
+    return chips.length > 0 ? chips.join('') : '<span class="item-subtext tiny">none</span>';
+  };
 
-  const metadataHtml = state.metadataEntries.length > 0
-    ? state.metadataEntries.map((entry) => {
+  const metadataHtml = visibleMetadataEntries.length > 0
+    ? visibleMetadataEntries.map((entry) => {
       if (entry.isArray) {
         const arrayItems = entry.arrayItems.length > 0
           ? `<div class="array-list">`
@@ -122,6 +157,37 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         + `</article>`;
     }).join('')
     : '<div class="empty">No metadata fields yet.</div>';
+  const imagesWidgetHtml = state.mode === 'manuscript'
+    ? `<section class="images-widget">`
+      + `<div class="images-widget-head">`
+      + `<h3>Images</h3>`
+      + `<div class="item-subtext tiny">Project defaults: ${renderImageStyle(state.projectImageDefaults)}</div>`
+      + `</div>`
+      + `${state.imageEntries.length > 0
+        ? `<div class="images-widget-list">`
+          + state.imageEntries.map((entry) => (
+            `<article class="item metadata-item image-metadata-item">`
+            + `<div class="item-main">`
+            + `<div class="item-title-row">`
+            + `<code>${escapeHtml(entry.displayPath)}</code>`
+            + `${entry.isExternal ? '<span class="badge">External</span>' : '<span class="badge">Local</span>'}`
+            + `<span class="badge">${entry.occurrenceCount}x</span>`
+            + `</div>`
+            + `<div class="item-subtext tiny">line ${entry.line}${entry.destination !== entry.displayPath ? ` • ${escapeHtml(entry.destination)}` : ''}</div>`
+            + `<div class="image-style-value">${renderImageStyle(entry.effectiveStyle)}</div>`
+            + `</div>`
+            + `${showMetadataEditingControls
+              ? `<div class="item-actions">`
+                + `<button class="btn subtle" data-action="editImageOverride" data-key="${escapeAttribute(entry.key)}">${entry.hasOverride ? 'Edit Override' : 'Add Override'}</button>`
+                + `<button class="btn danger" data-action="clearImageOverride" data-key="${escapeAttribute(entry.key)}"${entry.hasOverride ? '' : ' disabled'}>Clear</button>`
+                + `</div>`
+              : ''}`
+            + `</article>`
+          )).join('')
+          + `</div>`
+        : '<div class="empty tiny">No markdown images found in this file.</div>'}`
+      + `</section>`
+    : '';
 
   const currentStageLabel = state.mode === 'manuscript'
     ? state.statusControl?.value?.trim() || state.statusControl?.invalidValue?.trim() || 'stage'
@@ -481,7 +547,8 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
       + `${state.metadataCollapsed
         ? ''
         : `${showMetadataEditingControls ? '<div class="actions"><button class="btn primary" data-action="addMetadataField">Add Field</button></div>' : ''}`
-          + `<div class="list">${metadataHtml}</div>`}`
+          + `<div class="list">${metadataHtml}</div>`
+          + `${imagesWidgetHtml}`}`
       + `</section>`
     : '';
 

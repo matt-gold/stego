@@ -17,9 +17,9 @@ stego init
 npm install
 
 stego list-projects
-stego validate --project fiction-example
-stego build --project fiction-example
-stego new --project fiction-example
+stego validate -p fiction-example
+stego build -p fiction-example
+stego new -p fiction-example
 ```
 
 `stego init` scaffolds two example projects:
@@ -54,17 +54,19 @@ Run commands from the workspace root and target a project with `--project`.
 
 ```bash
 stego list-projects
-stego new-project --project my-book --title "My Book"
-stego new --project fiction-example
-stego validate --project fiction-example
-stego build --project fiction-example
-stego check-stage --project fiction-example --stage revise
-stego export --project fiction-example --format md
-stego spine read --project fiction-example
-stego spine new-category --project fiction-example --key characters
-stego spine new --project fiction-example --category characters --filename supporting/abigail
+stego new-project -p my-book --title "My Book"
+stego new -p fiction-example
+stego validate -p fiction-example
+stego build -p fiction-example
+stego check-stage -p fiction-example --stage revise
+stego export -p fiction-example --format md
+stego spine read -p fiction-example
+stego spine new-category -p fiction-example --key characters
+stego spine new -p fiction-example --category characters --filename supporting/abigail
 stego metadata read projects/fiction-example/manuscript/100-the-commission.md --format json
 ```
+
+All project-scoped commands accept `-p` as shorthand for `--project`.
 
 `stego new` also supports `--i <prefix>` for numeric prefix override and `--filename <name>` for an explicit manuscript filename.
 
@@ -73,6 +75,50 @@ Spine V2 is directory-inferred:
 - categories are directories in `spine/<category>/`
 - category metadata lives at `spine/<category>/_category.md`
 - entries are markdown files in each category directory tree
+
+## Image assets and manuscript image settings
+
+Stego projects scaffold an `assets/` directory for manuscript images.
+
+Use standard Markdown image syntax in manuscript files:
+
+```md
+![Map](../assets/maps/city-plan.png)
+```
+
+Set global image defaults in `stego-project.json`:
+
+```json
+{
+  "images": {
+    "layout": "block",
+    "align": "center",
+    "width": "50%",
+    "classes": ["illustration"]
+  }
+}
+```
+
+Use manuscript frontmatter `images` only for per-path overrides:
+
+```yaml
+images:
+  assets/maps/city-plan.png:
+    layout: inline
+    align: left
+    width: 100%
+    classes: [diagram]
+```
+
+Rules:
+
+- project-level global keys in `stego-project.json images`: `width`, `height`, `classes`, `id`, `attrs`, `layout`, `align`
+- manuscript frontmatter `images` keys are per-image overrides by project-relative asset path
+- manuscript frontmatter should not define global keys; put defaults in `stego-project.json`
+- `layout` (`block|inline`) and `align` (`left|center|right`) are emitted as image attrs (`data-layout`, `data-align`) in compiled markdown
+- EPUB export includes a default image layout stylesheet (`filters/image-layout.css`) for `data-layout`/`data-align` behavior
+- inline image attrs in markdown win over both project defaults and frontmatter overrides
+- local manuscript image targets outside `assets/` are reported as validate warnings
 
 Projects also include local npm scripts so you can work from inside a project directory.
 
@@ -90,16 +136,16 @@ Current `stego --help` command index:
 ```text
 init [--force]
 list-projects [--root <path>]
-new-project --project <project-id> [--title <title>] [--prose-font <yes|no|prompt>] [--format <text|json>] [--root <path>]
-new --project <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--format <text|json>] [--root <path>]
-validate --project <project-id> [--file <project-relative-manuscript-path>] [--root <path>]
-build --project <project-id> [--root <path>]
-check-stage --project <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]
-lint --project <project-id> [--manuscript|--spine] [--root <path>]
-export --project <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]
-spine read --project <project-id> [--format <text|json>] [--root <path>]
-spine new-category --project <project-id> --key <category> [--label <label>] [--require-metadata] [--format <text|json>] [--root <path>]
-spine new --project <project-id> --category <category> [--filename <relative-path>] [--format <text|json>] [--root <path>]
+new-project --project|-p <project-id> [--title <title>] [--prose-font <yes|no|prompt>] [--format <text|json>] [--root <path>]
+new --project|-p <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--format <text|json>] [--root <path>]
+validate --project|-p <project-id> [--file <project-relative-manuscript-path>] [--root <path>]
+build --project|-p <project-id> [--root <path>]
+check-stage --project|-p <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]
+lint --project|-p <project-id> [--manuscript|--spine] [--root <path>]
+export --project|-p <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]
+spine read --project|-p <project-id> [--format <text|json>] [--root <path>]
+spine new-category --project|-p <project-id> --key <category> [--label <label>] [--require-metadata] [--format <text|json>] [--root <path>]
+spine new --project|-p <project-id> --category <category> [--filename <relative-path>] [--format <text|json>] [--root <path>]
 metadata read <markdown-path> [--format <text|json>]
 metadata apply <markdown-path> --input <path|-> [--format <text|json>]
 comments read <manuscript> [--format <text|json>]

@@ -27,8 +27,8 @@ export function registerInitCommand(registry: CommandRegistry): void {
       writeText("Next steps:");
       writeText("  npm install");
       writeText("  stego list-projects");
-      writeText("  stego validate --project fiction-example");
-      writeText("  stego build --project fiction-example");
+      writeText("  stego validate -p fiction-example");
+      writeText("  stego build -p fiction-example");
     }
   });
 }

@@ -4,7 +4,6 @@ import type { StageName } from "../../../../shared/src/domain/stages/index.ts";
 export type QualityModuleName = "quality";
 
 export type IssueLevel = "error" | "warning";
-export type MetadataValue = string | number | boolean | string[];
 
 export interface Issue {
   level: IssueLevel;
@@ -34,7 +33,7 @@ export interface ParsedCommentThread {
   thread: string[];
 }
 
-export type MetadataRecord = Record<string, MetadataValue | undefined>;
+export type MetadataRecord = Record<string, unknown>;
 
 export interface ChapterEntry {
   path: string;

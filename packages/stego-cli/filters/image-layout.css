@@ -1,0 +1,23 @@
+img[data-layout="inline"] {
+  display: inline;
+  vertical-align: baseline;
+}
+
+img[data-layout="block"] {
+  display: block;
+}
+
+img[data-layout="block"][data-align="left"] {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+img[data-layout="block"][data-align="center"] {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+img[data-layout="block"][data-align="right"] {
+  margin-left: auto;
+  margin-right: 0;
+}

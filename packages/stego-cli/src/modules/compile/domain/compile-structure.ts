@@ -5,7 +5,6 @@ export function renderCompiledManuscript(input: RenderCompiledManuscriptInput): 
   const tocEntries: Array<{ level: number; heading: string }> = [];
   const previousGroupValues = new Map<string, string | undefined>();
   const previousGroupTitles = new Map<string, string | undefined>();
-  const entryHeadingLevel = Math.min(6, 2 + input.compileStructureLevels.length);
 
   const lines: string[] = [];
   lines.push(`<!-- generated: ${input.generatedAt} -->`);
@@ -75,8 +74,6 @@ export function renderCompiledManuscript(input: RenderCompiledManuscriptInput): 
       previousGroupTitles.set(level.key, currentTitle);
     }
 
-    lines.push(`${"#".repeat(entryHeadingLevel)} ${chapter.title}`);
-    lines.push("");
     lines.push(`<!-- source: ${chapter.relativePath} | order: ${chapter.order} | status: ${chapter.status} -->`);
     lines.push("");
     lines.push(chapter.body.trim());

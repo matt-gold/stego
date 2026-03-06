@@ -23,13 +23,36 @@ export function runExport(input: RunExportInput): RunExportResult {
     throw new Error(capability.reason || `Exporter '${exporter.id}' cannot run.`);
   }
 
+  const resourcePaths = uniqueResolvedPaths([
+    input.project.root,
+    input.project.manuscriptDir,
+    path.join(input.project.root, "assets"),
+    path.dirname(input.inputPath)
+  ]);
+
   exporter.run({
     inputPath: input.inputPath,
-    outputPath
+    outputPath,
+    cwd: input.project.root,
+    resourcePaths
   });
 
   return {
     outputPath,
     format
   };
+}
+
+function uniqueResolvedPaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of paths) {
+    const normalized = path.resolve(value);
+    if (seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    unique.push(normalized);
+  }
+  return unique;
 }

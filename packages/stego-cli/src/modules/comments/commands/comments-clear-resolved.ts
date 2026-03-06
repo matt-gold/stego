@@ -8,7 +8,6 @@ export function registerCommentsClearResolvedCommand(registry: CommandRegistry):
   registry.register({
     name: "comments clear-resolved <manuscript>",
     description: "Clear resolved comments",
-    allowUnknownOptions: true,
     options: [
       { flags: "--format <format>", description: "text|json" }
     ],

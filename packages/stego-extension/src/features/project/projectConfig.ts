@@ -4,11 +4,13 @@ import * as vscode from 'vscode';
 import { normalizeFsPath } from '../../shared/path';
 import { isValidMetadataKey } from '../../../../shared/src/domain/frontmatter';
 import type {
+  ImageStyle,
   ProjectSpineCategory,
   ProjectConfigIssue,
   ProjectScanContext,
   ProjectStructuralLevel
 } from '../../shared/types';
+import { parseProjectImageDefaults } from '../metadata/imageMetadata';
 
 export const PROJECT_HEALTH_CHANNEL = 'Stego Project Health';
 
@@ -18,6 +20,7 @@ const PROJECT_JSON_SCHEMA = {
     title: { type: 'string', optional: true },
     name: { type: 'string', optional: true },
     requiredMetadata: { type: 'array<string>', optional: true },
+    images: { type: 'object', optional: true },
     compileStructure: { type: 'object', optional: true }
   }
 } as const;
@@ -125,6 +128,11 @@ function validateProjectJsonSchema(parsed: unknown): { record?: Record<string, u
   const compileStructure = record.compileStructure;
   if (compileStructure !== undefined && !asObject(compileStructure)) {
     issues.push(issue('$.compileStructure', 'Expected object.'));
+  }
+
+  const images = record.images;
+  if (images !== undefined && !asObject(images)) {
+    issues.push(issue('$.images', 'Expected object.'));
   }
 
   if (compileStructure !== undefined) {
@@ -262,6 +270,7 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
   const structuralLevels = extractProjectStructuralLevels(source, issues);
   const structuralKeys = extractProjectStructuralKeysFromLevels(structuralLevels);
   const requiredMetadata = extractProjectRequiredMetadata(source, issues);
+  const imageDefaults = extractProjectImageDefaults(source);
   const categories = await discoverProjectCategories(path.dirname(projectFilePath), requiredMetadata, issues);
   const dedupedIssues = dedupeIssues(issues);
 
@@ -274,9 +283,14 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
     structuralKeys,
     structuralLevels,
     requiredMetadata,
+    imageDefaults,
     categories,
     issues: dedupedIssues
   };
+}
+
+export function extractProjectImageDefaults(parsed: unknown): ImageStyle {
+  return parseProjectImageDefaults(parsed);
 }
 
 export function extractProjectTitle(parsed: unknown, issues?: ProjectConfigIssue[]): string | undefined {

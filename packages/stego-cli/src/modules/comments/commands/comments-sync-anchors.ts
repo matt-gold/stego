@@ -8,7 +8,6 @@ export function registerCommentsSyncAnchorsCommand(registry: CommandRegistry): v
   registry.register({
     name: "comments sync-anchors <manuscript>",
     description: "Sync comment anchors",
-    allowUnknownOptions: true,
     options: [
       { flags: "--input <path>", description: "JSON payload path or '-'" },
       { flags: "--format <format>", description: "text|json" }

@@ -9,7 +9,14 @@ import {
   parseMetadataInput,
   serializeMarkdownDocument
 } from './frontmatterParse';
+import {
+  parseImageOverrideInput,
+  readImageOverride,
+  setImageOverride,
+  formatImageStyleSummary
+} from './imageMetadata';
 import { resolveAllowedStatuses } from './statusControl';
+import type { ImageStyle } from '../../shared/types';
 
 const metadataCli = new MetadataCliClient();
 
@@ -292,6 +299,353 @@ export async function removeMetadataArrayItem(key: string, index: number): Promi
     parsed.frontmatter[key] = current;
   }
 
+  await writeParsedDocument(document, parsed);
+}
+
+type ImageOverrideAction = 'layout' | 'align' | 'width' | 'height' | 'advanced' | 'done' | 'clear';
+
+const IMAGE_WIDTH_PRESETS = ['25%', '33%', '50%', '60%', '66%', '75%', '80%', '90%', '100%'] as const;
+const IMAGE_HEIGHT_PRESETS = ['25%', '33%', '50%', '60%', '66%', '75%', '80%', '90%', '100%'] as const;
+
+function cloneImageStyle(style: ImageStyle | undefined): ImageStyle {
+  return {
+    width: style?.width,
+    height: style?.height,
+    id: style?.id,
+    classes: style?.classes ? [...style.classes] : undefined,
+    attrs: style?.attrs ? { ...style.attrs } : undefined,
+    layout: style?.layout,
+    align: style?.align
+  };
+}
+
+function isImageStyleEmpty(style: ImageStyle): boolean {
+  return !style.width
+    && !style.height
+    && !style.id
+    && !style.layout
+    && !style.align
+    && (!style.classes || style.classes.length === 0)
+    && (!style.attrs || Object.keys(style.attrs).length === 0);
+}
+
+async function promptImageLayout(current: ImageStyle): Promise<'block' | 'inline' | undefined | null> {
+  const choice = await vscode.window.showQuickPick<
+    vscode.QuickPickItem & { value: 'unset' | 'block' | 'inline' }
+  >(
+    [
+      {
+        label: 'Inherit / Unset',
+        description: 'Remove explicit layout override',
+        value: 'unset'
+      },
+      {
+        label: 'Block',
+        description: 'Block layout',
+        value: 'block'
+      },
+      {
+        label: 'Inline',
+        description: 'Inline layout',
+        value: 'inline'
+      }
+    ],
+    {
+      title: 'Image Layout',
+      placeHolder: `Current: ${current.layout ?? 'inherit'}`
+    }
+  );
+
+  if (!choice) {
+    return null;
+  }
+
+  if (choice.value === 'unset') {
+    return undefined;
+  }
+  return choice.value;
+}
+
+async function promptImageAlign(current: ImageStyle): Promise<'left' | 'center' | 'right' | undefined | null> {
+  const choice = await vscode.window.showQuickPick<
+    vscode.QuickPickItem & { value: 'unset' | 'left' | 'center' | 'right' }
+  >(
+    [
+      {
+        label: 'Inherit / Unset',
+        description: 'Remove explicit align override',
+        value: 'unset'
+      },
+      {
+        label: 'Left',
+        description: 'Align left',
+        value: 'left'
+      },
+      {
+        label: 'Center',
+        description: 'Align center',
+        value: 'center'
+      },
+      {
+        label: 'Right',
+        description: 'Align right',
+        value: 'right'
+      }
+    ],
+    {
+      title: 'Image Alignment',
+      placeHolder: `Current: ${current.align ?? 'inherit'}`
+    }
+  );
+
+  if (!choice) {
+    return null;
+  }
+
+  if (choice.value === 'unset') {
+    return undefined;
+  }
+  return choice.value;
+}
+
+async function promptImageDimension(
+  field: 'width' | 'height',
+  currentValue: string | undefined,
+  presets: readonly string[]
+): Promise<string | undefined | null> {
+  const choice = await vscode.window.showQuickPick<
+    vscode.QuickPickItem & { value: string }
+  >(
+    [
+      {
+        label: 'Inherit / Unset',
+        description: 'Remove explicit value',
+        value: '__unset__'
+      },
+      ...presets.map((preset) => ({
+        label: preset,
+        description: `Set ${field} to ${preset}`,
+        value: preset
+      })),
+      {
+        label: 'Custom…',
+        description: `Type your own ${field} value`,
+        value: '__custom__'
+      }
+    ],
+    {
+      title: `Image ${field === 'width' ? 'Width' : 'Height'}`,
+      placeHolder: `Current: ${currentValue ?? 'inherit'}`
+    }
+  );
+
+  if (!choice) {
+    return null;
+  }
+
+  if (choice.value === '__unset__') {
+    return undefined;
+  }
+
+  if (choice.value !== '__custom__') {
+    return choice.value;
+  }
+
+  const custom = await vscode.window.showInputBox({
+    prompt: `Custom ${field} value (examples: 50%, 480px, 8in). Leave blank to unset.`,
+    value: currentValue ?? ''
+  });
+
+  if (custom === undefined) {
+    return null;
+  }
+
+  const trimmed = custom.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+async function promptAdvancedImageOverrideInput(current: ImageStyle): Promise<ImageStyle | null> {
+  const edited = await vscode.window.showInputBox({
+    prompt: 'Advanced image override object (YAML/JSON). Leave blank to clear.',
+    value: JSON.stringify(current),
+    placeHolder: '{"width":"100%","layout":"inline","align":"left","classes":["diagram"]}'
+  });
+
+  if (edited === undefined) {
+    return null;
+  }
+
+  const trimmed = edited.trim();
+  if (!trimmed) {
+    return {};
+  }
+
+  const parsedInput = parseMetadataInput(trimmed);
+  const override = parseImageOverrideInput(parsedInput);
+  if (!override) {
+    void vscode.window.showWarningMessage(
+      'Image override must be an object with one or more keys: width, height, classes, id, attrs, layout, align.'
+    );
+    return null;
+  }
+
+  return override;
+}
+
+export async function promptAndEditImageOverride(imageKey: string): Promise<void> {
+  const document = getActiveMarkdownDocument(true);
+  if (!document) {
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = parseMarkdownDocument(document.getText());
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Could not parse frontmatter: ${errorToMessage(error)}`);
+    return;
+  }
+
+  const draft = cloneImageStyle(readImageOverride(parsed.frontmatter, imageKey));
+
+  while (true) {
+    const action = await vscode.window.showQuickPick<
+      vscode.QuickPickItem & { value: ImageOverrideAction }
+    >(
+      [
+        {
+          label: 'Layout',
+          description: draft.layout ?? 'inherit',
+          value: 'layout'
+        },
+        {
+          label: 'Align',
+          description: draft.align ?? 'inherit',
+          value: 'align'
+        },
+        {
+          label: 'Width',
+          description: draft.width ?? 'inherit',
+          value: 'width'
+        },
+        {
+          label: 'Height',
+          description: draft.height ?? 'inherit',
+          value: 'height'
+        },
+        {
+          label: 'Advanced',
+          description: 'Edit full override object (classes/id/attrs/etc.)',
+          value: 'advanced'
+        },
+        {
+          label: 'Save',
+          description: isImageStyleEmpty(draft) ? 'No explicit override (will clear)' : formatImageStyleSummary(draft),
+          value: 'done'
+        },
+        {
+          label: 'Clear Override',
+          description: 'Remove this image override from frontmatter',
+          value: 'clear'
+        }
+      ],
+      {
+        title: `Edit Image Override: ${imageKey}`,
+        placeHolder: 'Choose a field to edit'
+      }
+    );
+
+    if (!action) {
+      return;
+    }
+
+    if (action.value === 'done') {
+      setImageOverride(parsed.frontmatter, imageKey, isImageStyleEmpty(draft) ? undefined : draft);
+      await writeParsedDocument(document, parsed);
+      if (isImageStyleEmpty(draft)) {
+        void vscode.window.showInformationMessage(`Cleared image override for '${imageKey}'.`);
+      } else {
+        void vscode.window.showInformationMessage(`Saved image override for '${imageKey}' (${formatImageStyleSummary(draft)}).`);
+      }
+      return;
+    }
+
+    if (action.value === 'clear') {
+      setImageOverride(parsed.frontmatter, imageKey, undefined);
+      await writeParsedDocument(document, parsed);
+      void vscode.window.showInformationMessage(`Cleared image override for '${imageKey}'.`);
+      return;
+    }
+
+    if (action.value === 'layout') {
+      const selected = await promptImageLayout(draft);
+      if (selected === null) {
+        continue;
+      }
+      draft.layout = selected;
+      continue;
+    }
+
+    if (action.value === 'align') {
+      const selected = await promptImageAlign(draft);
+      if (selected === null) {
+        continue;
+      }
+      draft.align = selected;
+      continue;
+    }
+
+    if (action.value === 'width') {
+      const selected = await promptImageDimension('width', draft.width, IMAGE_WIDTH_PRESETS);
+      if (selected === null) {
+        continue;
+      }
+      draft.width = selected;
+      continue;
+    }
+
+    if (action.value === 'height') {
+      const selected = await promptImageDimension('height', draft.height, IMAGE_HEIGHT_PRESETS);
+      if (selected === null) {
+        continue;
+      }
+      draft.height = selected;
+      continue;
+    }
+
+    if (action.value === 'advanced') {
+      const selected = await promptAdvancedImageOverrideInput(draft);
+      if (selected === null) {
+        continue;
+      }
+      const cloned = cloneImageStyle(selected);
+      draft.width = cloned.width;
+      draft.height = cloned.height;
+      draft.id = cloned.id;
+      draft.classes = cloned.classes;
+      draft.attrs = cloned.attrs;
+      draft.layout = cloned.layout;
+      draft.align = cloned.align;
+      continue;
+    }
+  }
+}
+
+export async function clearImageOverride(imageKey: string): Promise<void> {
+  const document = getActiveMarkdownDocument(true);
+  if (!document) {
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = parseMarkdownDocument(document.getText());
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Could not parse frontmatter: ${errorToMessage(error)}`);
+    return;
+  }
+
+  setImageOverride(parsed.frontmatter, imageKey, undefined);
   await writeParsedDocument(document, parsed);
 }
 

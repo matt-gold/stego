@@ -126,6 +126,10 @@ test('build emits nested TOC and inherits missing group values/titles', () => {
 
     const chapterOneHeadingCount = (built.match(/^### Chapter 1: Arrival$/gm) || []).length;
     assert.equal(chapterOneHeadingCount, 1);
+    assert.doesNotMatch(built, /^#### Scene A$/m);
+    assert.doesNotMatch(built, /^#### Scene B$/m);
+    assert.doesNotMatch(built, /^#### Scene C$/m);
+    assert.doesNotMatch(built, /^#### Scene D$/m);
 
     const pageBreakCount = (built.match(/^\\newpage$/gm) || []).length;
     assert.equal(pageBreakCount, 2);

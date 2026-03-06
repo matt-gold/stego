@@ -1,5 +1,15 @@
 function shouldRenderJsonError(argv: string[]): boolean {
-  return argv.includes("--format") && argv.includes("json");
+  for (let index = 0; index < argv.length; index += 1) {
+    const current = argv[index];
+    const next = argv[index + 1];
+    if (current === "--format" && typeof next === "string" && next.toLowerCase() === "json") {
+      return true;
+    }
+    if (current.startsWith("--format=") && current.slice("--format=".length).toLowerCase() === "json") {
+      return true;
+    }
+  }
+  return false;
 }
 
 type CliLikeError = {

@@ -8,7 +8,6 @@ export function registerCommentsReadCommand(registry: CommandRegistry): void {
   registry.register({
     name: "comments read <manuscript>",
     description: "Read comments state",
-    allowUnknownOptions: true,
     options: [
       { flags: "--format <format>", description: "text|json" }
     ],

@@ -30,6 +30,10 @@ export function createCliApp(appContext: AppContext): CliApp {
         return;
       }
 
+      if (registry.tryShowCommandHelp(appContext.argv)) {
+        return;
+      }
+
       try {
         await registry.run(appContext.argv);
       } catch (error) {

@@ -8,7 +8,6 @@ export function registerCommentsReplyCommand(registry: CommandRegistry): void {
   registry.register({
     name: "comments reply <manuscript>",
     description: "Reply to an existing comment",
-    allowUnknownOptions: true,
     options: [
       { flags: "--comment-id <id>", description: "Comment id (CMT-####)" },
       { flags: "--message <text>", description: "Reply text" },

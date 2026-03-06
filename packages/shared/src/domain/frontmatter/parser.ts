@@ -1,7 +1,10 @@
 import * as yaml from "js-yaml";
 
 export type FrontmatterScalar = string | number | boolean | null;
-export type FrontmatterValue = FrontmatterScalar | FrontmatterScalar[];
+export type FrontmatterValue =
+  | FrontmatterScalar
+  | FrontmatterValue[]
+  | { [key: string]: FrontmatterValue };
 export type FrontmatterRecord = Record<string, FrontmatterValue>;
 
 export interface ParsedMarkdownDocument {

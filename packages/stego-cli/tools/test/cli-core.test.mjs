@@ -22,7 +22,7 @@ test("help prints command list", () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stdout, /Commands:/);
   assert.match(result.stdout, /validate/);
-  assert.match(result.stdout, /metadata:read|metadata read/);
+  assert.match(result.stdout, /metadata read/);
 });
 
 test("version prints package version", () => {
@@ -38,4 +38,31 @@ test("unknown command returns INVALID_USAGE exit code", () => {
   const result = runCli(["definitely-not-a-command"]);
   assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stderr, /Unknown command 'definitely-not-a-command'/);
+});
+
+test("command-specific help exits successfully without unknown-command errors", () => {
+  const single = runCli(["new", "--help"]);
+  assert.equal(single.status, 0, `${single.stdout}\n${single.stderr}`);
+  assert.match(single.stdout, /Usage:\s*\n\s*\$ stego new/);
+  assert.doesNotMatch(single.stderr, /Unknown command/);
+
+  const multi = runCli(["spine", "read", "--help"]);
+  assert.equal(multi.status, 0, `${multi.stdout}\n${multi.stderr}`);
+  assert.match(multi.stdout, /Usage:\s*\n\s*\$ stego spine read/);
+  assert.doesNotMatch(multi.stderr, /Unknown command/);
+});
+
+test("unknown command returns JSON error envelope for --format=json", () => {
+  const result = runCli(["definitely-not-a-command", "--format=json"]);
+  assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`);
+  const payload = JSON.parse(result.stderr.trim());
+  assert.equal(payload.ok, false);
+  assert.equal(payload.code, "INVALID_USAGE");
+  assert.match(payload.message, /Unknown command 'definitely-not-a-command'/);
+});
+
+test("core commands reject unknown options", () => {
+  const result = runCli(["validate", "--bogus"]);
+  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /Unknown option `--bogus`/);
 });

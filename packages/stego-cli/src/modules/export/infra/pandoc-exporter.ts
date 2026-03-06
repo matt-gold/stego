@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import type { ExportFormat } from "../types.ts";
 import type { Exporter } from "../domain/exporter.ts";
 
@@ -28,6 +29,21 @@ function getMissingPdfEngineReason(): string {
   return "No PDF engine found. Install one of: tectonic, xelatex, lualatex, pdflatex, wkhtmltopdf, weasyprint, prince, or typst.";
 }
 
+function resolveBundledFile(relativePathFromPackageRoot: string): string | undefined {
+  let current = path.dirname(fileURLToPath(import.meta.url));
+  while (true) {
+    const candidate = path.join(current, relativePathFromPackageRoot);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return undefined;
+    }
+    current = parent;
+  }
+}
+
 export function createPandocExporter(format: Exclude<ExportFormat, "md">): Exporter {
   return {
     id: format,
@@ -49,9 +65,20 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
 
       return { ok: true };
     },
-    run({ inputPath, outputPath }) {
+    run({ inputPath, outputPath, cwd, resourcePaths }) {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true });
       const args = [inputPath, "-o", outputPath];
+      const imageLayoutFilter = resolveBundledFile(path.join("filters", "image-layout.lua"));
+      if (imageLayoutFilter) {
+        args.push("--lua-filter", imageLayoutFilter);
+      }
+      const imageLayoutStylesheet = resolveBundledFile(path.join("filters", "image-layout.css"));
+      if (format === "epub" && imageLayoutStylesheet) {
+        args.push("--css", imageLayoutStylesheet);
+      }
+      if (resourcePaths && resourcePaths.length > 0) {
+        args.push(`--resource-path=${resourcePaths.join(path.delimiter)}`);
+      }
       if (format === "pdf") {
         const engine = resolvePdfEngine();
         if (!engine) {
@@ -61,7 +88,8 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
       }
 
       const result = spawnSync("pandoc", args, {
-        encoding: "utf8"
+        encoding: "utf8",
+        cwd: cwd || undefined
       });
 
       if (result.status !== 0) {

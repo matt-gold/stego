@@ -8,7 +8,6 @@ export function registerCommentsSetStatusCommand(registry: CommandRegistry): voi
   registry.register({
     name: "comments set-status <manuscript>",
     description: "Set comment status",
-    allowUnknownOptions: true,
     options: [
       { flags: "--comment-id <id>", description: "Comment id (CMT-####)" },
       { flags: "--status <status>", description: "open|resolved" },

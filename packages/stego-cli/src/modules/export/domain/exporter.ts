@@ -3,6 +3,8 @@ import type { ExportFormat } from "../types.ts";
 export interface ExportRunArgs {
   inputPath: string;
   outputPath: string;
+  cwd?: string;
+  resourcePaths?: string[];
 }
 
 export interface ExportCapability {

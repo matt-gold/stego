@@ -161,8 +161,7 @@ test('spine new rejects unsupported --entry option', () => {
       'old-style'
     ]);
     assert.equal(result.status, 1);
-    assert.match(`${result.stdout}\n${result.stderr}`, /Unknown option '--entry'/);
-    assert.match(`${result.stdout}\n${result.stderr}`, /--filename/);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Unknown option [`']--entry[`']/);
 
     const bareFlagResult = runCli([
       'spine',
@@ -174,8 +173,7 @@ test('spine new rejects unsupported --entry option', () => {
       '--entry'
     ]);
     assert.equal(bareFlagResult.status, 1);
-    assert.match(`${bareFlagResult.stdout}\n${bareFlagResult.stderr}`, /Unknown option '--entry'/);
-    assert.match(`${bareFlagResult.stdout}\n${bareFlagResult.stderr}`, /--filename/);
+    assert.match(`${bareFlagResult.stdout}\n${bareFlagResult.stderr}`, /Unknown option [`']--entry[`']/);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }

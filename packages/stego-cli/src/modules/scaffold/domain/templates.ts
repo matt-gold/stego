@@ -19,6 +19,7 @@ This directory is a Stego writing workspace (a monorepo for one or more writing 
 
 - \`stego.config.json\` workspace configuration
 - \`projects/\` demo projects (\`stego-docs\` and \`fiction-example\`)
+- per-project \`assets/\` directories for manuscript images
 - root \`package.json\` scripts for Stego commands
 - root \`.vscode/tasks.json\` tasks for common workflows
 
@@ -34,11 +35,11 @@ stego list-projects
 ## Run commands for a specific project (from workspace root)
 
 \`\`\`bash
-stego validate --project fiction-example
-stego build --project fiction-example
-stego check-stage --project fiction-example --stage revise
-stego export --project fiction-example --format md
-stego new --project fiction-example
+stego validate -p fiction-example
+stego build -p fiction-example
+stego check-stage -p fiction-example --stage revise
+stego export -p fiction-example --format md
+stego new -p fiction-example
 \`\`\`
 
 ## Work inside one project
@@ -60,13 +61,13 @@ This keeps your editor context focused and applies the project's recommended ext
 ## Create a new project
 
 \`\`\`bash
-stego new-project --project my-book --title "My Book"
+stego new-project -p my-book --title "My Book"
 \`\`\`
 
 ## Add a new manuscript file
 
 \`\`\`bash
-stego new --project fiction-example
+stego new -p fiction-example
 \`\`\`
 `;
 
@@ -93,7 +94,7 @@ This workspace is designed to be AI-friendly for writing workflows.
 
 1. Confirm workspace root contains \`stego.config.json\`.
 2. Run \`stego list-projects\`.
-3. Use explicit \`--project <id>\` for project-scoped commands.
+3. Use explicit \`--project/-p <id>\` for project-scoped commands.
 
 ## CLI-First Policy (Required)
 
@@ -126,7 +127,7 @@ Preferred commands include:
 
 1. Read current state first (\`metadata read\`, \`spine read\`, \`comments read\`).
 2. Mutate via CLI commands.
-3. Verify after writes (\`stego validate --project <id>\` and relevant read commands).
+3. Verify after writes (\`stego validate --project/-p <id>\` and relevant read commands).
 
 ## Manual Edit Fallback
 
@@ -149,7 +150,7 @@ When CLI fails:
 
 ## Validation Expectations
 
-After mutations, run relevant checks when feasible (for example \`stego validate --project <id>\`) and report results.
+After mutations, run relevant checks when feasible (for example \`stego validate --project/-p <id>\`) and report results.
 
 ## Scope Guardrails
 
@@ -158,10 +159,10 @@ After mutations, run relevant checks when feasible (for example \`stego validate
 
 ## Task To Command Quick Map
 
-- New manuscript: \`stego new --project <id> [--filename <name>]\`
-- Read spine: \`stego spine read --project <id> --format json\`
-- New spine category: \`stego spine new-category --project <id> --key <category>\`
-- New spine entry: \`stego spine new --project <id> --category <category> [--filename <path>]\`
+- New manuscript: \`stego new --project/-p <id> [--filename <name>]\`
+- Read spine: \`stego spine read --project/-p <id> --format json\`
+- New spine category: \`stego spine new-category --project/-p <id> --key <category>\`
+- New spine entry: \`stego spine new --project/-p <id> --category <category> [--filename <path>]\`
 - Read metadata: \`stego metadata read <markdown-path> --format json\`
 - Apply metadata: \`stego metadata apply <markdown-path> --input <path|-> --format json\`
 - Read comments: \`stego comments read <manuscript> --format json\`
