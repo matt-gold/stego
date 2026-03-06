@@ -105,6 +105,15 @@ For extension code edits:
 2. Keep canonical mutation semantics in CLI/shared domain logic.
 3. Reuse shared CLI contracts/domain parsers where parity is required.
 
+## Shared-First Rule (Required)
+
+Before adding new non-UI logic in `stego-cli` or `stego-extension`:
+
+1. Check `packages/shared/src/**` for existing domain helpers/types to reuse.
+2. If equivalent logic exists (or would exist) in both CLI and extension, move it to `packages/shared/src/domain/<topic>/` and export via that domain `index.ts`.
+3. Import shared logic from domain indexes instead of duplicating helper implementations across packages.
+4. If duplication is temporarily unavoidable, call it out explicitly in your response and list the planned shared follow-up.
+
 ## Shared Package Build Hygiene
 
 - Do not commit generated files in `packages/shared/src`.

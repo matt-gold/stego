@@ -59,15 +59,20 @@ local function apply_html_layout_alignment(img)
     return img
   end
 
+  local effective_layout = layout
+  if not effective_layout and align then
+    effective_layout = "block"
+  end
+
   local style = get_image_attr(img, "style") or ""
 
-  if layout == "block" then
+  if effective_layout == "block" then
     style = append_css_rule(style, "display:block;")
-  elseif layout == "inline" then
+  elseif effective_layout == "inline" then
     style = append_css_rule(style, "display:inline;")
   end
 
-  if layout ~= "inline" then
+  if effective_layout ~= "inline" then
     if align == "left" then
       style = append_css_rule(style, "margin-left:0; margin-right:auto;")
     elseif align == "right" then

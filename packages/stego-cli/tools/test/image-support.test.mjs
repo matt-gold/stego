@@ -153,6 +153,41 @@ images:
   }
 });
 
+test("build treats align-only defaults as block layout", () => {
+  const projectId = `image-align-block-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: "Image Align Block Test",
+      requiredMetadata: ["status"],
+      images: {
+        align: "right",
+        width: "75%"
+      }
+    },
+    [["100-scene.md", `---
+status: draft
+---
+
+![Sketch](../assets/maps/sketch.png)
+`]],
+    [["assets/maps/sketch.png", ""]]
+  );
+
+  try {
+    const result = runCli(["build", "--project", projectId]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+
+    const builtPath = path.join(projectRoot, "dist", `${projectId}.md`);
+    const built = fs.readFileSync(builtPath, "utf8");
+
+    assert.match(built, /!\[Sketch\]\(\.\.\/assets\/maps\/sketch\.png\)\{[^}]*width=75%[^}]*data-align=right[^}]*data-layout=block[^}]*\}/);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
 test("validate warns when manuscript frontmatter uses reserved global image key", () => {
   const projectId = `image-reserved-key-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(

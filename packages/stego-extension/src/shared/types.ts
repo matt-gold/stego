@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import type { ImageStyle } from '../../../shared/src/domain/images';
+
+export type { ImageStyle };
 
 export type SpineRecord = {
   label?: string;
@@ -19,16 +22,6 @@ export type ParsedMarkdownDocument = {
   hasFrontmatter: boolean;
   frontmatter: Record<string, unknown>;
   body: string;
-};
-
-export type ImageStyle = {
-  width?: string;
-  height?: string;
-  id?: string;
-  classes?: string[];
-  attrs?: Record<string, string>;
-  layout?: 'block' | 'inline';
-  align?: 'left' | 'center' | 'right';
 };
 
 export type SidebarImageEntry = {

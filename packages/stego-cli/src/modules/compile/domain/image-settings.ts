@@ -1,16 +1,20 @@
 import path from "node:path";
-
-const GLOBAL_IMAGE_KEYS = new Set(["width", "height", "classes", "id", "attrs", "layout", "align"]);
-
-export type ImageStyle = {
-  width?: string;
-  height?: string;
-  id?: string;
-  classes?: string[];
-  attrs?: Record<string, string>;
-  layout?: "block" | "inline";
-  align?: "left" | "center" | "right";
-};
+import {
+  IMAGE_GLOBAL_KEYS,
+  asPlainRecord,
+  cloneImageStyle,
+  extractImageDestinationTarget,
+  inferEffectiveImageLayout,
+  isExternalImageTarget,
+  isImageStyleEmpty,
+  mergeImageStyles,
+  normalizeImageAttrs,
+  normalizeImageClasses,
+  normalizeImagePathKey,
+  normalizeImageScalar,
+  stripImageQueryAndAnchor,
+  type ImageStyle
+} from "../../../../../shared/src/domain/images/index.ts";
 
 export type ImageSettings = {
   global: ImageStyle;
@@ -31,18 +35,19 @@ export function parseProjectImageDefaults(projectMeta: Record<string, unknown>):
   const global: ImageStyle = {};
   const overrides = new Map<string, ImageStyle>();
   const rawImages = projectMeta.images;
+  const imagesRecord = asPlainRecord(rawImages);
 
   if (rawImages == null) {
     return { global, overrides, warnings };
   }
 
-  if (!isPlainObject(rawImages)) {
+  if (!imagesRecord) {
     warnings.push("Project 'images' must be an object.");
     return { global, overrides, warnings };
   }
 
-  for (const [key, value] of Object.entries(rawImages)) {
-    if (GLOBAL_IMAGE_KEYS.has(key)) {
+  for (const [key, value] of Object.entries(imagesRecord)) {
+    if (IMAGE_GLOBAL_KEYS.has(key)) {
       applyImageStyleField(global, key, value, `project.images.${key}`, warnings);
       continue;
     }
@@ -60,25 +65,27 @@ export function parseManuscriptImageOverrides(frontmatter: Record<string, unknow
   const global: ImageStyle = {};
   const overrides = new Map<string, ImageStyle>();
   const rawImages = frontmatter.images;
+  const imagesRecord = asPlainRecord(rawImages);
 
   if (rawImages == null) {
     return { global, overrides, warnings };
   }
 
-  if (!isPlainObject(rawImages)) {
+  if (!imagesRecord) {
     warnings.push("Metadata 'images' must be an object.");
     return { global, overrides, warnings };
   }
 
-  for (const [key, value] of Object.entries(rawImages)) {
-    if (GLOBAL_IMAGE_KEYS.has(key)) {
+  for (const [key, value] of Object.entries(imagesRecord)) {
+    if (IMAGE_GLOBAL_KEYS.has(key)) {
       warnings.push(
         `Manuscript frontmatter 'images.${key}' is reserved for project defaults. Put defaults in stego-project.json 'images.${key}'.`
       );
       continue;
     }
 
-    if (!isPlainObject(value)) {
+    const styleRecord = asPlainRecord(value);
+    if (!styleRecord) {
       warnings.push(
         `Metadata 'images.${key}' must be an object of style keys (width, height, classes, id, attrs, layout, align).`
       );
@@ -86,11 +93,11 @@ export function parseManuscriptImageOverrides(frontmatter: Record<string, unknow
     }
 
     const style: ImageStyle = {};
-    for (const [styleKey, styleValue] of Object.entries(value)) {
+    for (const [styleKey, styleValue] of Object.entries(styleRecord)) {
       applyImageStyleField(style, styleKey, styleValue, `images.${key}.${styleKey}`, warnings);
     }
 
-    overrides.set(normalizePathKey(key), style);
+    overrides.set(normalizeImagePathKey(key), style);
   }
 
   return { global, overrides, warnings };
@@ -104,7 +111,7 @@ export function rewriteMarkdownImagesForChapter(input: RewriteChapterImagesInput
     overrides: manuscriptOverrides.overrides,
     warnings: [...projectDefaults.warnings, ...manuscriptOverrides.warnings]
   };
-  if (isEmptyStyle(settings.global) && settings.overrides.size === 0) {
+  if (isImageStyleEmpty(settings.global) && settings.overrides.size === 0) {
     return input.body;
   }
 
@@ -161,12 +168,12 @@ function rewriteImagesInLine(
   const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)(\s*\{[^{}]*\})?/g;
 
   return line.replace(imageRegex, (_full, altText: string, destination: string, inlineAttrText: string | undefined) => {
-    const parsedDestination = extractDestinationTarget(destination);
-    if (!parsedDestination || isExternalTarget(parsedDestination) || parsedDestination.startsWith("#")) {
+    const parsedDestination = extractImageDestinationTarget(destination);
+    if (!parsedDestination || isExternalImageTarget(parsedDestination) || parsedDestination.startsWith("#")) {
       return _full;
     }
 
-    const cleanTarget = stripQueryAndAnchor(parsedDestination);
+    const cleanTarget = stripImageQueryAndAnchor(parsedDestination);
     if (!cleanTarget) {
       return _full;
     }
@@ -181,9 +188,9 @@ function rewriteImagesInLine(
       return _full;
     }
 
-    const projectKey = normalizePathKey(relativeToProject);
+    const projectKey = normalizeImagePathKey(relativeToProject);
     const effectiveStyle = buildEffectiveStyle(context.settings, projectKey);
-    if (isEmptyStyle(effectiveStyle)) {
+    if (isImageStyleEmpty(effectiveStyle)) {
       return _full;
     }
 
@@ -195,24 +202,8 @@ function rewriteImagesInLine(
   });
 }
 
-function extractDestinationTarget(value: string): string {
-  let target = value.trim();
-  if (target.startsWith("<") && target.endsWith(">")) {
-    target = target.slice(1, -1).trim();
-  }
-
-  return target
-    .split(/\s+"/)[0]
-    .split(/\s+'/)[0]
-    .trim();
-}
-
-function stripQueryAndAnchor(target: string): string {
-  return target.split("#")[0].split("?")[0].trim();
-}
-
 function buildEffectiveStyle(settings: ImageSettings, projectRelativeKey: string): ImageStyle {
-  const merged = cloneStyle(settings.global);
+  const merged = cloneImageStyle(settings.global);
   const override = settings.overrides.get(projectRelativeKey);
   if (override) {
     return mergeStyle(merged, override);
@@ -220,63 +211,32 @@ function buildEffectiveStyle(settings: ImageSettings, projectRelativeKey: string
   return merged;
 }
 
-function cloneStyle(style: ImageStyle): ImageStyle {
-  return {
-    width: style.width,
-    height: style.height,
-    id: style.id,
-    classes: style.classes ? [...style.classes] : undefined,
-    attrs: style.attrs ? { ...style.attrs } : undefined,
-    layout: style.layout,
-    align: style.align
-  };
-}
-
 function mergeStyle(base: ImageStyle, next: ImageStyle): ImageStyle {
-  const merged = cloneStyle(base);
-
-  if (next.id) {
-    merged.id = next.id;
-  }
-
-  if (next.classes && next.classes.length > 0) {
-    merged.classes = [...next.classes];
-  }
+  const merged = mergeImageStyles(base, next);
 
   if (next.width) {
-    merged.width = next.width;
     if (merged.attrs && Object.hasOwn(merged.attrs, "width")) {
       merged.attrs.width = next.width;
     }
   }
 
   if (next.height) {
-    merged.height = next.height;
     if (merged.attrs && Object.hasOwn(merged.attrs, "height")) {
       merged.attrs.height = next.height;
     }
   }
 
   if (next.layout) {
-    merged.layout = next.layout;
     if (merged.attrs && Object.hasOwn(merged.attrs, "data-layout")) {
       merged.attrs["data-layout"] = next.layout;
     }
   }
 
   if (next.align) {
-    merged.align = next.align;
     if (merged.attrs && Object.hasOwn(merged.attrs, "data-align")) {
       merged.attrs["data-align"] = next.align;
     }
   }
-
-  const nextAttrs = next.attrs ?? {};
-  const mergedAttrs = { ...(merged.attrs ?? {}) };
-  for (const [key, value] of Object.entries(nextAttrs)) {
-    mergedAttrs[key] = value;
-  }
-  merged.attrs = Object.keys(mergedAttrs).length > 0 ? mergedAttrs : undefined;
 
   return merged;
 }
@@ -408,8 +368,9 @@ function splitAttrTokens(value: string): string[] {
 
 function renderAttrList(style: ImageStyle): string {
   const attrs = { ...(style.attrs ?? {}) };
-  if (style.layout && !Object.hasOwn(attrs, "data-layout")) {
-    attrs["data-layout"] = style.layout;
+  const effectiveLayout = inferEffectiveImageLayout(style);
+  if (effectiveLayout && !Object.hasOwn(attrs, "data-layout")) {
+    attrs["data-layout"] = effectiveLayout;
   }
   if (style.align && !Object.hasOwn(attrs, "data-align")) {
     attrs["data-align"] = style.align;
@@ -468,12 +429,12 @@ function applyImageStyleField(
   warnings: string[]
 ): void {
   if (key === "width" || key === "height" || key === "id") {
-    if (!isStyleScalar(value)) {
+    if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
       warnings.push(`Metadata '${metadataPath}' must be a scalar value.`);
       return;
     }
 
-    const normalized = String(value).trim();
+    const normalized = normalizeImageScalar(value);
     if (!normalized) {
       return;
     }
@@ -489,39 +450,33 @@ function applyImageStyleField(
   }
 
   if (key === "classes") {
-    const classes = normalizeClasses(value);
+    const classes = normalizeImageClasses(value);
     if (!classes) {
       warnings.push(`Metadata '${metadataPath}' must be a string or array of strings.`);
       return;
     }
 
-    if (classes.length > 0) {
+    if (classes && classes.length > 0) {
       style.classes = classes;
     }
     return;
   }
 
   if (key === "attrs") {
-    if (!isPlainObject(value)) {
+    const attrsRecord = asPlainRecord(value);
+    if (!attrsRecord) {
       warnings.push(`Metadata '${metadataPath}' must be an object of scalar values.`);
       return;
     }
 
-    const attrs: Record<string, string> = {};
-    for (const [attrKey, attrValue] of Object.entries(value)) {
-      if (!isStyleScalar(attrValue)) {
+    for (const [attrKey, attrValue] of Object.entries(attrsRecord)) {
+      if (typeof attrValue !== "string" && typeof attrValue !== "number" && typeof attrValue !== "boolean") {
         warnings.push(`Metadata '${metadataPath}.${attrKey}' must be a scalar value.`);
-        continue;
       }
-
-      const normalizedValue = String(attrValue).trim();
-      if (!normalizedValue) {
-        continue;
-      }
-      attrs[attrKey] = normalizedValue;
     }
 
-    if (Object.keys(attrs).length > 0) {
+    const attrs = normalizeImageAttrs(attrsRecord);
+    if (attrs && Object.keys(attrs).length > 0) {
       style.attrs = attrs;
     }
     return;
@@ -550,62 +505,11 @@ function applyImageStyleField(
   );
 }
 
-function normalizeClasses(value: unknown): string[] | null {
-  if (typeof value === "string") {
-    return value.split(/\s+/).map((entry) => entry.trim()).filter(Boolean);
-  }
-
-  if (!Array.isArray(value)) {
-    return null;
-  }
-
-  const classes: string[] = [];
-  for (const entry of value) {
-    if (typeof entry !== "string") {
-      return null;
-    }
-    const normalized = entry.trim();
-    if (!normalized) {
-      continue;
-    }
-    classes.push(normalized);
-  }
-
-  return classes;
-}
-
-function normalizePathKey(value: string): string {
-  const normalized = value.trim().replaceAll("\\", "/").replace(/^\.\//, "").replace(/^\/+/, "");
-  return normalized;
-}
-
 function stripWrappingQuotes(value: string): string {
   if (value.length >= 2 && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))) {
     return value.slice(1, -1);
   }
   return value;
-}
-
-function isStyleScalar(value: unknown): value is string | number | boolean {
-  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
-}
-
-function isEmptyStyle(style: ImageStyle): boolean {
-  return !style.width
-    && !style.height
-    && !style.id
-    && !style.layout
-    && !style.align
-    && (!style.classes || style.classes.length === 0)
-    && (!style.attrs || Object.keys(style.attrs).length === 0);
-}
-
-function isExternalTarget(target: string): boolean {
-  return target.startsWith("http://")
-    || target.startsWith("https://")
-    || target.startsWith("mailto:")
-    || target.startsWith("tel:")
-    || target.startsWith("data:");
 }
 
 function isPathInside(candidatePath: string, parentPath: string): boolean {
@@ -614,12 +518,4 @@ function isPathInside(candidatePath: string, parentPath: string): boolean {
     return true;
   }
   return !relative.startsWith("..") && !path.isAbsolute(relative);
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
 }
