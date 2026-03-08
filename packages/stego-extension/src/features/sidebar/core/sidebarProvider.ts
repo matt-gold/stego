@@ -21,6 +21,7 @@ import {
   openMarkdownPreviewCommand,
   resolveStegoCommandInvocation,
   runCommand,
+  runInsertImageWorkflow,
   runLocalValidateWorkflow,
   runNewManuscriptWorkflow,
   runProjectBuildWorkflow,
@@ -345,7 +346,10 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       this.pushDocumentSnapshot(this.documentForwardStack, current);
     }
 
-    this.lastDocumentTabSnapshot = previous;
+    this.lastDocumentTabSnapshot = {
+      ...previous,
+      documentTabDetached: true
+    };
   }
 
   private goDocumentForward(): void {
@@ -359,7 +363,10 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
       this.pushDocumentSnapshot(this.documentBackStack, current);
     }
 
-    this.lastDocumentTabSnapshot = next;
+    this.lastDocumentTabSnapshot = {
+      ...next,
+      documentTabDetached: true
+    };
   }
 
   private getCurrentDocumentViewSnapshot(): SidebarState | undefined {
@@ -374,7 +381,18 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
   private maybeHandleActiveEditorNavigation(): boolean {
     const activeEditorDocument = vscode.window.activeTextEditor?.document;
     const nextActiveEditorPath = activeEditorDocument?.uri.fsPath ?? '';
-    if (nextActiveEditorPath === this.lastObservedActiveEditorPath) {
+    const normalizedActiveEditorPath = nextActiveEditorPath
+      ? path.resolve(nextActiveEditorPath)
+      : '';
+    const currentSnapshot = this.getCurrentDocumentViewSnapshot();
+    const currentSnapshotPath = currentSnapshot?.documentPath
+      ? path.resolve(currentSnapshot.documentPath)
+      : '';
+    const shouldFollowSnapshotMismatch = !!normalizedActiveEditorPath
+      && !!activeEditorDocument
+      && activeEditorDocument.languageId === 'markdown'
+      && currentSnapshotPath !== normalizedActiveEditorPath;
+    if (nextActiveEditorPath === this.lastObservedActiveEditorPath && !shouldFollowSnapshotMismatch) {
       return false;
     }
 
@@ -458,8 +476,10 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.view = webviewView;
+    const workspaceRoots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri) ?? [];
     webviewView.webview.options = {
-      enableScripts: true
+      enableScripts: true,
+      localResourceRoots: [this.extensionUri, ...workspaceRoots]
     };
 
     webviewView.webview.onDidReceiveMessage((message: unknown) => {
@@ -831,7 +851,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     if (!document) {
       const activeDocument = vscode.window.activeTextEditor?.document;
       const activeEditorPath = activeDocument?.uri.fsPath ?? '';
-      const detachedDocumentState = this.buildDetachedDocumentTabState(activeEditorPath);
+      const detachedDocumentState = this.buildDetachedDocumentTabState(activeEditorPath, {
+        requireExplicitDetach: true
+      });
       if (detachedDocumentState) {
         return detachedDocumentState;
       }
@@ -925,7 +947,9 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     if (!autoFollowedActiveMarkdown) {
-      const detachedDocumentState = this.buildDetachedDocumentTabState(document.uri.fsPath);
+      const detachedDocumentState = this.buildDetachedDocumentTabState(document.uri.fsPath, {
+        requireExplicitDetach: true
+      });
       if (detachedDocumentState) {
         return detachedDocumentState;
       }
@@ -1703,6 +1727,11 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
         const result = await runLocalValidateWorkflow();
         break;
       }
+      case 'insertImage': {
+        shouldRefreshDiagnostics = false;
+        await runInsertImageWorkflow();
+        break;
+      }
       case 'fillRequiredMetadata': {
         shouldRefreshDiagnostics = false;
         const projectContext = await this.getCurrentProjectConfigContext();
@@ -2187,13 +2216,19 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
     return requestedTab;
   }
 
-  private buildDetachedDocumentTabState(activeEditorPath: string): SidebarState | undefined {
+  private buildDetachedDocumentTabState(
+    activeEditorPath: string,
+    options?: { requireExplicitDetach?: boolean }
+  ): SidebarState | undefined {
     if (this.activeTab !== 'document') {
       return undefined;
     }
 
     const snapshot = this.lastDocumentTabSnapshot;
     if (!snapshot || !snapshot.documentPath) {
+      return undefined;
+    }
+    if (options?.requireExplicitDetach && !snapshot.documentTabDetached) {
       return undefined;
     }
 

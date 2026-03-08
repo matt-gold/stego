@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import {
+  extractImageDestinationTarget,
+  isExternalImageTarget,
+  stripImageQueryAndAnchor
+} from '../../../../../shared/src/domain/images';
 import { DEFAULT_IDENTIFIER_PATTERN } from '../../../shared/constants';
 import type {
   SidebarExplorerIdentifierPage,
@@ -48,9 +54,16 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const manuscriptLabel = state.mode === 'manuscript'
     ? visibleMetadataEntries.find((entry) => entry.key === 'label' && !entry.isArray)?.valueText
     : undefined;
-  const fileTitle = getSidebarFileTitle(state.documentPath, manuscriptLabel);
+  const spineEntryLabel = state.mode === 'nonManuscript' && state.showMetadataPanel
+    ? visibleMetadataEntries.find((entry) => entry.key === 'label' && !entry.isArray)?.valueText
+    : undefined;
+  const preferredTitle = state.mode === 'manuscript' ? manuscriptLabel : spineEntryLabel;
+  const showSpineFilenameSubtitle = state.mode === 'nonManuscript' && !!spineEntryLabel?.trim();
+  const fileTitle = getSidebarFileTitle(state.documentPath, preferredTitle);
+  const fileStem = fileTitle.filename ? path.parse(fileTitle.filename).name : '';
   const showDocumentTab = state.showDocumentTab ?? state.hasActiveMarkdown;
   const showMetadataEditingControls = state.showMetadataPanel && state.metadataEditing;
+  const isSpineDocument = state.mode === 'nonManuscript' && state.showMetadataPanel;
   const renderReferenceCards = (references: SidebarIdentifierLink[]): string => {
     if (references.length === 0) {
       return '';
@@ -108,6 +121,103 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     }
     return chips.length > 0 ? chips.join('') : '<span class="item-subtext tiny">none</span>';
   };
+  const decodePathSegment = (segment: string): string => {
+    try {
+      return decodeURIComponent(segment);
+    } catch {
+      return segment;
+    }
+  };
+  const hasUriScheme = (value: string): boolean => /^[a-zA-Z][a-zA-Z0-9+\-.]*:/.test(value);
+  const splitTargetSuffix = (target: string): { cleanTarget: string; suffix: string } => {
+    const cleanTarget = stripImageQueryAndAnchor(target);
+    if (!cleanTarget) {
+      return { cleanTarget: '', suffix: '' };
+    }
+    if (target.startsWith(cleanTarget)) {
+      return { cleanTarget, suffix: target.slice(cleanTarget.length) };
+    }
+    return { cleanTarget, suffix: '' };
+  };
+  const resolveWebviewImageSrc = (rawTarget: string, basePath?: string): string | undefined => {
+    const extracted = extractImageDestinationTarget(rawTarget);
+    if (!extracted) {
+      return undefined;
+    }
+
+    if (isExternalImageTarget(extracted)) {
+      if (extracted.startsWith('https://') || extracted.startsWith('data:')) {
+        return extracted;
+      }
+      return undefined;
+    }
+    if (extracted.startsWith('#')) {
+      return undefined;
+    }
+    if (extracted.startsWith('file://')) {
+      try {
+        return webview.asWebviewUri(vscode.Uri.parse(extracted)).toString();
+      } catch {
+        return undefined;
+      }
+    }
+    if (hasUriScheme(extracted)) {
+      return undefined;
+    }
+
+    const { cleanTarget, suffix } = splitTargetSuffix(extracted);
+    if (!cleanTarget) {
+      return undefined;
+    }
+    const decodedTarget = cleanTarget
+      .split('/')
+      .map((segment) => decodePathSegment(segment))
+      .join(path.sep);
+
+    const resolvedPath = path.isAbsolute(decodedTarget)
+      ? decodedTarget
+      : (basePath && path.isAbsolute(basePath)
+        ? path.resolve(path.dirname(basePath), decodedTarget)
+        : undefined);
+    if (!resolvedPath) {
+      return undefined;
+    }
+    return `${webview.asWebviewUri(vscode.Uri.file(resolvedPath)).toString()}${suffix}`;
+  };
+  const resolveImageThumbnailSrc = (entry: SidebarState['imageEntries'][number]): string | undefined => {
+    const fromDestination = resolveWebviewImageSrc(entry.destination, state.documentPath);
+    if (fromDestination) {
+      return fromDestination;
+    }
+
+    const projectDir = state.projectDir?.trim();
+    if (!projectDir) {
+      return undefined;
+    }
+
+    const relativeKey = entry.key.trim();
+    if (!relativeKey || relativeKey.startsWith('#')) {
+      return undefined;
+    }
+
+    const decodedRelative = relativeKey
+      .split('/')
+      .map((segment) => decodePathSegment(segment))
+      .join(path.sep);
+    const filePath = path.resolve(projectDir, decodedRelative);
+    return webview.asWebviewUri(vscode.Uri.file(filePath)).toString();
+  };
+  const renderImageThumbnail = (entry: SidebarState['imageEntries'][number]): string => {
+    const src = resolveImageThumbnailSrc(entry);
+    if (!src) {
+      return '';
+    }
+
+    return `<div class="image-thumb-wrap">`
+      + `<img class="image-thumb" src="${escapeAttribute(src)}" alt="${escapeAttribute(`Preview: ${entry.displayPath}`)}" loading="lazy" />`
+      + `</div>`;
+  };
+  const lineJumpIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.928 7.976l4.357-4.357-.618-.62L5 7.672v.618l4.667 4.632.618-.614L5.928 7.976z"></path></svg>';
 
   const metadataHtml = visibleMetadataEntries.length > 0
     ? visibleMetadataEntries.map((entry) => {
@@ -157,35 +267,42 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
         + `</article>`;
     }).join('')
     : '<div class="empty">No metadata fields yet.</div>';
-  const imagesWidgetHtml = state.mode === 'manuscript'
+  const imagesWidgetHtml = state.mode === 'manuscript' && state.imageEntries.length > 0
     ? `<section class="images-widget">`
       + `<div class="images-widget-head">`
       + `<h3>Images</h3>`
       + `<div class="item-subtext tiny">Project defaults: ${renderImageStyle(state.projectImageDefaults)}</div>`
       + `</div>`
-      + `${state.imageEntries.length > 0
-        ? `<div class="images-widget-list">`
-          + state.imageEntries.map((entry) => (
-            `<article class="item metadata-item image-metadata-item">`
-            + `<div class="item-main">`
-            + `<div class="item-title-row">`
-            + `<code>${escapeHtml(entry.displayPath)}</code>`
-            + `${entry.isExternal ? '<span class="badge">External</span>' : '<span class="badge">Local</span>'}`
-            + `<span class="badge">${entry.occurrenceCount}x</span>`
+      + `<div class="images-widget-list">`
+      + state.imageEntries.map((entry) => {
+        const actionsHtml = showMetadataEditingControls
+          ? `<div class="item-actions image-item-actions">`
+            + `<button class="btn subtle" data-action="editImageOverride" data-key="${escapeAttribute(entry.key)}">Edit Format</button>`
+            + `<button class="btn danger" data-action="clearImageOverride" data-key="${escapeAttribute(entry.key)}"${entry.hasOverride ? '' : ' disabled'}>Reset</button>`
             + `</div>`
-            + `<div class="item-subtext tiny">line ${entry.line}${entry.destination !== entry.displayPath ? ` • ${escapeHtml(entry.destination)}` : ''}</div>`
-            + `<div class="image-style-value">${renderImageStyle(entry.effectiveStyle)}</div>`
-            + `</div>`
-            + `${showMetadataEditingControls
-              ? `<div class="item-actions">`
-                + `<button class="btn subtle" data-action="editImageOverride" data-key="${escapeAttribute(entry.key)}">${entry.hasOverride ? 'Edit Override' : 'Add Override'}</button>`
-                + `<button class="btn danger" data-action="clearImageOverride" data-key="${escapeAttribute(entry.key)}"${entry.hasOverride ? '' : ' disabled'}>Clear</button>`
-                + `</div>`
-              : ''}`
-            + `</article>`
-          )).join('')
+          : '';
+        const thumbnailHtml = renderImageThumbnail(entry);
+        const asideHtml = thumbnailHtml || actionsHtml
+          ? `<div class="image-item-aside">${thumbnailHtml}${actionsHtml}</div>`
+          : '';
+        return `<article class="item metadata-item image-metadata-item">`
+          + `<div class="item-main">`
+          + `<div class="item-title-row">`
+          + `<code>${escapeHtml(entry.displayPath)}</code>`
+          + `${entry.isExternal ? '<span class="badge">External</span>' : '<span class="badge">Local</span>'}`
+          + `${entry.occurrenceCount > 1 ? `<span class="badge">${entry.occurrenceCount}x</span>` : ''}`
           + `</div>`
-        : '<div class="empty tiny">No markdown images found in this file.</div>'}`
+          + `<div class="item-subtext tiny image-metadata-meta">`
+          + `<div class="image-style-value">${renderImageStyle(entry.effectiveStyle)}</div>`
+          + `</div>`
+          + `<div class="image-line-row">`
+          + `<button class="btn subtle inline-toggle comment-jump-btn" data-action="openTocHeading" data-line="${entry.line}" aria-label="Jump to line ${entry.line}" title="Jump to line ${entry.line}">${lineJumpIcon} Line ${entry.line}</button>`
+          + `</div>`
+          + `</div>`
+          + `${asideHtml}`
+          + `</article>`;
+      }).join('')
+      + `</div>`
       + `</section>`
     : '';
 
@@ -194,15 +311,17 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
     : 'stage';
   const runLocalChecksLabel = `Run ${currentStageLabel} check`;
   const runLocalChecksIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.78 3.97a.75.75 0 0 1 0 1.06L6.75 12.06a.75.75 0 0 1-1.06 0L2.22 8.59a.75.75 0 1 1 1.06-1.06l2.94 2.94 6.5-6.5a.75.75 0 0 1 1.06 0z"></path></svg>';
-  const copyCleanManuscriptLabel = 'Copy manuscript text';
+  const copyCleanManuscriptLabel = isSpineDocument ? 'Copy spine text' : 'Copy manuscript text';
   const copyCleanManuscriptIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2.75A1.75 1.75 0 0 1 6.75 1h6.5A1.75 1.75 0 0 1 15 2.75v8.5A1.75 1.75 0 0 1 13.25 13h-6.5A1.75 1.75 0 0 1 5 11.25zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25z"></path><path d="M1 4.75A1.75 1.75 0 0 1 2.75 3h.5a.75.75 0 0 1 0 1.5h-.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25v-.5a.75.75 0 0 1 1.5 0v.5A1.75 1.75 0 0 1 9.25 15h-6.5A1.75 1.75 0 0 1 1 13.25z"></path></svg>';
   const openMetricTargetLabel = 'Open next file';
   const openMetricTargetIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3L5.4 4.1 9.3 8l-3.9 3.9L6.5 13l5-5z"></path></svg>';
   const runStageLabel = 'Run Stage Check';
   const runBuildLabel = 'Run Build';
   const newManuscriptLabel = 'New Manuscript';
+  const insertImageLabel = 'Insert Image';
   const fillRequiredMetadataLabel = 'Fill required metadata';
   const newManuscriptIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.25 2a.75.75 0 0 1 1.5 0v5.25H14a.75.75 0 0 1 0 1.5H8.75V14a.75.75 0 0 1-1.5 0V8.75H2a.75.75 0 0 1 0-1.5h5.25z"></path></svg>';
+  const insertImageIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.75 2h10.5c.414 0 .75.336.75.75v10.5a.75.75 0 0 1-.75.75H2.75a.75.75 0 0 1-.75-.75V2.75c0-.414.336-.75.75-.75zm.75 1.5v9h9v-9h-9zm1 6.5h6l-1.8-2.4-1.6 2-1.1-1.3L4.5 10zM5.5 5a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"></path></svg>';
   const fillRequiredMetadataIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.75 2h10.5c.414 0 .75.336.75.75v10.5a.75.75 0 0 1-.75.75H2.75a.75.75 0 0 1-.75-.75V2.75c0-.414.336-.75.75-.75zm.75 1.5v9h9v-9h-9zm1.25 1.75h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1 0-1.5zm0 3h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1 0-1.5z"></path></svg>';
   const runBuildIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.75 1h4.19c.46 0 .9.18 1.22.5l2.34 2.34c.32.32.5.76.5 1.22v6.19A1.75 1.75 0 0 1 10.25 13h-6.5A1.75 1.75 0 0 1 2 11.25v-8.5A1.75 1.75 0 0 1 3.75 1zm0 1.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.06a.25.25 0 0 0-.07-.18L8.09 2.57a.25.25 0 0 0-.18-.07H3.75z"></path></svg>';
   const markdownPreviewIcon = '<svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3C4.37 3 1.4 5.17.2 8c1.2 2.83 4.17 5 7.8 5s6.6-2.17 7.8-5C14.6 5.17 11.63 3 8 3zm0 8.5A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-1.5A2 2 0 1 0 8 6a2 2 0 0 0 0 4z"></path></svg>';
@@ -244,21 +363,24 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
           : ''}`
       + `</div>`
     : '';
-  const statusPanel = state.mode === 'manuscript' && statusControlHtml
+  const titlePanel = showDocumentTab && (state.hasActiveMarkdown || state.documentTabDetached)
     ? `<section class="panel title-panel">`
       + `<div class="panel-heading">`
       + `<div class="title-heading-block">`
       + `<h2>${escapeHtml(fileTitle.title)}</h2>`
+      + `${showSpineFilenameSubtitle && fileStem ? `<div class="title-structure">${escapeHtml(fileStem)}</div>` : ''}`
       + `${state.structureSummary ? `<div class="title-structure">${escapeHtml(state.structureSummary)}</div>` : ''}`
       + `</div>`
       + `<div class="actions">`
       + renderDropdownMenu('Actions', [
-        {
-          action: 'runLocalValidate',
-          label: 'Run Stage Check',
-          title: runLocalChecksLabel,
-          icon: runLocalChecksIcon
-        },
+        ...(!isSpineDocument
+          ? [{
+            action: 'runLocalValidate',
+            label: 'Run Stage Check',
+            title: runLocalChecksLabel,
+            icon: runLocalChecksIcon
+          }]
+          : []),
         {
           action: 'openMarkdownPreview',
           label: 'Open Markdown Preview',
@@ -266,11 +388,19 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
           icon: markdownPreviewIcon
         },
         {
-          action: 'fillRequiredMetadata',
-          label: fillRequiredMetadataLabel,
-          title: fillRequiredMetadataLabel,
-          icon: fillRequiredMetadataIcon
+          action: 'insertImage',
+          label: insertImageLabel,
+          title: insertImageLabel,
+          icon: insertImageIcon
         },
+        ...(!isSpineDocument
+          ? [{
+            action: 'fillRequiredMetadata',
+            label: fillRequiredMetadataLabel,
+            title: fillRequiredMetadataLabel,
+            icon: fillRequiredMetadataIcon
+          }]
+          : []),
         {
           action: 'copyCleanManuscript',
           label: copyCleanManuscriptLabel,
@@ -362,7 +492,10 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
           + `</div>`
         : ''}`
       + `${entry.sourceBody
-        ? `<div class="explorer-body">${renderMarkdownForExplorer(entry.sourceBody, entry.sourceFilePath)}</div>`
+        ? `<div class="explorer-body">${renderMarkdownForExplorer(entry.sourceBody, {
+          basePath: entry.sourceFilePath,
+          resolveImageSrc: resolveWebviewImageSrc
+        })}</div>`
         : ''}`
       + `<div class="backlink-section">`
       + `<div class="item-title-row">`
@@ -725,7 +858,7 @@ export function renderSidebarHtml(webview: vscode.Webview, state: SidebarState, 
   const documentContent = `
       ${warningsHtml}
       ${detachedDocumentBanner}
-      ${statusPanel}
+      ${titlePanel}
       ${state.parseError ? `<div class="error-panel">Frontmatter parse error: ${escapeHtml(state.parseError)}</div>` : ''}
       ${metadataPanel}
       ${tocPanel}

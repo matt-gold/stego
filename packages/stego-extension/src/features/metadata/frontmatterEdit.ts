@@ -336,7 +336,7 @@ async function promptImageLayout(current: ImageStyle): Promise<'block' | 'inline
     [
       {
         label: 'Inherit / Unset',
-        description: 'Remove explicit layout override',
+        description: 'Use project/default layout',
         value: 'unset'
       },
       {
@@ -373,7 +373,7 @@ async function promptImageAlign(current: ImageStyle): Promise<'left' | 'center' 
     [
       {
         label: 'Inherit / Unset',
-        description: 'Remove explicit align override',
+        description: 'Use project/default alignment',
         value: 'unset'
       },
       {
@@ -466,7 +466,7 @@ async function promptImageDimension(
 
 async function promptAdvancedImageOverrideInput(current: ImageStyle): Promise<ImageStyle | null> {
   const edited = await vscode.window.showInputBox({
-    prompt: 'Advanced image override object (YAML/JSON). Leave blank to clear.',
+    prompt: 'Advanced image format object (YAML/JSON). Leave blank to reset.',
     value: JSON.stringify(current),
     placeHolder: '{"width":"100%","layout":"inline","align":"left","classes":["diagram"]}'
   });
@@ -484,7 +484,7 @@ async function promptAdvancedImageOverrideInput(current: ImageStyle): Promise<Im
   const override = parseImageOverrideInput(parsedInput);
   if (!override) {
     void vscode.window.showWarningMessage(
-      'Image override must be an object with one or more keys: width, height, classes, id, attrs, layout, align.'
+      'Image format must be an object with one or more keys: width, height, classes, id, attrs, layout, align.'
     );
     return null;
   }
@@ -535,22 +535,22 @@ export async function promptAndEditImageOverride(imageKey: string): Promise<void
         },
         {
           label: 'Advanced',
-          description: 'Edit full override object (classes/id/attrs/etc.)',
+          description: 'Edit full format object (classes/id/attrs/etc.)',
           value: 'advanced'
         },
         {
           label: 'Save',
-          description: isImageStyleEmpty(draft) ? 'No explicit override (will clear)' : formatImageStyleSummary(draft),
+          description: isImageStyleEmpty(draft) ? 'Using defaults (will reset)' : formatImageStyleSummary(draft),
           value: 'done'
         },
         {
-          label: 'Clear Override',
-          description: 'Remove this image override from frontmatter',
+          label: 'Reset',
+          description: 'Reset this image to project defaults',
           value: 'clear'
         }
       ],
       {
-        title: `Edit Image Override: ${imageKey}`,
+        title: `Edit Image Format: ${imageKey}`,
         placeHolder: 'Choose a field to edit'
       }
     );
@@ -563,9 +563,9 @@ export async function promptAndEditImageOverride(imageKey: string): Promise<void
       setImageOverride(parsed.frontmatter, imageKey, isImageStyleEmpty(draft) ? undefined : draft);
       await writeParsedDocument(document, parsed);
       if (isImageStyleEmpty(draft)) {
-        void vscode.window.showInformationMessage(`Cleared image override for '${imageKey}'.`);
+        void vscode.window.showInformationMessage(`Reset image format for '${imageKey}'.`);
       } else {
-        void vscode.window.showInformationMessage(`Saved image override for '${imageKey}' (${formatImageStyleSummary(draft)}).`);
+        void vscode.window.showInformationMessage(`Saved image format for '${imageKey}' (${formatImageStyleSummary(draft)}).`);
       }
       return;
     }
@@ -573,7 +573,7 @@ export async function promptAndEditImageOverride(imageKey: string): Promise<void
     if (action.value === 'clear') {
       setImageOverride(parsed.frontmatter, imageKey, undefined);
       await writeParsedDocument(document, parsed);
-      void vscode.window.showInformationMessage(`Cleared image override for '${imageKey}'.`);
+      void vscode.window.showInformationMessage(`Reset image format for '${imageKey}'.`);
       return;
     }
 

@@ -23,6 +23,7 @@
     "onCommand:stegoSpine.runBuild",
     "onCommand:stegoSpine.runGateStage",
     "onCommand:stegoSpine.newManuscript",
+    "onCommand:stegoSpine.insertImage",
     "onCommand:stegoSpine.newProject",
     "onCommand:stegoSpine.openProject",
     "onCommand:stegoSpine.addComment",
@@ -53,40 +54,45 @@
     "commands": [
       {
         "command": "stegoSpine.reloadIndex",
-        "title": "Stego Spine: Rebuild Index"
+        "title": "Stego: Rebuild Index"
       },
       {
         "command": "stegoSpine.runBuild",
-        "title": "Compile Full Manuscript",
+        "title": "Stego: Compile Full Manuscript",
         "icon": "$(file)"
       },
       {
         "command": "stegoSpine.newManuscript",
-        "title": "New Manuscript",
+        "title": "Stego: New Manuscript",
         "icon": "$(add)"
       },
       {
+        "command": "stegoSpine.insertImage",
+        "title": "Stego: Insert Image (Copy to Project Assets)",
+        "icon": "$(file-media)"
+      },
+      {
         "command": "stegoSpine.newProject",
-        "title": "New Stego Project"
+        "title": "Stego: New Stego Project"
       },
       {
         "command": "stegoSpine.openProject",
-        "title": "Open Project",
+        "title": "Stego: Open Project",
         "icon": "$(folder-opened)"
       },
       {
         "command": "stegoSpine.runGateStage",
-        "title": "Run Stage Checks",
+        "title": "Stego: Run Stage Checks",
         "icon": "$(check)"
       },
       {
         "command": "stegoSpine.runLocalValidate",
-        "title": "Validate Current File",
+        "title": "Stego: Validate Current File",
         "icon": "$(verified)"
       },
       {
         "command": "stegoSpine.toggleFrontmatter",
-        "title": "Stego Spine: Toggle Frontmatter Fold"
+        "title": "Stego: Toggle Frontmatter Fold"
       },
       {
         "command": "stegoSpine.addComment",
