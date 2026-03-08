@@ -3,7 +3,8 @@
 ## Purpose
 
 This repository is AI-friendly for Stego writing workflows and CLI/extension development.
-Default to Stego CLI commands for Stego-managed content changes.
+Use Stego CLI for structural/project-level/metadata operations.
+Edit markdown body content directly in files.
 
 ## Current Architecture Snapshot
 
@@ -35,16 +36,28 @@ Important: `packages/stego-cli/tools/stego-cli.ts` is legacy compatibility surfa
 2. Run `stego list-projects`.
 3. Use explicit `--project/-p <id>` for project-scoped commands.
 
-## CLI-First Policy (Required)
+## Edit Path Policy (Required)
 
-When asked to edit Stego project content, attempt documented CLI commands first.
+Decision order:
 
-Typical targets:
+1. If the request is a markdown body content edit in an existing file, edit the file directly (no CLI).
+2. If the request is structural/project-level/metadata, use CLI-first.
 
-- manuscript files
-- spine categories and entries
-- frontmatter metadata
-- comments
+Use direct markdown edits for content/prose changes.
+
+Direct-edit targets (do not route through CLI unless user explicitly asks):
+
+- manuscript/spine body text (paragraphs, dialogue, scene/chapter prose)
+- headings in markdown body
+- markdown links/images in body content
+- inserting/replacing image markdown in body content (`![alt](...)`)
+- copyediting/rewrites/summaries inserted into markdown body
+
+Use CLI-first for Stego-managed structural or project-level mutations:
+
+- scaffold/create files (`new`, `new-project`, `spine new`, `spine new-category`)
+- frontmatter metadata updates
+- comments operations
 - stage/build/export workflows
 
 Preferred commands:
@@ -64,13 +77,15 @@ Preferred commands:
 
 ## Mutation Protocol
 
+For CLI-managed mutations:
+
 1. Read current state first (`metadata read`, `spine read`, `comments read`).
 2. Mutate via CLI.
 3. Verify after writes (`stego validate --project/-p <id>` and relevant read commands).
 
 ## Manual Edit Fallback
 
-Manual edits to Stego-managed content are last resort. Use only when:
+Manual edits to CLI-managed/structural targets are last resort. Use only when:
 
 1. no documented CLI command exists, or
 2. CLI fails and cannot be reasonably recovered.
@@ -89,6 +104,8 @@ When CLI fails:
 2. summarize error,
 3. report recovery attempt,
 4. if still blocked, apply Manual Edit Fallback policy.
+
+For direct markdown body edits, this failure contract does not apply because CLI is not required.
 
 ## Architecture Guardrails (Code Changes)
 
@@ -139,6 +156,7 @@ For architecture/code changes, prefer:
 
 ## Task To Command Quick Map
 
+- Edit prose/body content in existing markdown: direct file edit (CLI not required)
 - New manuscript: `stego new --project/-p <id> [--filename <name>]`
 - Read spine: `stego spine read --project/-p <id> --format json`
 - New spine category: `stego spine new-category --project/-p <id> --key <category>`

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { END_SENTINEL, START_SENTINEL } from '../../shared/src/domain/comments';
 import { METADATA_VIEW_ID } from './shared/constants';
 import {
+  runInsertImageWorkflow,
   maybeAutoFoldFrontmatter,
   runLocalValidateWorkflow,
   runNewManuscriptWorkflow,
@@ -137,6 +138,12 @@ export function activate(context: vscode.ExtensionContext): void {
       const result = await runNewManuscriptWorkflow();
       if (result.ok) {
         sidebarProvider.expandMetadataPanel();
+        await sidebarProvider.refresh();
+      }
+    }),
+    vscode.commands.registerCommand('stegoSpine.insertImage', async () => {
+      const result = await runInsertImageWorkflow();
+      if (result.ok) {
         await sidebarProvider.refresh();
       }
     }),

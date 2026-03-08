@@ -4,6 +4,7 @@ export {
   maybeAutoFoldFrontmatter,
   toggleFrontmatterFold
 } from './frontmatterFold';
+export { runInsertImageWorkflow } from './insertImageWorkflow';
 export { runLocalValidateWorkflow } from './localValidateWorkflow';
 export { runNewManuscriptWorkflow } from './newManuscriptWorkflow';
 export { runNewProjectWorkflow } from './newProjectWorkflow';
