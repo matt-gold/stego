@@ -311,10 +311,51 @@ h2 {
   flex-direction: column;
   gap: 8px;
 }
+.image-metadata-item {
+  align-items: stretch;
+}
 .image-metadata-item .item-main {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+}
+.image-item-aside {
+  margin-left: auto;
+  align-self: flex-start;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.image-item-actions {
+  justify-content: flex-end;
+}
+.image-metadata-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+}
+.image-line-row {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+}
+.image-thumb-wrap {
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  padding: 2px;
+  background: color-mix(in srgb, var(--vscode-editorWidget-background) 80%, var(--vscode-input-background));
+}
+.image-thumb {
+  display: block;
+  width: auto;
+  height: auto;
+  max-height: 64px;
+  max-width: 120px;
+  object-fit: contain;
+  border-radius: 4px;
 }
 .image-style-row {
   display: flex;
@@ -639,6 +680,16 @@ h2 {
 .md-rendered a:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: 1px;
+}
+.explorer-body .md-rendered img {
+  display: block;
+  max-height: 96px;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  margin-left: auto;
+  margin-right: auto;
+  object-fit: contain;
 }
 .md-id-link {
   display: inline;

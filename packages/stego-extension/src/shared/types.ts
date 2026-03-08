@@ -372,6 +372,7 @@ export type SidebarMessage =
   | { type: 'clearImageOverride'; key: string }
   | { type: 'toggleMetadataEditing' }
   | { type: 'runLocalValidate' }
+  | { type: 'insertImage' }
   | { type: 'fillRequiredMetadata' }
   | { type: 'openMarkdownPreview' }
   | { type: 'toggleFrontmatter' }
