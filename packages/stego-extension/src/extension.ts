@@ -167,7 +167,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       void syncCommentStateAndTracker(document, false);
       commentDecorations.refreshVisibleEditors();
-      void sidebarProvider.refresh();
+      sidebarProvider.scheduleRefresh({ mode: 'full', debounceMs: 120 });
     }),
     vscode.workspace.onDidChangeTextDocument((event) => {
       if (event.document.languageId === 'markdown' && event.contentChanges.length > 0) {
@@ -241,7 +241,7 @@ export function activate(context: vscode.ExtensionContext): void {
         void syncCommentStateAndTracker(editor.document, false);
       }
       commentDecorations.refreshEditor(editor);
-      void sidebarProvider.refresh();
+      sidebarProvider.scheduleRefresh({ mode: 'full', debounceMs: 120 });
     }),
     vscode.window.onDidChangeVisibleTextEditors(() => {
       commentDecorations.refreshVisibleEditors();

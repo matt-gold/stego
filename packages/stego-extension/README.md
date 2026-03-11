@@ -108,6 +108,8 @@ The extension is organized as feature modules under `src/features/*`. The sideba
 
 - `src/features/sidebar/core/`
   - sidebar provider orchestration, refresh loop, command routing, and state integration
+- `src/features/sidebar/protocol/`
+  - typed host/webview message contracts and runtime payload guards
 - `src/features/sidebar/tabs/document/`
   - document-tab TOC, metadata/reference projection, and document-tab state builders
 - `src/features/sidebar/tabs/spine/`
@@ -115,7 +117,9 @@ The extension is organized as feature modules under `src/features/*`. The sideba
 - `src/features/sidebar/tabs/overview/`
   - overview/manuscript metrics and stage-sorting helpers
 - `src/features/sidebar/webview/`
-  - HTML rendering and webview-focused render helpers
+  - host-side webview shell HTML, asset URI wiring, and `SidebarState -> SidebarWebviewState` adaptation
+- `webview/sidebar/src/`
+  - SolidJS sidebar app modules (`document`, `spine`, `overview`) and webview bridge logic
 
 Other first-class modules:
 
@@ -136,6 +140,15 @@ npm install
 npm run compile
 npm test
 npm run package
+```
+
+Useful extension-local commands:
+
+```bash
+npm run -w packages/stego-extension compile:host
+npm run -w packages/stego-extension compile:webview
+npm run -w packages/stego-extension test:pure
+npm run -w packages/stego-extension test:webview
 ```
 
 To debug in VS Code:

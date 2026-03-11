@@ -1,5 +1,6 @@
 import type { CommandRegistry } from "../../../app/command-registry.ts";
 import { writeText } from "../../../app/output-renderer.ts";
+import { resolveCompilePlan } from "../../compile/index.ts";
 import { resolveProjectContext } from "../../project/index.ts";
 import { resolveWorkspaceContext } from "../../workspace/index.ts";
 import { formatIssues, issueHasErrors } from "../application/inspect-project.ts";
@@ -28,12 +29,17 @@ export function registerCheckStageCommand(registry: CommandRegistry): void {
       const stage = readStringOption(context.options, "stage") || "draft";
       const requestedFile = readStringOption(context.options, "file");
       const report = runStageCheck(project, stage, requestedFile);
+      const compilePlanResult = resolveCompilePlan({
+        project,
+        chapters: report.chapters
+      });
+      const issues = [...report.issues, ...compilePlanResult.issues];
 
-      for (const line of formatIssues(report.issues)) {
+      for (const line of formatIssues(issues)) {
         writeText(line);
       }
 
-      if (issueHasErrors(report.issues)) {
+      if (issueHasErrors(issues)) {
         process.exitCode = 1;
         return;
       }

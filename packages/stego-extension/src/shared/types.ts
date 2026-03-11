@@ -350,69 +350,6 @@ export type ProjectScriptContext = {
   scripts: Set<string>;
 };
 
-export type SidebarRenderContext = {
-  webview: vscode.Webview;
-  state: SidebarState;
-  extensionUri: vscode.Uri;
-};
-
-export type SidebarMessage =
-  | { type: 'setSidebarTab'; value: SidebarViewTab }
-  | { type: 'globalBack' }
-  | { type: 'globalForward' }
-  | { type: 'toggleMetadataCollapse' }
-  | { type: 'addMetadataField' }
-  | { type: 'editMetadataField'; key: string }
-  | { type: 'removeMetadataField'; key: string }
-  | { type: 'setMetadataStatus'; value: string }
-  | { type: 'addMetadataArrayItem'; key: string }
-  | { type: 'editMetadataArrayItem'; key: string; index: number }
-  | { type: 'removeMetadataArrayItem'; key: string; index: number }
-  | { type: 'editImageOverride'; key: string }
-  | { type: 'clearImageOverride'; key: string }
-  | { type: 'toggleMetadataEditing' }
-  | { type: 'runLocalValidate' }
-  | { type: 'insertImage' }
-  | { type: 'fillRequiredMetadata' }
-  | { type: 'openMarkdownPreview' }
-  | { type: 'toggleFrontmatter' }
-  | { type: 'refresh' }
-  | { type: 'openIdentifier'; id: string }
-  | { type: 'openExplorerCategory'; key: string; prefix: string }
-  | { type: 'explorerHome' }
-  | { type: 'explorerBack' }
-  | { type: 'explorerForward' }
-  | { type: 'addSpineCategory' }
-  | { type: 'pinExplorerEntry' }
-  | { type: 'pinAllExplorerEntriesFromFile' }
-  | { type: 'unpinExplorerEntry'; id: string }
-  | { type: 'unpinAllExplorerEntries' }
-  | { type: 'toggleExplorerBacklinks' }
-  | { type: 'togglePinnedExplorerBacklinks'; id: string }
-  | { type: 'togglePinnedExplorerCollapse'; id: string }
-  | { type: 'toggleExplorerCollapse' }
-  | { type: 'reloadIdentifierIndex' }
-  | { type: 'openTocHeading'; line: number }
-  | { type: 'toggleTocBacklinks'; id: string }
-  | { type: 'setBacklinkFilter'; value: string }
-  | { type: 'setPinnedBacklinkFilter'; id: string; value: string }
-  | { type: 'openBacklink'; filePath: string; line: number }
-  | { type: 'openExternalLink'; url: string; basePath?: string }
-  | { type: 'addComment' }
-  | { type: 'openCommentThread'; id: string }
-  | { type: 'replyComment'; id: string }
-  | { type: 'toggleCommentResolved'; id: string; resolveThread?: boolean }
-  | { type: 'deleteComment'; id: string }
-  | { type: 'jumpToComment'; id: string }
-  | { type: 'clearResolvedComments' }
-  | { type: 'runBuildWorkflow' }
-  | { type: 'runGateStageWorkflow' }
-  | { type: 'runNewManuscriptWorkflow' }
-  | { type: 'openOverviewFile'; filePath: string }
-  | { type: 'openFirstMissingMetadata'; filePath: string }
-  | { type: 'openFirstUnresolvedComment'; filePath: string; id: string }
-  | { type: 'copyCleanManuscript' };
-
 export type CommandContext = {
   indexService: {
     clear(): void;

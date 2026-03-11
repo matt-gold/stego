@@ -4,6 +4,7 @@ import { resolveProjectContext } from "../../project/index.ts";
 import { inspectProject, formatIssues, issueHasErrors } from "../../quality/index.ts";
 import { resolveWorkspaceContext } from "../../workspace/index.ts";
 import { compileManuscript } from "../application/compile-manuscript.ts";
+import { resolveCompilePlan } from "../application/resolve-compile-plan.ts";
 
 export function registerBuildCommand(registry: CommandRegistry): void {
   registry.register({
@@ -25,11 +26,16 @@ export function registerBuildCommand(registry: CommandRegistry): void {
       });
 
       const report = inspectProject(project);
-      for (const line of formatIssues(report.issues)) {
+      const compilePlanResult = resolveCompilePlan({
+        project,
+        chapters: report.chapters
+      });
+      const issues = [...report.issues, ...compilePlanResult.issues];
+      for (const line of formatIssues(issues)) {
         writeText(line);
       }
 
-      if (issueHasErrors(report.issues)) {
+      if (issueHasErrors(issues)) {
         process.exitCode = 1;
         return;
       }
@@ -37,7 +43,7 @@ export function registerBuildCommand(registry: CommandRegistry): void {
       const result = compileManuscript({
         project,
         chapters: report.chapters,
-        compileStructureLevels: report.compileStructureLevels
+        plan: compilePlanResult.plan
       });
       writeText(`Build output: ${result.outputPath}`);
     }

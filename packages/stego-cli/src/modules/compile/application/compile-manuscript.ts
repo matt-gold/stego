@@ -23,7 +23,7 @@ export function compileManuscript(input: CompileManuscriptInput): CompileManuscr
     subtitle: input.project.meta.subtitle,
     author: input.project.meta.author,
     chapters,
-    compileStructureLevels: input.compileStructureLevels
+    plan: input.plan
   });
 
   const outputPath = writeCompiledOutput(input.project.distDir, input.project.id, markdown);

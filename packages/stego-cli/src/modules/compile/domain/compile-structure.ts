@@ -1,5 +1,4 @@
-import type { CompileStructureLevel } from "../../quality/index.ts";
-import type { RenderCompiledManuscriptInput } from "../types.ts";
+import type { CompileStructureLevel, RenderCompiledManuscriptInput } from "../types.ts";
 
 export function renderCompiledManuscript(input: RenderCompiledManuscriptInput): string {
   const tocEntries: Array<{ level: number; heading: string }> = [];
@@ -27,7 +26,8 @@ export function renderCompiledManuscript(input: RenderCompiledManuscriptInput): 
   lines.push("## Table of Contents");
   lines.push("");
 
-  if (input.compileStructureLevels.length === 0) {
+  const structureLevels = input.plan.structureLevels;
+  if (structureLevels.length === 0) {
     lines.push(`- [Manuscript](#${slugify("Manuscript")})`);
   }
 
@@ -38,9 +38,9 @@ export function renderCompiledManuscript(input: RenderCompiledManuscriptInput): 
     let insertedBreakForEntry = false;
     const levelChanged: boolean[] = [];
 
-    for (let levelIndex = 0; levelIndex < input.compileStructureLevels.length; levelIndex += 1) {
-      const level = input.compileStructureLevels[levelIndex];
-      const explicitValue = chapter.groupValues[level.key];
+    for (let levelIndex = 0; levelIndex < structureLevels.length; levelIndex += 1) {
+      const level = structureLevels[levelIndex];
+      const explicitValue = toScalarMetadataString(chapter.metadata[level.key]);
       const previousValue = previousGroupValues.get(level.key);
       const currentValue = explicitValue ?? previousValue;
       const explicitTitle = level.titleKey ? toScalarMetadataString(chapter.metadata[level.titleKey]) : undefined;
@@ -115,6 +115,10 @@ function formatCompileStructureHeading(
 
 function toScalarMetadataString(rawValue: unknown): string | undefined {
   if (rawValue == null || rawValue === "" || Array.isArray(rawValue)) {
+    return undefined;
+  }
+
+  if (typeof rawValue === "object") {
     return undefined;
   }
 

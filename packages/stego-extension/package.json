@@ -183,11 +183,15 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
+    "compile": "npm run compile:host && npm run compile:webview",
+    "compile:host": "tsc -p ./",
+    "compile:webview": "vite build --config webview/sidebar/vite.config.ts",
     "watch": "tsc -watch -p ./",
+    "watch:webview": "vite build --watch --config webview/sidebar/vite.config.ts",
     "vscode:prepublish": "npm run compile",
-    "test": "npm run test:pure",
-    "test:pure": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\" && npm run compile && node --test out/stego-extension/src/test/pure/*.js",
+    "test": "npm run test:pure && npm run test:webview",
+    "test:pure": "node -e \"const fs=require('fs'); fs.rmSync('out/stego-extension',{recursive:true,force:true}); fs.rmSync('out/shared',{recursive:true,force:true});\" && npm run compile:host && node --test out/stego-extension/src/test/pure/*.js",
+    "test:webview": "vitest run --config webview/sidebar/vite.config.ts",
     "package": "vsce package",
     "changeset": "changeset",
     "release:version": "changeset version"
@@ -199,6 +203,11 @@
     "@types/node": "^20.14.10",
     "@types/vscode": "^1.92.0",
     "@vscode/vsce": "^3.7.1",
+    "jsdom": "^27.0.0",
+    "solid-js": "^1.9.9",
+    "vite": "^7.1.4",
+    "vite-plugin-solid": "^2.11.8",
+    "vitest": "^3.2.4",
     "typescript": "^5.6.3"
   },
   "dependencies": {

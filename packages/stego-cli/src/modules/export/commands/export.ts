@@ -1,6 +1,6 @@
 import type { CommandRegistry } from "../../../app/command-registry.ts";
 import { writeText } from "../../../app/output-renderer.ts";
-import { compileManuscript } from "../../compile/index.ts";
+import { compileManuscript, resolveCompilePlan } from "../../compile/index.ts";
 import { resolveProjectContext } from "../../project/index.ts";
 import { formatIssues, inspectProject, issueHasErrors } from "../../quality/index.ts";
 import { resolveWorkspaceContext } from "../../workspace/index.ts";
@@ -28,10 +28,15 @@ export function registerExportCommand(registry: CommandRegistry): void {
       });
       const format = (readStringOption(context.options, "format") || "md").toLowerCase();
       const report = inspectProject(project);
-      for (const line of formatIssues(report.issues)) {
+      const compilePlanResult = resolveCompilePlan({
+        project,
+        chapters: report.chapters
+      });
+      const issues = [...report.issues, ...compilePlanResult.issues];
+      for (const line of formatIssues(issues)) {
         writeText(line);
       }
-      if (issueHasErrors(report.issues)) {
+      if (issueHasErrors(issues)) {
         process.exitCode = 1;
         return;
       }
@@ -39,7 +44,7 @@ export function registerExportCommand(registry: CommandRegistry): void {
       const compiled = compileManuscript({
         project,
         chapters: report.chapters,
-        compileStructureLevels: report.compileStructureLevels
+        plan: compilePlanResult.plan
       });
       const exported = runExport({
         project,

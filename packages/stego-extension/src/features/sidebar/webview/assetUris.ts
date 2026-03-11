@@ -7,7 +7,7 @@ export type SidebarAssetUris = {
 
 export function getSidebarAssetUris(webview: vscode.Webview, extensionUri: vscode.Uri): SidebarAssetUris {
   return {
-    styleUri: webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'sidebar', 'sidebar.css')),
-    scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'sidebar', 'sidebar.js'))
+    styleUri: webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'out', 'webview', 'sidebar', 'sidebar-app.css')),
+    scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'out', 'webview', 'sidebar', 'sidebar-app.js'))
   };
 }

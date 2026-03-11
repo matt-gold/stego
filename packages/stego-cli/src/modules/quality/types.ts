@@ -13,15 +13,6 @@ export interface Issue {
   line: number | null;
 }
 
-export interface CompileStructureLevel {
-  key: string;
-  label: string;
-  titleKey?: string;
-  injectHeading: boolean;
-  headingTemplate: string;
-  pageBreak: "none" | "between-groups";
-}
-
 export interface SpineCategory {
   key: string;
   entries: Set<string>;
@@ -42,7 +33,6 @@ export interface ChapterEntry {
   order: number | null;
   status: string;
   referenceKeysByCategory: Record<string, string[]>;
-  groupValues: Record<string, string>;
   metadata: MetadataRecord;
   body: string;
   comments: ParsedCommentThread[];
@@ -59,7 +49,6 @@ export interface ProjectInspection {
   chapters: ChapterEntry[];
   issues: Issue[];
   spineState: SpineState;
-  compileStructureLevels: CompileStructureLevel[];
 }
 
 export interface InspectProjectOptions {
@@ -92,11 +81,6 @@ export interface LintResult {
 
 export type RequiredMetadataResult = {
   requiredMetadata: string[];
-  issues: Issue[];
-};
-
-export type CompileStructureResult = {
-  levels: CompileStructureLevel[];
   issues: Issue[];
 };
 
