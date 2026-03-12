@@ -24,7 +24,7 @@ export class MetadataCliClient {
         { showWarning: options?.showWarning }
       );
       if (!invocation) {
-        return { warning: this.reportWarning('Could not edit metadata because stego-cli is unavailable.', options) };
+        return { warning: this.reportWarning('Could not edit metadata because @stego/cli is unavailable.', options) };
       }
 
       let result;
@@ -51,7 +51,7 @@ export class MetadataCliClient {
       const parsed = tryParseJson<MetadataApplyEnvelope>(result.stdout);
       if (!parsed || parsed.ok !== true || parsed.operation !== 'apply' || !parsed.state) {
         return {
-          warning: this.reportWarning('Could not edit metadata: stego-cli returned an unexpected response.', options)
+          warning: this.reportWarning('Could not edit metadata: @stego/cli returned an unexpected response.', options)
         };
       }
 

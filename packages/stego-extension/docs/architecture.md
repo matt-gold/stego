@@ -2,7 +2,7 @@
 
 ## Design Goals
 
-- Preserve CLI-first behavior: extension UX delegates project mutations to `stego-cli`.
+- Preserve CLI-first behavior: extension UX delegates project mutations to `@stego/cli`.
 - Keep sidebar code modular by tab (`document`, `spine`, `overview`) and by rendering/orchestration seams.
 - Keep pure domain helpers testable without VS Code runtime dependencies.
 

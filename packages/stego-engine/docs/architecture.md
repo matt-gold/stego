@@ -1,6 +1,6 @@
 # Architecture
 
-`stego-engine` is organized as small modules with explicit boundaries.
+`@stego/engine` is organized as small modules with explicit boundaries.
 
 - `ir/`: canonical document node types and constructors
 - `collections/`: generic immutable collection helpers used by template context

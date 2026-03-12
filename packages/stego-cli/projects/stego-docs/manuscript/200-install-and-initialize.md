@@ -22,7 +22,7 @@ integrations:
 Install the CLI globally so the `stego` command is available in your shell.
 
 ```bash
-npm install -g stego-cli
+npm install -g @stego/cli
 ```
 
 ## Create a workspace

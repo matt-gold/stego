@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { compileProject, renderDocument, type RenderDocumentResult } from "stego-engine";
+import { compileProject, renderDocument, type RenderDocumentResult } from "@stego/engine";
 import type { ProjectContext } from "../../project/index.ts";
 
 export type TemplateBuildArtifactPaths = {

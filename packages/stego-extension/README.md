@@ -1,10 +1,10 @@
-# Stego - VSCode Extension for `stego-cli`
+# Stego - VSCode Extension for `@stego/cli`
 
 <div align="center">
   <img src="assets/stego.png" alt="Stego logo" width="128" />
 </div>
 
-[`stego-cli`](https://github.com/matt-gold/stego/tree/main/packages/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
+[`@stego/cli`](https://github.com/matt-gold/stego/tree/main/packages/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
 
 This extension provides the native UX for stego projects:
 
@@ -29,7 +29,7 @@ I created Stego with my own needs in mind. As a software developer by trade, I w
 
 ## Project Setup
 
-Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Use the stego-cli to scaffold a new stego workspace in an empty directory with `npm i -g stego`, then `stego init`.
+Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Use `@stego/cli` to scaffold a new stego workspace in an empty directory with `npm i -g @stego/cli`, then `stego init`.
 
 
 ### Supported `stego-project.json` fields (current)
@@ -60,7 +60,7 @@ The VS Code extension UI delegates build/validate actions to scripts in the near
 
 This is intentional: Stego keeps the sidebar UX and command wiring in the extension, while each project owns the exact workflow (for example custom Pandoc flags, pre/post processing, or other project-specific steps).
 
-In most projects, these scripts are thin wrappers around `stego-cli` commands.
+In most projects, these scripts are thin wrappers around `@stego/cli` commands.
 
 ### Preferred scripts by action
 
@@ -85,7 +85,7 @@ In most projects, these scripts are thin wrappers around `stego-cli` commands.
 
 The extension invokes these scripts with `npm run ...` and passes arguments where relevant.
 
-If a script is missing, the extension falls back to direct `stego` CLI commands when `stego-cli` is available in your PATH (or via `npx --no-install stego`):
+If a script is missing, the extension falls back to direct `stego` CLI commands when `@stego/cli` is available in your PATH (or via `npx --no-install stego`):
 
 - `new` creates a manuscript file (same as `stego new`)
 - `check-stage` receives `--stage ...`
@@ -93,7 +93,7 @@ If a script is missing, the extension falls back to direct `stego` CLI commands 
 - `validate` receives `--file ...`
 - `Validate Current File` also runs `check-stage -- --stage <status> --file <relative-path>` after `validate`
 
-If you need custom behavior, wrap `stego-cli` in your own scripts and keep these script names (`new`, `build`, `export`, `check-stage`, `validate`) so the extension can call them directly.
+If you need custom behavior, wrap `@stego/cli` in your own scripts and keep these script names (`new`, `build`, `export`, `check-stage`, `validate`) so the extension can call them directly.
 
 ## Comments
 

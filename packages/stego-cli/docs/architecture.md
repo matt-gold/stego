@@ -1,6 +1,6 @@
 # Stego CLI Architecture
 
-`stego-cli` now uses a domain-first module layout under `src/modules`.
+`@stego/cli` now uses a domain-first module layout under `src/modules`.
 
 ## High-level layout
 

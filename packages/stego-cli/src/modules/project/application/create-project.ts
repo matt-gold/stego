@@ -104,7 +104,7 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
           allowImportingTsExtensions: true,
           types: ["node"],
           jsx: "react-jsx",
-          jsxImportSource: "stego-engine",
+          jsxImportSource: "@stego/engine",
           skipLibCheck: true
         },
         include: ["templates/**/*.tsx"]
@@ -132,7 +132,7 @@ Start writing here.
   const starterTemplatePath = path.join(templatesDir, "book.template.tsx");
   writeTextFile(
     starterTemplatePath,
-    `import { defineTemplate, Stego } from "stego-engine";
+    `import { defineTemplate, Stego } from "@stego/engine";
 
 export default defineTemplate((ctx) => {
   const generatedAt = new Date().toISOString();

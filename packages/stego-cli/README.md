@@ -1,17 +1,17 @@
 # Stego CLI
 
-`stego-cli` is an installable CLI for the Stego writing workflow.
+`@stego/cli` is an installable CLI for the Stego writing workflow.
 
 It scaffolds a Stego workspace, validates manuscript structure and metadata, runs stage-aware quality gates, builds compiled markdown outputs, and exports release formats.
 
-It also includes an experimental template-driven compile path through `stego template ...`, powered by `stego-engine`.
+It also includes an experimental template-driven compile path through `stego template ...`, powered by `@stego/engine`.
 
 This repository is the source for the CLI and the template/example projects that `stego init` scaffolds.
 
 ## Quick start (install + init)
 
 ```bash
-npm install -g stego-cli
+npm install -g @stego/cli
 
 mkdir my-stego-workspace
 cd my-stego-workspace
@@ -92,7 +92,7 @@ stego template export -p fiction-example --format docx
 Current behavior:
 
 - templates are plain TSX using normal JavaScript control flow
-- templates import `defineTemplate` and `Stego` from `stego-engine`
+- templates import `defineTemplate` and `Stego` from `@stego/engine`
 - the engine compiles project content into Stego IR and lowers it into a Pandoc-oriented render plan
 - template export supports `md`, `docx`, `pdf`, and `epub`
 - `dist/<project-id>.template.md` and `dist/<project-id>.template.render-plan.json` are written for inspection during `template build`
@@ -204,7 +204,7 @@ When actively working on one project, open that project directory directly in VS
 
 The Stego VS Code extension is the official UI for Stego projects, and opening a single project keeps its UI context and Spine Browser focused. Project folders also include extension recommendations.
 
-## Develop `stego-cli` (this repo)
+## Develop `@stego/cli` (this repo)
 
 ```bash
 npm install

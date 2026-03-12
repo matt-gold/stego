@@ -85,7 +85,7 @@ test("compileProject loads template and strips comments from manuscript body", a
     );
     fs.writeFileSync(
       path.join(tempDir, "templates", "book.template.tsx"),
-      `import { defineTemplate, Stego } from "stego-engine";
+      `import { defineTemplate, Stego } from "@stego/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document>
     {ctx.collections.manuscripts.map((doc) => (

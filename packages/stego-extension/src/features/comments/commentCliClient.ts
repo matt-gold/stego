@@ -120,7 +120,7 @@ export class CommentCliClient {
       );
       if (!invocation) {
         return {
-          warning: `Could not ${actionLabel} because stego-cli is unavailable.`
+          warning: `Could not ${actionLabel} because @stego/cli is unavailable.`
         };
       }
 
@@ -149,7 +149,7 @@ export class CommentCliClient {
       if (!parsed || parsed.ok !== true || !('state' in parsed) || parsed.operation !== subcommand) {
         return {
           warning: this.reportWarning(
-            `Could not ${actionLabel}: stego-cli returned an unexpected response.`,
+            `Could not ${actionLabel}: @stego/cli returned an unexpected response.`,
             options
           )
         };

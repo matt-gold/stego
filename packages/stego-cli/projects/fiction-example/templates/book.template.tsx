@@ -1,4 +1,4 @@
-import { defineTemplate, Stego } from "stego-engine";
+import { defineTemplate, Stego } from "@stego/engine";
 
 export default defineTemplate((ctx) => {
   const generatedAt = new Date().toISOString();

@@ -1,5 +1,5 @@
 ---
-"stego-cli": minor
+"@stego/cli": minor
 "stego-extension": minor
 ---
 

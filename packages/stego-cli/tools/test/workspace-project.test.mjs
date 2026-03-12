@@ -162,7 +162,7 @@ test("init scaffolds a workspace in current directory", () => {
     assert.equal(fs.existsSync(path.join(tempDir, ".markdownlint.json")), true);
 
     const packageJson = JSON.parse(fs.readFileSync(path.join(tempDir, "package.json"), "utf8"));
-    assert.equal(typeof packageJson.devDependencies["stego-engine"], "string");
+    assert.equal(typeof packageJson.devDependencies["@stego/engine"], "string");
     assert.equal(typeof packageJson.devDependencies.typescript, "string");
     assert.equal(typeof packageJson.devDependencies["@types/node"], "string");
   } finally {

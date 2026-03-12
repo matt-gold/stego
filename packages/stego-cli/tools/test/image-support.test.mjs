@@ -39,7 +39,7 @@ function createTempProject(projectId, projectJson, manuscriptFiles = [], extraFi
   writeFile(path.join(projectRoot, "stego-project.json"), `${JSON.stringify(projectJson, null, 2)}\n`);
   writeFile(
     path.join(projectRoot, "templates", "book.template.tsx"),
-    `import { defineTemplate, Stego } from "stego-engine";
+    `import { defineTemplate, Stego } from "@stego/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document>
     {ctx.collections.manuscripts.map((doc) => (
