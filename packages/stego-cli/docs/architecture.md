@@ -8,7 +8,7 @@
 - `src/app`: app boundary (registry, context, error/output)
 - `src/platform`: fs/time/temp adapters
 - `src/modules`: domain modules with explicit `index.ts` APIs
-- `../../shared/src`: shared contracts and domain primitives
+- `@stego/shared`: shared contracts and domain primitives published as a first-class package boundary
 
 ## Module API contract
 

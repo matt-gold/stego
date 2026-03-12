@@ -4,7 +4,7 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import { CliError } from "../../../../../shared/src/contracts/cli/index.ts";
+import { CliError } from "@stego/shared/contracts/cli";
 import { ROOT_CONFIG_FILENAME } from "../../workspace/index.ts";
 import {
   COMMENT_AUTHOR_PROMPT,

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { CliError } from "../../../../../shared/src/contracts/cli/index.ts";
-import { isValidProjectId } from "../../../../../shared/src/domain/project/index.ts";
+import { CliError } from "@stego/shared/contracts/cli";
+import { isValidProjectId } from "@stego/shared/domain/project";
 import type { CreateProjectInput, CreateProjectResult } from "../types.ts";
 import { ensureDirectory, pathExists, writeTextFile } from "../infra/project-repo.ts";
 

@@ -36,7 +36,8 @@
     "README.md"
   ],
   "scripts": {
-    "build:cli": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build:cli": "npm run -w @stego/shared compile && npm run -w stego-engine compile && npm run clean && tsc -p tsconfig.build.json",
     "compile": "npm run build:cli",
     "prepack": "npm run build:cli",
     "pack:dry-run": "npm pack --dry-run",
@@ -59,7 +60,7 @@
     "test:spine-v2": "node --test tools/test/spine-v2.test.mjs",
     "test:template-engine": "node --test tools/test/template-engine.test.mjs",
     "test:workspace-project": "node --test tools/test/workspace-project.test.mjs",
-    "test": "npm run test:build-command && npm run test:comments && npm run test:cli-core && npm run test:image-support && npm run test:spine-v2 && npm run test:template-engine && npm run test:workspace-project && npm run check:module-apis && npm run check:boundaries",
+    "test": "npm run -w @stego/shared compile && npm run -w stego-engine compile && npm run test:build-command && npm run test:comments && npm run test:cli-core && npm run test:image-support && npm run test:spine-v2 && npm run test:template-engine && npm run test:workspace-project && npm run check:module-apis && npm run check:boundaries",
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
     "check:module-apis": "node scripts/check-module-apis.mjs"
   },
@@ -73,6 +74,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@stego/shared": "^0.1.0",
     "cac": "^7.0.0",
     "js-yaml": "^4.1.1",
     "stego-engine": "^0.1.0"

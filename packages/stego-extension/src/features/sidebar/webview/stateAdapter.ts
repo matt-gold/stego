@@ -4,7 +4,7 @@ import {
   extractImageDestinationTarget,
   isExternalImageTarget,
   stripImageQueryAndAnchor
-} from '../../../../../shared/src/domain/images';
+} from '@stego/shared/domain/images';
 import type {
   SidebarExplorerPage,
   SidebarState

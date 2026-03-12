@@ -3,7 +3,7 @@ import type {
   CommentStatus,
   CommentThread,
   SerializedCommentDocumentState
-} from '../../../../shared/src/domain/comments';
+} from '@stego/shared/domain/comments';
 
 export type StegoCommentStatus = CommentStatus;
 export type StegoCommentThread = CommentThread;

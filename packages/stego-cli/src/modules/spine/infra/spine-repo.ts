@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { CliError } from "../../../../../shared/src/contracts/cli/index.ts";
+import { CliError } from "@stego/shared/contracts/cli";
 import type { SpineOutputFormat } from "../types.ts";
 
 export function parseSpineOutputFormat(rawValue: unknown): SpineOutputFormat {

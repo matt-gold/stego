@@ -20,7 +20,10 @@
       "@engine/*": [
         "../stego-engine/src/*"
       ],
-      "@shared/*": [
+      "@stego/shared": [
+        "../shared/src/index.ts"
+      ],
+      "@stego/shared/*": [
         "../shared/src/*"
       ]
     }

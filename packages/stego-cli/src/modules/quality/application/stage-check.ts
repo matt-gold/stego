@@ -1,5 +1,5 @@
 import type { ProjectContext } from "../../project/index.ts";
-import { getStageRank, isStageName } from "../../../../../shared/src/domain/stages/index.ts";
+import { getStageRank, isStageName } from "@stego/shared/domain/stages";
 import { inspectProject } from "./inspect-project.ts";
 import { collectSpineWordsForSpellcheck, runCSpell, runMarkdownlint } from "./lint-runner.ts";
 import type { Issue, StageCheckResult, StagePolicy } from "../types.ts";

@@ -4,6 +4,7 @@
     "noEmit": false,
     "outDir": "./dist",
     "rootDir": "..",
+    "paths": {},
     "rewriteRelativeImportExtensions": true,
     "declaration": true,
     "declarationMap": true,
@@ -11,7 +12,6 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.tsx",
-    "../shared/src/**/*.ts"
+    "src/**/*.tsx"
   ]
 }

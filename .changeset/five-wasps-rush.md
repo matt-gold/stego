@@ -1,4 +1,5 @@
 ---
+"@stego/shared": minor
 "stego-cli": major
 "stego-engine": major
 ---

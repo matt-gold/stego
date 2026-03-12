@@ -184,13 +184,14 @@
   },
   "scripts": {
     "compile": "npm run compile:host && npm run compile:webview",
-    "compile:host": "tsc -p ./",
+    "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
+    "compile:host": "npm run -w @stego/shared compile && npm run clean && tsc -p tsconfig.build.json",
     "compile:webview": "vite build --config webview/sidebar/vite.config.ts",
     "watch": "tsc -watch -p ./",
     "watch:webview": "vite build --watch --config webview/sidebar/vite.config.ts",
     "vscode:prepublish": "npm run compile",
     "test": "npm run test:pure && npm run test:webview",
-    "test:pure": "node -e \"const fs=require('fs'); fs.rmSync('out/stego-extension',{recursive:true,force:true}); fs.rmSync('out/shared',{recursive:true,force:true});\" && npm run compile:host && node --test out/stego-extension/src/test/pure/*.js",
+    "test:pure": "npm run compile:host && node --test out/stego-extension/src/test/pure/*.js",
     "test:webview": "vitest run --config webview/sidebar/vite.config.ts",
     "package": "vsce package",
     "changeset": "changeset",
@@ -211,6 +212,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
+    "@stego/shared": "^0.1.0",
     "dayjs": "^1.11.19",
     "js-yaml": "^4.1.0",
     "markdown-it": "^14.1.1"

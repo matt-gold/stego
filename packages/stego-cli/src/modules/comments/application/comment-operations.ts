@@ -1,5 +1,5 @@
 import path from "node:path";
-import { CliError } from "../../../../../shared/src/contracts/cli/index.ts";
+import { CliError } from "@stego/shared/contracts/cli";
 import {
   addCommentToState,
   clearResolvedInState,
@@ -18,7 +18,7 @@ import {
   type LoadedCommentDocumentState,
   type SyncAnchorUpdate,
   type SyncAnchorsInput
-} from "../../../../../shared/src/domain/comments/index.ts";
+} from "@stego/shared/domain/comments";
 import { COMMENT_ID_PATTERN, normalizeCommentId, normalizeCommentStatus } from "../domain/comment-policy.ts";
 import {
   readJsonPayload,

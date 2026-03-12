@@ -3,13 +3,14 @@
   "private": true,
   "license": "Apache-2.0",
   "workspaces": [
+    "packages/shared",
     "packages/stego-cli",
     "packages/stego-engine",
     "packages/stego-extension"
   ],
   "scripts": {
-    "build": "npm run -w packages/stego-engine compile && npm run -w packages/stego-cli compile && npm run -w packages/stego-extension compile",
-    "test": "npm run -w packages/stego-engine test && npm run -w packages/stego-cli test && npm run -w packages/stego-extension test",
+    "build": "npm run -w @stego/shared compile && npm run -w packages/stego-engine compile && npm run -w packages/stego-cli compile && npm run -w packages/stego-extension compile",
+    "test": "npm run -w @stego/shared compile && npm run -w packages/stego-engine test && npm run -w packages/stego-cli test && npm run -w packages/stego-extension test",
     "changeset": "changeset",
     "release:version": "changeset version"
   },

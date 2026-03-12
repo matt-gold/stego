@@ -1,4 +1,4 @@
-import type { CliErrorEnvelope } from "../../../../shared/src/contracts/cli";
+import type { CliErrorEnvelope } from "@stego/shared/contracts/cli";
 
 type LegacyCliErrorEnvelope = {
   ok: false;

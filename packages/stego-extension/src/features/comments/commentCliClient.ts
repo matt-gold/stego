@@ -7,7 +7,7 @@ import {
   type CommentSyncAnchorsPayload,
   type CommentsSubcommand,
   type CommentsSuccessEnvelope
-} from '../../../../shared/src/contracts/cli';
+} from '@stego/shared/contracts/cli';
 import { extractCliErrorMessage, tryParseJson } from '../../shared/cli/json';
 import { withJsonPayloadFile } from '../../shared/cli/payload-file';
 

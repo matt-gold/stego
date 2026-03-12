@@ -17,7 +17,16 @@
     "types": [
       "node",
       "vscode"
-    ]
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@stego/shared": [
+        "../shared/src/index.ts"
+      ],
+      "@stego/shared/*": [
+        "../shared/src/*"
+      ]
+    }
   },
   "include": [
     "src",

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { ImageStyle } from '../../../shared/src/domain/images';
+import type { ImageStyle } from '@stego/shared/domain/images';
 
 export type { ImageStyle };
 

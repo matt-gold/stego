@@ -21,4 +21,4 @@ export {
   type SidebarWebviewImageEntry,
   type SidebarWebviewState
 } from './state';
-export type { ImageStyle } from '../../../../../shared/src/domain/images';
+export type { ImageStyle } from '@stego/shared/domain/images';

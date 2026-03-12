@@ -1,4 +1,4 @@
-import { getStageRank, isStageName } from '../../../../../../shared/src/domain/stages';
+import { getStageRank, isStageName } from '@stego/shared/domain/stages';
 
 export function compareOverviewStatus(aStatus: string, bStatus: string): number {
   const rank = (status: string): number => {

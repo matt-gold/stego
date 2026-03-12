@@ -25,10 +25,10 @@
       "stego-engine/jsx-dev-runtime": [
         "src/template/internal/jsx-dev-runtime.ts"
       ],
-      "@engine/*": [
-        "src/*"
+      "@stego/shared": [
+        "../shared/src/index.ts"
       ],
-      "@shared/*": [
+      "@stego/shared/*": [
         "../shared/src/*"
       ]
     }

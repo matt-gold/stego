@@ -2,7 +2,7 @@ import * as path from 'path';
 import { promises as fs, type Dirent } from 'fs';
 import * as vscode from 'vscode';
 import { normalizeFsPath } from '../../shared/path';
-import { isValidMetadataKey } from '../../../../shared/src/domain/frontmatter';
+import { isValidMetadataKey } from '@stego/shared/domain/frontmatter';
 import type {
   ImageStyle,
   ProjectSpineCategory,

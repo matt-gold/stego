@@ -1,4 +1,4 @@
-import { CliError } from "../../../../../shared/src/contracts/cli/index.ts";
+import { CliError } from "@stego/shared/contracts/cli";
 import type { CommandRegistry } from "../../../app/command-registry.ts";
 import { writeJson, writeText } from "../../../app/output-renderer.ts";
 import { applyMetadata } from "../application/apply-metadata.ts";

@@ -2,4 +2,4 @@ export {
   parseMarkdownDocument,
   serializeMarkdownDocument,
   normalizeFrontmatterRecord
-} from "../../../../../shared/src/domain/frontmatter/index.ts";
+} from "@stego/shared/domain/frontmatter";
