@@ -1,1 +1,0 @@
-{"version":3,"file":"load-spine.d.ts","sourceRoot":"","sources":["../../../../../src/compile/internal/load-spine.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,mBAAmB,EAAE,gBAAgB,EAAE,MAAM,yBAAyB,CAAC;AAErF,MAAM,MAAM,WAAW,GAAG;IACxB,OAAO,EAAE,gBAAgB,EAAE,CAAC;IAC5B,UAAU,EAAE,mBAAmB,EAAE,CAAC;CACnC,CAAC;AAEF,wBAAgB,SAAS,CAAC,WAAW,EAAE,MAAM,EAAE,QAAQ,EAAE,MAAM,GAAG,WAAW,CAuC5E"}

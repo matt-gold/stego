@@ -1,1 +1,0 @@
-{"version":3,"file":"template-loader.d.ts","sourceRoot":"","sources":["../../../../../src/template/internal/template-loader.ts"],"names":[],"mappings":"AAMA,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,oBAAoB,CAAC;AAExD,MAAM,MAAM,cAAc,GAAG;IAC3B,QAAQ,EAAE,aAAa,CAAC;IACxB,OAAO,EAAE,MAAM,IAAI,CAAC;CACrB,CAAC;AAEF,wBAAsB,oBAAoB,CAAC,YAAY,EAAE,MAAM,GAAG,OAAO,CAAC,cAAc,CAAC,CAgCxF"}

@@ -1,2 +1,0 @@
-export { addCommentToState, replyToCommentInState, setCommentStatusInState, deleteCommentInState, clearResolvedInState, syncAnchorsInState, normalizeAuthor } from "./parser.ts";
-//# sourceMappingURL=anchors.d.ts.map

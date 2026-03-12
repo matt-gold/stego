@@ -1,2 +1,0 @@
-export { parseCommentAppendix, serializeCommentAppendix, upsertCommentAppendix, renderStateDocument, loadCommentDocumentState, serializeLoadedState, ensureNoParseErrors } from "./parser.js";
-//# sourceMappingURL=serializer.js.map
