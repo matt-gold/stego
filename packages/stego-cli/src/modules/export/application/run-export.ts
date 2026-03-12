@@ -23,18 +23,23 @@ export function runExport(input: RunExportInput): RunExportResult {
     throw new Error(capability.reason || `Exporter '${exporter.id}' cannot run.`);
   }
 
-  const resourcePaths = uniqueResolvedPaths([
-    input.project.root,
-    input.project.manuscriptDir,
-    path.join(input.project.root, "assets"),
-    path.dirname(input.inputPath)
-  ]);
+  const resourcePaths = input.resourcePaths
+    ? uniqueResolvedPaths(input.resourcePaths)
+    : uniqueResolvedPaths([
+      input.project.root,
+      input.project.manuscriptDir,
+      path.join(input.project.root, "assets"),
+      path.dirname(input.inputPath)
+    ]);
 
   exporter.run({
     inputPath: input.inputPath,
     outputPath,
     cwd: input.project.root,
-    resourcePaths
+    inputFormat: input.inputFormat,
+    resourcePaths,
+    requiredFilters: input.requiredFilters,
+    extraArgs: input.extraArgs
   });
 
   return {

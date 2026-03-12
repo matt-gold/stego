@@ -1,0 +1,1 @@
+{"version":3,"file":"load-project.d.ts","sourceRoot":"","sources":["../../../../../src/compile/internal/load-project.ts"],"names":[],"mappings":"AAGA,MAAM,MAAM,aAAa,GAAG;IAC1B,EAAE,EAAE,MAAM,CAAC;IACX,IAAI,EAAE,MAAM,CAAC;IACb,QAAQ,EAAE,MAAM,CAAC,MAAM,EAAE,OAAO,CAAC,CAAC;CACnC,CAAC;AAEF,wBAAgB,WAAW,CAAC,WAAW,EAAE,MAAM,GAAG,aAAa,CAc9D"}

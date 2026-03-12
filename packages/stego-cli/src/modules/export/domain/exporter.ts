@@ -4,7 +4,10 @@ export interface ExportRunArgs {
   inputPath: string;
   outputPath: string;
   cwd?: string;
+  inputFormat?: string;
   resourcePaths?: string[];
+  requiredFilters?: string[];
+  extraArgs?: string[];
 }
 
 export interface ExportCapability {

@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": [
+      "node"
+    ],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "stego-engine",
+    "baseUrl": ".",
+    "paths": {
+      "stego-engine": [
+        "src/index.ts"
+      ],
+      "stego-engine/jsx-runtime": [
+        "src/template/internal/jsx-runtime.ts"
+      ],
+      "stego-engine/jsx-dev-runtime": [
+        "src/template/internal/jsx-dev-runtime.ts"
+      ],
+      "@engine/*": [
+        "src/*"
+      ],
+      "@shared/*": [
+        "../shared/src/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "../shared/src/**/*.ts"
+  ]
+}

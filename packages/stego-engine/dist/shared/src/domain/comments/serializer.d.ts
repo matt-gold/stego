@@ -1,0 +1,2 @@
+export { parseCommentAppendix, serializeCommentAppendix, upsertCommentAppendix, renderStateDocument, loadCommentDocumentState, serializeLoadedState, ensureNoParseErrors } from "./parser.ts";
+//# sourceMappingURL=serializer.d.ts.map

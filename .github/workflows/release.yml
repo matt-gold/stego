@@ -80,6 +80,12 @@ jobs:
             BASE_REF="$(git hash-object -t tree /dev/null)"
           fi
 
+          if git diff --name-only "$BASE_REF" HEAD -- packages/stego-engine/package.json | grep -q .; then
+            ENGINE_CHANGED=true
+          else
+            ENGINE_CHANGED=false
+          fi
+
           if git diff --name-only "$BASE_REF" HEAD -- packages/stego-cli/package.json | grep -q .; then
             CLI_CHANGED=true
           else
@@ -92,11 +98,16 @@ jobs:
             EXT_CHANGED=false
           fi
 
+          ENGINE_VERSION="$(node -p "require('./packages/stego-engine/package.json').version")"
           CLI_VERSION="$(node -p "require('./packages/stego-cli/package.json').version")"
           EXT_VERSION="$(node -p "require('./packages/stego-extension/package.json').version")"
+          ENGINE_TAG="stego-engine-v${ENGINE_VERSION}"
           CLI_TAG="stego-cli-v${CLI_VERSION}"
           EXT_TAG="stego-extension-v${EXT_VERSION}"
 
+          if [ "$ENGINE_CHANGED" = "true" ] && git show-ref --tags --verify --quiet "refs/tags/${ENGINE_TAG}"; then
+            ENGINE_CHANGED=false
+          fi
           if [ "$CLI_CHANGED" = "true" ] && git show-ref --tags --verify --quiet "refs/tags/${CLI_TAG}"; then
             CLI_CHANGED=false
           fi
@@ -104,12 +115,69 @@ jobs:
             EXT_CHANGED=false
           fi
 
+          echo "ENGINE_CHANGED=$ENGINE_CHANGED" >> "$GITHUB_ENV"
           echo "CLI_CHANGED=$CLI_CHANGED" >> "$GITHUB_ENV"
           echo "EXT_CHANGED=$EXT_CHANGED" >> "$GITHUB_ENV"
+          echo "ENGINE_VERSION=$ENGINE_VERSION" >> "$GITHUB_ENV"
           echo "CLI_VERSION=$CLI_VERSION" >> "$GITHUB_ENV"
           echo "EXT_VERSION=$EXT_VERSION" >> "$GITHUB_ENV"
+          echo "ENGINE_TAG=$ENGINE_TAG" >> "$GITHUB_ENV"
           echo "CLI_TAG=$CLI_TAG" >> "$GITHUB_ENV"
           echo "EXT_TAG=$EXT_TAG" >> "$GITHUB_ENV"
+
+      - name: Test stego-engine
+        if: ${{ env.ENGINE_CHANGED == 'true' }}
+        run: npm run -w packages/stego-engine test
+
+      - name: Package stego-engine tarball
+        if: ${{ env.ENGINE_CHANGED == 'true' }}
+        run: |
+          cd packages/stego-engine
+          npm pack
+
+      - name: Resolve stego-engine tarball path
+        if: ${{ env.ENGINE_CHANGED == 'true' }}
+        run: |
+          ENGINE_TGZ_PATH="$(ls -1t packages/stego-engine/*.tgz | head -n 1)"
+          if [ -z "$ENGINE_TGZ_PATH" ]; then
+            echo "No npm tarball found for stego-engine."
+            exit 1
+          fi
+          echo "ENGINE_TGZ_PATH=$ENGINE_TGZ_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload stego-engine tarball to GitHub Release
+        if: ${{ env.ENGINE_CHANGED == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.ENGINE_TAG }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          files: ${{ env.ENGINE_TGZ_PATH }}
+
+      - name: Validate npm token
+        if: ${{ env.ENGINE_CHANGED == 'true' || env.CLI_CHANGED == 'true' }}
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "Missing NPM_TOKEN secret."
+            exit 1
+          fi
+
+      - name: Publish stego-engine to npm
+        if: ${{ env.ENGINE_CHANGED == 'true' }}
+        run: npm publish "${{ env.ENGINE_TGZ_PATH }}" --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Wait for stego-engine on npm
+        if: ${{ env.ENGINE_CHANGED == 'true' && env.CLI_CHANGED == 'true' }}
+        run: |
+          for attempt in $(seq 1 30); do
+            if npm view "stego-engine@${ENGINE_VERSION}" version >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "stego-engine@${ENGINE_VERSION} was not visible on npm in time."
+          exit 1
 
       - name: Test stego-cli
         if: ${{ env.CLI_CHANGED == 'true' }}
@@ -138,14 +206,6 @@ jobs:
           tag_name: ${{ env.CLI_TAG }}
           target_commitish: ${{ github.event.workflow_run.head_sha }}
           files: ${{ env.CLI_TGZ_PATH }}
-
-      - name: Validate npm token
-        if: ${{ env.CLI_CHANGED == 'true' }}
-        run: |
-          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
-            echo "Missing NPM_TOKEN secret."
-            exit 1
-          fi
 
       - name: Publish stego-cli to npm
         if: ${{ env.CLI_CHANGED == 'true' }}

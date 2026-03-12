@@ -29,6 +29,17 @@ export function inspectProject(
   issues.push(...requiredMetadataState.issues);
   issues.push(...validateProjectImagesConfiguration(project));
 
+  if (project.meta.compileStructure !== undefined) {
+    issues.push(
+      makeIssue(
+        "error",
+        "metadata",
+        "Legacy 'compileStructure' in stego-project.json is no longer supported. Define build behavior in templates/book.template.tsx instead.",
+        path.relative(repoRoot, path.join(project.root, "stego-project.json"))
+      )
+    );
+  }
+
   if (project.meta.spineCategories !== undefined) {
     issues.push(
       makeIssue(

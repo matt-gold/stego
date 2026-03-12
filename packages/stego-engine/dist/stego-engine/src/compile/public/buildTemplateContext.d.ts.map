@@ -1,0 +1,1 @@
+{"version":3,"file":"buildTemplateContext.d.ts","sourceRoot":"","sources":["../../../../../src/compile/public/buildTemplateContext.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,yBAAyB,CAAC;AAC/D,OAAO,KAAK,EAAE,yBAAyB,EAAE,MAAM,YAAY,CAAC;AAK5D,wBAAgB,oBAAoB,CAAC,KAAK,EAAE,yBAAyB,GAAG,eAAe,CAetF"}

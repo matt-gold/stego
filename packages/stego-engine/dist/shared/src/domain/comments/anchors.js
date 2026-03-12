@@ -1,0 +1,2 @@
+export { addCommentToState, replyToCommentInState, setCommentStatusInState, deleteCommentInState, clearResolvedInState, syncAnchorsInState, normalizeAuthor } from "./parser.js";
+//# sourceMappingURL=anchors.js.map

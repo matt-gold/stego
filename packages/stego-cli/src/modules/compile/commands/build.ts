@@ -2,9 +2,8 @@ import type { CommandRegistry } from "../../../app/command-registry.ts";
 import { writeText } from "../../../app/output-renderer.ts";
 import { resolveProjectContext } from "../../project/index.ts";
 import { inspectProject, formatIssues, issueHasErrors } from "../../quality/index.ts";
+import { buildTemplateProject } from "../../template/index.ts";
 import { resolveWorkspaceContext } from "../../workspace/index.ts";
-import { compileManuscript } from "../application/compile-manuscript.ts";
-import { resolveCompilePlan } from "../application/resolve-compile-plan.ts";
 
 export function registerBuildCommand(registry: CommandRegistry): void {
   registry.register({
@@ -12,9 +11,10 @@ export function registerBuildCommand(registry: CommandRegistry): void {
     description: "Compile manuscript output",
     options: [
       { flags: "-p, --project <project-id>", description: "Project id" },
+      { flags: "--template <path>", description: "Project-relative template path" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],
-    action: (context) => {
+    action: async (context) => {
       const project = resolveProjectContext({
         workspace: resolveWorkspaceContext({
           cwd: context.cwd,
@@ -26,11 +26,7 @@ export function registerBuildCommand(registry: CommandRegistry): void {
       });
 
       const report = inspectProject(project);
-      const compilePlanResult = resolveCompilePlan({
-        project,
-        chapters: report.chapters
-      });
-      const issues = [...report.issues, ...compilePlanResult.issues];
+      const issues = [...report.issues];
       for (const line of formatIssues(issues)) {
         writeText(line);
       }
@@ -40,12 +36,16 @@ export function registerBuildCommand(registry: CommandRegistry): void {
         return;
       }
 
-      const result = compileManuscript({
+      const result = await buildTemplateProject(
         project,
-        chapters: report.chapters,
-        plan: compilePlanResult.plan
-      });
-      writeText(`Build output: ${result.outputPath}`);
+        readStringOption(context.options, "template"),
+        {
+          markdownFileName: `${project.id}.md`,
+          renderPlanFileName: `${project.id}.render-plan.json`
+        }
+      );
+      writeText(`Build output: ${result.markdownPath}`);
+      writeText(`Build render plan: ${result.renderPlanPath}`);
     }
   });
 }

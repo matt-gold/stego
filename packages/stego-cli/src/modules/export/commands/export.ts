@@ -1,10 +1,9 @@
 import type { CommandRegistry } from "../../../app/command-registry.ts";
 import { writeText } from "../../../app/output-renderer.ts";
-import { compileManuscript, resolveCompilePlan } from "../../compile/index.ts";
 import { resolveProjectContext } from "../../project/index.ts";
 import { formatIssues, inspectProject, issueHasErrors } from "../../quality/index.ts";
+import { exportTemplateProject } from "../../template/index.ts";
 import { resolveWorkspaceContext } from "../../workspace/index.ts";
-import { runExport } from "../application/run-export.ts";
 
 export function registerExportCommand(registry: CommandRegistry): void {
   registry.register({
@@ -12,11 +11,12 @@ export function registerExportCommand(registry: CommandRegistry): void {
     description: "Export manuscript formats",
     options: [
       { flags: "-p, --project <project-id>", description: "Project id" },
+      { flags: "--template <path>", description: "Project-relative template path" },
       { flags: "--format <format>", description: "md|docx|pdf|epub" },
       { flags: "--output <path>", description: "Explicit output path" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],
-    action: (context) => {
+    action: async (context) => {
       const project = resolveProjectContext({
         workspace: resolveWorkspaceContext({
           cwd: context.cwd,
@@ -28,11 +28,7 @@ export function registerExportCommand(registry: CommandRegistry): void {
       });
       const format = (readStringOption(context.options, "format") || "md").toLowerCase();
       const report = inspectProject(project);
-      const compilePlanResult = resolveCompilePlan({
-        project,
-        chapters: report.chapters
-      });
-      const issues = [...report.issues, ...compilePlanResult.issues];
+      const issues = [...report.issues];
       for (const line of formatIssues(issues)) {
         writeText(line);
       }
@@ -41,17 +37,18 @@ export function registerExportCommand(registry: CommandRegistry): void {
         return;
       }
 
-      const compiled = compileManuscript({
+      const exported = await exportTemplateProject({
         project,
-        chapters: report.chapters,
-        plan: compilePlanResult.plan
-      });
-      const exported = runExport({
-        project,
+        templatePath: readStringOption(context.options, "template"),
         format,
-        inputPath: compiled.outputPath,
-        explicitOutputPath: readStringOption(context.options, "output")
+        explicitOutputPath: readStringOption(context.options, "output"),
+        artifactPaths: {
+          markdownFileName: `${project.id}.md`,
+          renderPlanFileName: `${project.id}.render-plan.json`
+        }
       });
+      writeText(`Export build markdown: ${exported.markdownPath}`);
+      writeText(`Export render plan: ${exported.renderPlanPath}`);
       writeText(`Export output: ${exported.outputPath}`);
     }
   });

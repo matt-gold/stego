@@ -8,6 +8,8 @@
   },
   "include": [
     "src/**/*.ts",
+    "../stego-engine/src/**/*.ts",
+    "../stego-engine/src/**/*.tsx",
     "../shared/src/**/*.ts"
   ]
 }

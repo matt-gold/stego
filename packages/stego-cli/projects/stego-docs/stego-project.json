@@ -7,17 +7,5 @@
     "status",
     "chapter",
     "concepts"
-  ],
-  "compileStructure": {
-    "levels": [
-      {
-        "key": "chapter",
-        "label": "Chapter",
-        "titleKey": "chapter_title",
-        "injectHeading": true,
-        "headingTemplate": "{label} {value}: {title}",
-        "pageBreak": "between-groups"
-      }
-    ]
-  }
+  ]
 }

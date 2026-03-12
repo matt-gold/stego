@@ -78,13 +78,11 @@ When the same image also has inline Pandoc attrs in markdown, inline attrs win.
 
 Validation warns if a local image target is outside `assets/`.
 
-## Compile structure
+## Templates
 
-Projects can define `compileStructure.levels` to group manuscript files during build.
+Build structure now lives in `templates/book.template.tsx`.
 
-This is how Stego inserts structural headings and optional page breaks while still letting authors keep source files small and file-first.
-
-Grouping metadata can be repeated at boundaries only, because Stego inherits missing group values and titles from earlier files in order.
+Use template code to group manuscripts, insert headings, control page breaks, and render frontmatter or backmatter. Ordered grouping is typically done with `ctx.collections.manuscripts.splitBy(...)`, which preserves file order and lets boundary-only metadata flow across subsequent files.
 
 ## Spine categories
 

@@ -345,6 +345,9 @@ function writeInitRootPackageJson(targetRoot: string, packageRoot: string): void
   const cliPackagePath = path.join(packageRoot, "package.json");
   const cliPackage = tryReadJsonObject(cliPackagePath) ?? {};
   const cliVersion = typeof cliPackage.version === "string" ? cliPackage.version : "0.1.0";
+  const enginePackagePath = path.resolve(packageRoot, "..", "stego-engine", "package.json");
+  const enginePackage = tryReadJsonObject(enginePackagePath) ?? {};
+  const engineVersion = typeof enginePackage.version === "string" ? enginePackage.version : cliVersion;
 
   const manifest: Record<string, unknown> = {
     name: path.basename(targetRoot) || "stego-workspace",
@@ -368,6 +371,9 @@ function writeInitRootPackageJson(targetRoot: string, packageRoot: string): void
     },
     devDependencies: {
       "stego-cli": `^${cliVersion}`,
+      "stego-engine": `^${engineVersion}`,
+      typescript: "^5.9.3",
+      "@types/node": "^25.2.3",
       cspell: "^9.6.4",
       "markdownlint-cli": "^0.47.0"
     }

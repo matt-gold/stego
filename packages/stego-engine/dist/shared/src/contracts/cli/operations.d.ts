@@ -1,0 +1,2 @@
+export type CliOperation = "init" | "list-projects" | "new-project" | "new" | "validate" | "build" | "check-stage" | "lint" | "export" | "spine.read" | "spine.new-category" | "spine.new" | "metadata.read" | "metadata.apply" | "comments.read" | "comments.add" | "comments.reply" | "comments.set-status" | "comments.delete" | "comments.clear-resolved" | "comments.sync-anchors";
+//# sourceMappingURL=operations.d.ts.map

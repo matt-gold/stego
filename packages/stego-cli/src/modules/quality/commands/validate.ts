@@ -1,6 +1,5 @@
 import type { CommandRegistry } from "../../../app/command-registry.ts";
 import { writeText } from "../../../app/output-renderer.ts";
-import { resolveCompilePlan } from "../../compile/index.ts";
 import { resolveProjectContext } from "../../project/index.ts";
 import { resolveWorkspaceContext } from "../../workspace/index.ts";
 import { formatIssues, inspectProject, issueHasErrors } from "../application/inspect-project.ts";
@@ -26,11 +25,7 @@ export function registerValidateCommand(registry: CommandRegistry): void {
       });
 
       const report = inspectProject(project, { onlyFile: readStringOption(context.options, "file") });
-      const compilePlanResult = resolveCompilePlan({
-        project,
-        chapters: report.chapters
-      });
-      const issues = [...report.issues, ...compilePlanResult.issues];
+      const issues = [...report.issues];
       for (const line of formatIssues(issues)) {
         writeText(line);
       }

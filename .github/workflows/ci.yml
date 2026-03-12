@@ -23,6 +23,12 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Compile stego-engine
+        run: npm run -w packages/stego-engine compile
+
+      - name: Test stego-engine
+        run: npm run -w packages/stego-engine test
+
       - name: Compile stego-cli
         run: npm run -w packages/stego-cli compile
 

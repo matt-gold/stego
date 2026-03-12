@@ -9,6 +9,7 @@ import { commentsModule } from "./comments/index.ts";
 import { qualityModule } from "./quality/index.ts";
 import { compileModule } from "./compile/index.ts";
 import { exportModule } from "./export/index.ts";
+import { templateModule } from "./template/index.ts";
 
 export const coreModules: ModuleApi[] = [
   workspaceModule,
@@ -20,5 +21,6 @@ export const coreModules: ModuleApi[] = [
   commentsModule,
   qualityModule,
   compileModule,
-  exportModule
+  exportModule,
+  templateModule
 ];
