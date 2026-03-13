@@ -133,6 +133,32 @@ test('build uses the project template and splitBy inherits missing chapter metad
   }
 });
 
+test('validate does not warn for four-digit manuscript prefixes', () => {
+  const projectId = `validate-four-digit-prefix-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'Four Digit Prefix Test',
+      requiredMetadata: ['status']
+    },
+    [
+      ['1200-scene.md', '---\nstatus: draft\n---\n\nHello.\n']
+    ]
+  );
+
+  try {
+    const result = runCli(['validate', '--project', projectId]);
+    const output = `${result.stdout}\n${result.stderr}`;
+
+    assert.equal(result.status, 0, output);
+    assert.doesNotMatch(output, /non-standard/i);
+    assert.doesNotMatch(output, /three digits/i);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
 test('new infers next manuscript prefix from the last two manuscripts', () => {
   const projectId = `new-manuscript-infer-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(

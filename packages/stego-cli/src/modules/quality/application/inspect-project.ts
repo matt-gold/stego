@@ -318,8 +318,15 @@ function parseOrderFromFilename(chapterPath: string, relativePath: string, issue
     issues.push(makeIssue("error", "ordering", "Filename must start with a numeric prefix followed by '-' or '_' (for example '100-scene.md').", relativePath));
     return null;
   }
-  if (match[1].length !== 3) {
-    issues.push(makeIssue("warning", "ordering", `Filename prefix '${match[1]}' is valid but non-standard. Use three digits like 100, 200, 300.`, relativePath));
+  if (match[1].length < 3) {
+    issues.push(
+      makeIssue(
+        "warning",
+        "ordering",
+        `Filename prefix '${match[1]}' is valid but non-standard. Prefer zero-padded prefixes like 001, 010, 100 for consistent ordering.`,
+        relativePath
+      )
+    );
   }
   return Number(match[1]);
 }
