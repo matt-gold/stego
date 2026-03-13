@@ -11,7 +11,7 @@ import {
   parseImageStyle,
   stripImageQueryAndAnchor,
   type ImageStyle
-} from '../../../../shared/src/domain/images';
+} from '@stego/shared/domain/images';
 import type { SidebarImageEntry } from '../../shared/types';
 
 type MarkdownImageToken = {

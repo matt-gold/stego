@@ -1,13 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { parseCommentAppendix } from "../../../../../shared/src/domain/comments/index.ts";
-import { parseMarkdownDocument } from "../../../../../shared/src/domain/frontmatter/index.ts";
-import { isStageName } from "../../../../../shared/src/domain/stages/index.ts";
+import { parseCommentAppendix } from "@stego/shared/domain/comments";
+import { parseMarkdownDocument } from "@stego/shared/domain/frontmatter";
+import { isStageName } from "@stego/shared/domain/stages";
 import { readSpineCatalogForProject } from "../../spine/index.ts";
 import type {
   ChapterEntry,
-  CompileStructureLevel,
-  CompileStructureResult,
   InspectProjectOptions,
   Issue,
   IssueLevel,
@@ -25,14 +23,22 @@ export function inspectProject(
   options: InspectProjectOptions = {}
 ): ProjectInspection {
   const repoRoot = project.workspace.repoRoot;
-  const runtimeConfig = project.workspace.config;
   const issues: Issue[] = [];
   const emptySpineState: SpineState = { categories: [], entriesByCategory: new Map<string, Set<string>>(), issues: [] };
   const requiredMetadataState = resolveRequiredMetadata(project);
-  const compileStructureState = resolveCompileStructure(project);
   issues.push(...requiredMetadataState.issues);
-  issues.push(...compileStructureState.issues);
   issues.push(...validateProjectImagesConfiguration(project));
+
+  if (project.meta.compileStructure !== undefined) {
+    issues.push(
+      makeIssue(
+        "error",
+        "metadata",
+        "Legacy 'compileStructure' in stego-project.json is no longer supported. Define build behavior in templates/book.template.tsx instead.",
+        path.relative(repoRoot, path.join(project.root, "stego-project.json"))
+      )
+    );
+  }
 
   if (project.meta.spineCategories !== undefined) {
     issues.push(
@@ -57,17 +63,17 @@ export function inspectProject(
       issues.push(
         makeIssue("error", "structure", `Requested file is outside the project: ${onlyFile}`, null)
       );
-      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
+      return { chapters: [], issues, spineState: emptySpineState };
     }
 
     if (!fs.existsSync(resolvedPath)) {
       issues.push(makeIssue("error", "structure", `Requested file does not exist: ${onlyFile}`, null));
-      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
+      return { chapters: [], issues, spineState: emptySpineState };
     }
 
     if (!fs.statSync(resolvedPath).isFile() || !resolvedPath.endsWith(".md")) {
       issues.push(makeIssue("error", "structure", `Requested file must be a markdown file: ${onlyFile}`, null));
-      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
+      return { chapters: [], issues, spineState: emptySpineState };
     }
 
     const relativeToManuscript = path.relative(project.manuscriptDir, resolvedPath);
@@ -80,14 +86,14 @@ export function inspectProject(
           null
         )
       );
-      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
+      return { chapters: [], issues, spineState: emptySpineState };
     }
 
     chapterFiles = [resolvedPath];
   } else {
     if (!fs.existsSync(project.manuscriptDir)) {
       issues.push(makeIssue("error", "structure", `Missing manuscript directory: ${project.manuscriptDir}`));
-      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
+      return { chapters: [], issues, spineState: emptySpineState };
     }
 
     chapterFiles = fs
@@ -98,7 +104,7 @@ export function inspectProject(
 
     if (chapterFiles.length === 0) {
       issues.push(makeIssue("error", "structure", `No manuscript files found in ${project.manuscriptDir}`));
-      return { chapters: [], issues, spineState: emptySpineState, compileStructureLevels: compileStructureState.levels };
+      return { chapters: [], issues, spineState: emptySpineState };
     }
   }
 
@@ -107,8 +113,7 @@ export function inspectProject(
       chapterPath,
       project,
       requiredMetadataState.requiredMetadata,
-      spineState.categories,
-      compileStructureState.levels
+      spineState.categories
     )
   );
 
@@ -159,8 +164,7 @@ export function inspectProject(
   return {
     chapters,
     issues,
-    spineState,
-    compileStructureLevels: compileStructureState.levels
+    spineState
   };
 }
 
@@ -226,79 +230,6 @@ export function resolveRequiredMetadata(project: ProjectContext): RequiredMetada
   return { requiredMetadata, issues };
 }
 
-export function resolveCompileStructure(project: ProjectContext): CompileStructureResult {
-  const repoRoot = project.workspace.repoRoot;
-  const issues: Issue[] = [];
-  const projectFile = path.relative(repoRoot, path.join(project.root, "stego-project.json"));
-  const raw = project.meta.compileStructure;
-
-  if (raw == null) {
-    return { levels: [], issues };
-  }
-
-  if (!isPlainObject(raw)) {
-    issues.push(makeIssue("error", "metadata", "Project 'compileStructure' must be an object.", projectFile));
-    return { levels: [], issues };
-  }
-
-  const rawLevels = raw.levels;
-  if (!Array.isArray(rawLevels)) {
-    issues.push(makeIssue("error", "metadata", "Project 'compileStructure.levels' must be an array.", projectFile));
-    return { levels: [], issues };
-  }
-
-  const levels: CompileStructureLevel[] = [];
-  const seenKeys = new Set<string>();
-  for (const [index, entry] of rawLevels.entries()) {
-    if (!isPlainObject(entry)) {
-      issues.push(makeIssue("error", "metadata", `Invalid compileStructure level at index ${index}. Expected object.`, projectFile));
-      continue;
-    }
-
-    const key = typeof entry.key === "string" ? entry.key.trim() : "";
-    const label = typeof entry.label === "string" ? entry.label.trim() : "";
-    const titleKeyRaw = typeof entry.titleKey === "string" ? entry.titleKey.trim() : "";
-    const headingTemplateRaw = typeof entry.headingTemplate === "string" ? entry.headingTemplate.trim() : "";
-
-    if (!key || !/^[a-z][a-z0-9_-]*$/.test(key)) {
-      issues.push(makeIssue("error", "metadata", `compileStructure.levels[${index}].key must match /^[a-z][a-z0-9_-]*$/.`, projectFile));
-      continue;
-    }
-    if (!label) {
-      issues.push(makeIssue("error", "metadata", `compileStructure.levels[${index}].label is required.`, projectFile));
-      continue;
-    }
-    if (seenKeys.has(key)) {
-      issues.push(makeIssue("error", "metadata", `Duplicate compileStructure level key '${key}'.`, projectFile));
-      continue;
-    }
-    if (titleKeyRaw && !/^[a-z][a-z0-9_-]*$/.test(titleKeyRaw)) {
-      issues.push(makeIssue("error", "metadata", `compileStructure.levels[${index}].titleKey must match /^[a-z][a-z0-9_-]*$/.`, projectFile));
-      continue;
-    }
-
-    const pageBreakRaw = typeof entry.pageBreak === "string" ? entry.pageBreak.trim() : "between-groups";
-    if (pageBreakRaw !== "none" && pageBreakRaw !== "between-groups") {
-      issues.push(makeIssue("error", "metadata", `compileStructure.levels[${index}].pageBreak must be 'none' or 'between-groups'.`, projectFile));
-      continue;
-    }
-
-    const injectHeading = typeof entry.injectHeading === "boolean" ? entry.injectHeading : true;
-    const headingTemplate = headingTemplateRaw || "{label} {value}: {title}";
-    seenKeys.add(key);
-    levels.push({
-      key,
-      label,
-      titleKey: titleKeyRaw || undefined,
-      injectHeading,
-      headingTemplate,
-      pageBreak: pageBreakRaw
-    });
-  }
-
-  return { levels, issues };
-}
-
 export function issueHasErrors(issues: Issue[]): boolean {
   return issues.some((issue) => issue.level === "error");
 }
@@ -315,8 +246,7 @@ function parseChapter(
   chapterPath: string,
   project: ProjectContext,
   requiredMetadata: string[],
-  spineCategories: SpineCategory[],
-  compileStructureLevels: CompileStructureLevel[]
+  spineCategories: SpineCategory[]
 ): ChapterEntry {
   const repoRoot = project.workspace.repoRoot;
   const runtimeConfig = project.workspace.config;
@@ -349,17 +279,6 @@ function parseChapter(
     chapterIssues.push(makeIssue("error", "metadata", `Invalid file status '${status}'. Allowed: ${runtimeConfig.allowedStatuses.join(", ")}.`, relativePath));
   }
 
-  const groupValues: Record<string, string> = {};
-  for (const level of compileStructureLevels) {
-    const groupValue = normalizeGroupingValue(metadata[level.key], relativePath, chapterIssues, level.key);
-    if (groupValue) {
-      groupValues[level.key] = groupValue;
-    }
-    if (level.titleKey) {
-      void normalizeGroupingValue(metadata[level.titleKey], relativePath, chapterIssues, level.titleKey);
-    }
-  }
-
   const referenceValidation = extractReferenceKeysByCategory(metadata, relativePath, spineCategories);
   chapterIssues.push(...referenceValidation.issues);
   chapterIssues.push(...validateImagesMetadata(metadata, relativePath));
@@ -372,29 +291,11 @@ function parseChapter(
     order,
     status,
     referenceKeysByCategory: referenceValidation.referencesByCategory,
-    groupValues,
     metadata,
     body,
     comments,
     issues: chapterIssues
   };
-}
-
-function normalizeGroupingValue(
-  rawValue: unknown,
-  relativePath: string,
-  issues: Issue[],
-  key: string
-): string | undefined {
-  if (rawValue == null || rawValue === "") {
-    return undefined;
-  }
-  if (Array.isArray(rawValue) || isPlainObject(rawValue)) {
-    issues.push(makeIssue("error", "metadata", `Metadata '${key}' must be a scalar value.`, relativePath));
-    return undefined;
-  }
-  const normalized = String(rawValue).trim();
-  return normalized.length > 0 ? normalized : undefined;
 }
 
 function deriveEntryTitle(rawTitle: unknown, chapterPath: string): string {
@@ -417,8 +318,15 @@ function parseOrderFromFilename(chapterPath: string, relativePath: string, issue
     issues.push(makeIssue("error", "ordering", "Filename must start with a numeric prefix followed by '-' or '_' (for example '100-scene.md').", relativePath));
     return null;
   }
-  if (match[1].length !== 3) {
-    issues.push(makeIssue("warning", "ordering", `Filename prefix '${match[1]}' is valid but non-standard. Use three digits like 100, 200, 300.`, relativePath));
+  if (match[1].length < 3) {
+    issues.push(
+      makeIssue(
+        "warning",
+        "ordering",
+        `Filename prefix '${match[1]}' is valid but non-standard. Prefer zero-padded prefixes like 001, 010, 100 for consistent ordering.`,
+        relativePath
+      )
+    );
   }
   return Number(match[1]);
 }

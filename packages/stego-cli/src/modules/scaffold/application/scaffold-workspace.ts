@@ -4,7 +4,7 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import { CliError } from "../../../../../shared/src/contracts/cli/index.ts";
+import { CliError } from "@stego/shared/contracts/cli";
 import { ROOT_CONFIG_FILENAME } from "../../workspace/index.ts";
 import {
   COMMENT_AUTHOR_PROMPT,
@@ -345,6 +345,12 @@ function writeInitRootPackageJson(targetRoot: string, packageRoot: string): void
   const cliPackagePath = path.join(packageRoot, "package.json");
   const cliPackage = tryReadJsonObject(cliPackagePath) ?? {};
   const cliVersion = typeof cliPackage.version === "string" ? cliPackage.version : "0.1.0";
+  const enginePackagePath = path.resolve(packageRoot, "..", "stego-engine", "package.json");
+  const sharedPackagePath = path.resolve(packageRoot, "..", "shared", "package.json");
+  const enginePackage = tryReadJsonObject(enginePackagePath) ?? {};
+  const sharedPackage = tryReadJsonObject(sharedPackagePath) ?? {};
+  const engineVersion = typeof enginePackage.version === "string" ? enginePackage.version : cliVersion;
+  const sharedVersion = typeof sharedPackage.version === "string" ? sharedPackage.version : cliVersion;
 
   const manifest: Record<string, unknown> = {
     name: path.basename(targetRoot) || "stego-workspace",
@@ -367,7 +373,11 @@ function writeInitRootPackageJson(targetRoot: string, packageRoot: string): void
       export: "stego export"
     },
     devDependencies: {
-      "stego-cli": `^${cliVersion}`,
+      "@stego/cli": `^${cliVersion}`,
+      "@stego/engine": `^${engineVersion}`,
+      "@stego/shared": `^${sharedVersion}`,
+      typescript: "^5.9.3",
+      "@types/node": "^25.2.3",
       cspell: "^9.6.4",
       "markdownlint-cli": "^0.47.0"
     }

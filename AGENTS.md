@@ -124,7 +124,7 @@ For extension code edits:
 
 ## Shared-First Rule (Required)
 
-Before adding new non-UI logic in `stego-cli` or `stego-extension`:
+Before adding new non-UI logic in `@stego/cli` or `stego-extension`:
 
 1. Check `packages/shared/src/**` for existing domain helpers/types to reuse.
 2. If equivalent logic exists (or would exist) in both CLI and extension, move it to `packages/shared/src/domain/<topic>/` and export via that domain `index.ts`.

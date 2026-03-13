@@ -1,7 +1,7 @@
 import type { SidebarCommentListItem, SidebarCommentsState } from '../../shared/types';
 import { getCommentThreadKey } from './commentThreadKey';
 import type { StegoCommentDocumentState, StegoCommentThread } from './commentTypes';
-import type { CommentAddPayload, CommentSyncAnchorsPayload } from '../../../../shared/src/contracts/cli';
+import type { CommentAddPayload, CommentSyncAnchorsPayload } from '@stego/shared/contracts/cli';
 
 export type AddCommentSelection = {
   startLine: number;

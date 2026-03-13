@@ -10,3 +10,4 @@ export const exportModule: ModuleApi = {
 
 export * from "./types.ts";
 export * from "./application/run-export.ts";
+export { createPandocExporter } from "./infra/pandoc-exporter.ts";

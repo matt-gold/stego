@@ -1,0 +1,53 @@
+{
+  "name": "@stego/engine",
+  "version": "0.6.0",
+  "type": "module",
+  "description": "Template-driven document engine for Stego.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matt-gold/stego.git",
+    "directory": "packages/stego-engine"
+  },
+  "homepage": "https://github.com/matt-gold/stego/tree/main/packages/stego-engine#readme",
+  "types": "./dist/stego-engine/src/index.d.ts",
+  "files": [
+    "dist/**",
+    "README.md",
+    "docs/**"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/stego-engine/src/index.d.ts",
+      "default": "./dist/stego-engine/src/index.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/stego-engine/src/template/internal/jsx-runtime.d.ts",
+      "default": "./dist/stego-engine/src/template/internal/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/stego-engine/src/template/internal/jsx-dev-runtime.d.ts",
+      "default": "./dist/stego-engine/src/template/internal/jsx-dev-runtime.js"
+    }
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run -w @stego/shared compile && npm run clean && tsc -p tsconfig.build.json",
+    "compile": "npm run build",
+    "prepack": "npm run build",
+    "pack:dry-run": "npm pack --dry-run",
+    "test": "npm run -w @stego/shared compile && npm run test:engine && npm run check:module-apis && npm run check:boundaries",
+    "test:engine": "node --test tools/test/*.test.mjs",
+    "check:boundaries": "node scripts/check-module-boundaries.mjs",
+    "check:module-apis": "node scripts/check-module-apis.mjs"
+  },
+  "dependencies": {
+    "@stego/shared": "^0.6.0",
+    "esbuild": "^0.25.11",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "typescript": "^5.9.3"
+  }
+}

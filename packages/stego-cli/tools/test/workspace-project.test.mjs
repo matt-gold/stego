@@ -103,10 +103,15 @@ test("new-project creates scaffold and returns JSON envelope", () => {
     const projectRoot = path.join(tempDir, "projects", "my-book");
     assert.equal(fs.existsSync(path.join(projectRoot, "stego-project.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "package.json")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "tsconfig.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "manuscript", "100-hello-world.md")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "templates", "book.template.tsx")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "spine", "characters", "_category.md")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, ".vscode", "extensions.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, ".vscode", "settings.json")), false);
+
+    const projectJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "stego-project.json"), "utf8"));
+    assert.equal("compileStructure" in projectJson, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -155,6 +160,11 @@ test("init scaffolds a workspace in current directory", () => {
     assert.equal(fs.existsSync(path.join(tempDir, "package.json")), true);
     assert.equal(fs.existsSync(path.join(tempDir, "projects")), true);
     assert.equal(fs.existsSync(path.join(tempDir, ".markdownlint.json")), true);
+
+    const packageJson = JSON.parse(fs.readFileSync(path.join(tempDir, "package.json"), "utf8"));
+    assert.equal(typeof packageJson.devDependencies["@stego/engine"], "string");
+    assert.equal(typeof packageJson.devDependencies.typescript, "string");
+    assert.equal(typeof packageJson.devDependencies["@types/node"], "string");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

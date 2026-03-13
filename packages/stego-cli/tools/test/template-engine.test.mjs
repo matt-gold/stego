@@ -1,0 +1,187 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "../..");
+const cliPath = path.join(repoRoot, "tools", "stego-cli.ts");
+
+function runCli(args, options = {}) {
+  return spawnSync("node", ["--experimental-strip-types", cliPath, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ...(options.env || {})
+    }
+  });
+}
+
+function writeFile(filePath, content) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content, "utf8");
+}
+
+function writePng(filePath) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(
+    filePath,
+    Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wn8n4sAAAAASUVORK5CYII=",
+      "base64"
+    )
+  );
+}
+
+function createTempProject(projectId) {
+  const projectRoot = path.join(repoRoot, "projects", projectId);
+  fs.mkdirSync(path.join(projectRoot, "manuscript"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, "spine", "sources"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, "assets", "maps"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, "templates"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, "dist"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, "notes"), { recursive: true });
+
+  writeFile(path.join(projectRoot, "stego-project.json"), `${JSON.stringify({
+    id: projectId,
+    title: "Template Test",
+    subtitle: "Demo subtitle"
+  }, null, 2)}\n`);
+
+  writeFile(path.join(projectRoot, "manuscript", "100-scene.md"), `---
+status: revise
+chapter: 1
+chapter_title: Opening
+---
+
+Hello template world.
+`);
+  writeFile(path.join(projectRoot, "spine", "sources", "_category.md"), "---\nlabel: Sources\n---\n");
+  writeFile(path.join(projectRoot, "spine", "sources", "SRC-ONE.md"), "# Source One\n\nA note.\n");
+  writePng(path.join(projectRoot, "assets", "maps", "city-plan.png"));
+  writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego/engine";
+export default defineTemplate((ctx) => (
+  <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
+    <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
+    <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
+    <Stego.Image src="assets/maps/city-plan.png" alt="Map" width="60%" layout="block" align="center" />
+    {ctx.collections.manuscripts.groupBy("chapter").map((group) => (
+      <Stego.Section role="chapter">
+        <Stego.Heading level={2}>Chapter {group.value}</Stego.Heading>
+        {group.items.map((doc) => <Stego.Markdown source={doc.body} />)}
+      </Stego.Section>
+    ))}
+  </Stego.Document>
+));
+`);
+
+  return projectRoot;
+}
+
+test("template build writes markdown and render-plan artifacts", () => {
+  const projectId = `template-build-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(projectId);
+
+  try {
+    const result = runCli(["template", "build", "--project", projectId]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+
+    const markdownPath = path.join(projectRoot, "dist", `${projectId}.template.md`);
+    const renderPlanPath = path.join(projectRoot, "dist", `${projectId}.template.render-plan.json`);
+    assert.equal(fs.existsSync(markdownPath), true);
+    assert.equal(fs.existsSync(renderPlanPath), true);
+
+    const markdown = fs.readFileSync(markdownPath, "utf8");
+    assert.match(markdown, /Chapter 1/);
+    assert.match(markdown, /Hello template world\./);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test("template build fails with missing template guidance", () => {
+  const projectId = `template-missing-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(projectId);
+  fs.rmSync(path.join(projectRoot, "templates"), { recursive: true, force: true });
+
+  try {
+    const result = runCli(["template", "build", "--project", projectId]);
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(`${result.stdout}\n${result.stderr}`, /templates\/book\.template\.tsx/);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test("template export writes docx and pdf through pandoc stub", () => {
+  const projectId = `template-export-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(projectId);
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-template-pandoc-"));
+  const argsPath = path.join(tempDir, "pandoc-args.txt");
+  const fakePandocPath = path.join(tempDir, "pandoc");
+  const fakePdfEnginePath = path.join(tempDir, "tectonic");
+
+  writeFile(fakePdfEnginePath, "#!/usr/bin/env bash\nexit 0\n");
+  fs.chmodSync(fakePdfEnginePath, 0o755);
+  writeFile(fakePandocPath, `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "pandoc 3.0"
+  exit 0
+fi
+printf '%s\n' "$@" > "${argsPath}"
+out=""
+while [[ "$#" -gt 0 ]]; do
+  if [[ "$1" == "-o" && "$#" -gt 1 ]]; then
+    out="$2"
+    shift 2
+    continue
+  fi
+  shift
+done
+if [[ -n "$out" ]]; then
+  mkdir -p "$(dirname "$out")"
+  : > "$out"
+fi
+`);
+  fs.chmodSync(fakePandocPath, 0o755);
+
+  try {
+    const docx = runCli(["template", "export", "--project", projectId, "--format", "docx"], {
+      env: { PATH: `${tempDir}:${process.env.PATH || ""}` }
+    });
+    assert.equal(docx.status, 0, `${docx.stdout}\n${docx.stderr}`);
+    assert.equal(
+      fs.existsSync(path.join(projectRoot, "dist", "exports", `${projectId}.template.docx`)),
+      true
+    );
+
+    const pdf = runCli(["template", "export", "--project", projectId, "--format", "pdf"], {
+      env: { PATH: `${tempDir}:${process.env.PATH || ""}` }
+    });
+    assert.equal(pdf.status, 0, `${pdf.stdout}\n${pdf.stderr}`);
+
+    const outputPath = path.join(projectRoot, "dist", "exports", `${projectId}.template.pdf`);
+    assert.equal(fs.existsSync(outputPath), true);
+
+    const recordedArgs = fs.readFileSync(argsPath, "utf8").split(/\r?\n/).filter(Boolean);
+    const fromIndex = recordedArgs.findIndex((entry) => entry === "--from");
+    assert.ok(fromIndex >= 0, "Expected --from");
+    assert.equal(recordedArgs[fromIndex + 1], "markdown-implicit_figures");
+    const metadataIndex = recordedArgs.findIndex((entry) => entry === "--metadata-file");
+    assert.ok(metadataIndex >= 0, "Expected --metadata-file");
+    const luaFilters = recordedArgs
+      .flatMap((entry, index) => entry === "--lua-filter" ? [recordedArgs[index + 1]] : [])
+      .filter(Boolean);
+    assert.equal(luaFilters.length >= 2, true, "Expected template export lua filters");
+    assert.ok(luaFilters.some((value) => /filters[\\/]+image-layout\.lua$/.test(value)), "Expected image-layout filter");
+    assert.ok(luaFilters.some((value) => /filters[\\/]+block-layout\.lua$/.test(value)), "Expected block-layout filter");
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

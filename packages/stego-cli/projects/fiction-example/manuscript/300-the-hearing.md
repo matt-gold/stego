@@ -1,5 +1,5 @@
 ---
-status: draft
+status: revise
 chapter: 2
 chapter_title: The Accounting
 pov: Etienne

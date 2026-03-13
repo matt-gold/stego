@@ -28,12 +28,13 @@ export function registerCheckStageCommand(registry: CommandRegistry): void {
       const stage = readStringOption(context.options, "stage") || "draft";
       const requestedFile = readStringOption(context.options, "file");
       const report = runStageCheck(project, stage, requestedFile);
+      const issues = [...report.issues];
 
-      for (const line of formatIssues(report.issues)) {
+      for (const line of formatIssues(issues)) {
         writeText(line);
       }
 
-      if (issueHasErrors(report.issues)) {
+      if (issueHasErrors(issues)) {
         process.exitCode = 1;
         return;
       }

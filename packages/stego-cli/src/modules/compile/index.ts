@@ -7,6 +7,3 @@ export const compileModule: ModuleApi = {
     registerBuildCommand(registry);
   }
 };
-
-export * from "./types.ts";
-export * from "./application/compile-manuscript.ts";

@@ -4,10 +4,10 @@
     "noEmit": false,
     "outDir": "./dist",
     "rootDir": "..",
+    "paths": {},
     "rewriteRelativeImportExtensions": true
   },
   "include": [
-    "src/**/*.ts",
-    "../shared/src/**/*.ts"
+    "src/**/*.ts"
   ]
 }

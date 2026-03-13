@@ -1,12 +1,12 @@
-# Stego - VSCode Extension for `stego-cli`
+# Stego - VS Code Extension for `@stego/cli`
 
 <div align="center">
   <img src="assets/stego.png" alt="Stego logo" width="128" />
 </div>
 
-[`stego-cli`](https://github.com/matt-gold/stego/tree/main/packages/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
+[`@stego/cli`](https://github.com/matt-gold/stego/tree/main/packages/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
 
-This extension provides the native UX for stego projects:
+This extension provides the native UX for Stego projects:
 
 - A project-aware sidebar with document, spine, and manuscript-level scope.
 - End-to-end UI workflows for Commenting and metadata maintenance.
@@ -21,28 +21,26 @@ I created Stego with my own needs in mind. As a software developer by trade, I w
 
 - **Spine**: Your project reference system (characters, locations, sources, etc.)
   - This idea is sometimes called a "Story Bible" in fiction-oriented apps, but Stego Spine works equally well for glossaries, academic reference tracking, etc.   
-- **Manuscript**: Your manuscript consists of all the collection of markdown files in your `/manuscript` directory. A manuscript file usually containing a single scene or section. These get compiled together by the build and can export to multiple doc formats. File system order determines the order these get appended in compilation, so it is recommended to follow the convention `###-scene-name.md` to allow easy reordering.
+- **Manuscript**: Your manuscript is the ordered set of Markdown files in `manuscript/`. A manuscript file usually holds one scene or section. File-system order is derived from the numeric filename prefix, so names like `100-scene-name.md` and `1200-appendix.md` are both valid.
 - **Identifier**: A unique string used for inline references and comments where applicable (for example `CMT-0001`).
-- **Structural Metadata**: special metadata keys that tell the compiler how to append manuscript files during the build. For example, to control how chapter headings and page breaks get inserted in the exported manuscript.
-- **Project**: A directory with a `stego-project.json` and `/manuscripts` that can be compiled and result in one document. Vscode should be opened at the project directory when using stego extension.
+- **Template**: Build structure lives in `templates/book.template.tsx`, powered by `@stego/engine`. Templates decide how manuscript and spine records become compiled output.
+- **Project**: A directory with a `stego-project.json`, `manuscript/`, and usually `templates/`. VS Code should be opened at the project directory when using the Stego extension.
 - **Workspace**: The Stego workspace contains all stego projects and global configuration shared by projects. This provides a monorepo-like workflow to your stego projects when combined with git.
 
 ## Project Setup
 
-Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Use the stego-cli to scaffold a new stego workspace in an empty directory with `npm i -g stego`, then `stego init`.
+Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Use `@stego/cli` to scaffold a new stego workspace in an empty directory with `npm i -g @stego/cli`, then `stego init`.
 
 
 ### Supported `stego-project.json` fields (current)
 
 - `title` or `name`
 - `requiredMetadata` (array of frontmatter keys)
-- `compileStructure.levels[]`
-  - `key`
-  - `label`
-  - `titleKey` (optional)
-  - `headingTemplate` (optional, defaults to `{label} {value}: {title}`)
+- `images`
 
 Stego validates this file and reports non-fatal problems.
+
+Build structure is not configured in `stego-project.json`. It lives in `templates/book.template.tsx`.
 
 ## Spine Entry Discovery
 
@@ -60,7 +58,7 @@ The VS Code extension UI delegates build/validate actions to scripts in the near
 
 This is intentional: Stego keeps the sidebar UX and command wiring in the extension, while each project owns the exact workflow (for example custom Pandoc flags, pre/post processing, or other project-specific steps).
 
-In most projects, these scripts are thin wrappers around `stego-cli` commands.
+In most projects, these scripts are thin wrappers around `@stego/cli` commands.
 
 ### Preferred scripts by action
 
@@ -85,7 +83,7 @@ In most projects, these scripts are thin wrappers around `stego-cli` commands.
 
 The extension invokes these scripts with `npm run ...` and passes arguments where relevant.
 
-If a script is missing, the extension falls back to direct `stego` CLI commands when `stego-cli` is available in your PATH (or via `npx --no-install stego`):
+If a script is missing, the extension falls back to direct `stego` CLI commands when `@stego/cli` is available in your PATH (or via `npx --no-install stego`):
 
 - `new` creates a manuscript file (same as `stego new`)
 - `check-stage` receives `--stage ...`
@@ -93,7 +91,7 @@ If a script is missing, the extension falls back to direct `stego` CLI commands 
 - `validate` receives `--file ...`
 - `Validate Current File` also runs `check-stage -- --stage <status> --file <relative-path>` after `validate`
 
-If you need custom behavior, wrap `stego-cli` in your own scripts and keep these script names (`new`, `build`, `export`, `check-stage`, `validate`) so the extension can call them directly.
+If you need custom behavior, wrap `@stego/cli` in your own scripts and keep these script names (`new`, `build`, `export`, `check-stage`, `validate`) so the extension can call them directly.
 
 ## Comments
 
@@ -108,6 +106,8 @@ The extension is organized as feature modules under `src/features/*`. The sideba
 
 - `src/features/sidebar/core/`
   - sidebar provider orchestration, refresh loop, command routing, and state integration
+- `src/features/sidebar/protocol/`
+  - typed host/webview message contracts and runtime payload guards
 - `src/features/sidebar/tabs/document/`
   - document-tab TOC, metadata/reference projection, and document-tab state builders
 - `src/features/sidebar/tabs/spine/`
@@ -115,7 +115,9 @@ The extension is organized as feature modules under `src/features/*`. The sideba
 - `src/features/sidebar/tabs/overview/`
   - overview/manuscript metrics and stage-sorting helpers
 - `src/features/sidebar/webview/`
-  - HTML rendering and webview-focused render helpers
+  - host-side webview shell HTML, asset URI wiring, and `SidebarState -> SidebarWebviewState` adaptation
+- `webview/sidebar/src/`
+  - SolidJS sidebar app modules (`document`, `spine`, `overview`) and webview bridge logic
 
 Other first-class modules:
 
@@ -138,9 +140,18 @@ npm test
 npm run package
 ```
 
+Useful extension-local commands:
+
+```bash
+npm run -w packages/stego-extension compile:host
+npm run -w packages/stego-extension compile:webview
+npm run -w packages/stego-extension test:pure
+npm run -w packages/stego-extension test:webview
+```
+
 To debug in VS Code:
 
-1. Open this repo (`stego-extension`)
+1. Open this repo (`stego`)
 2. Press `F5` to launch an Extension Development Host
 
 ## Release Workflow (Changesets + GitHub Actions)

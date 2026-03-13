@@ -1,15 +1,17 @@
 # Stego CLI
 
-`stego-cli` is an installable CLI for the Stego writing workflow.
+`@stego/cli` is an installable CLI for the Stego writing workflow.
 
 It scaffolds a Stego workspace, validates manuscript structure and metadata, runs stage-aware quality gates, builds compiled markdown outputs, and exports release formats.
 
-This repository is the source for the CLI and the template/example projects that `stego init` scaffolds.
+Builds are template-driven through `templates/book.template.tsx`, powered by `@stego/engine`.
+
+This repository is the source for the CLI and the example projects that `stego init` scaffolds.
 
 ## Quick start (install + init)
 
 ```bash
-npm install -g stego-cli
+npm install -g @stego/cli
 
 mkdir my-stego-workspace
 cd my-stego-workspace
@@ -20,6 +22,7 @@ stego list-projects
 stego validate -p fiction-example
 stego build -p fiction-example
 stego new -p fiction-example
+stego template build -p fiction-example
 ```
 
 `stego init` scaffolds two example projects:
@@ -34,7 +37,7 @@ For day-to-day editing, open a project folder in VS Code (for example `projects/
 The full user documentation lives in the `stego-docs` project.
 
 - In a scaffolded workspace: `projects/stego-docs`
-- In this source repo: `projects/stego-docs`
+- In this source repo: `packages/stego-cli/projects/stego-docs`
 
 Start by reading the manuscript files in order, or build the docs project:
 
@@ -69,6 +72,30 @@ stego metadata read projects/fiction-example/manuscript/100-the-commission.md --
 All project-scoped commands accept `-p` as shorthand for `--project`.
 
 `stego new` also supports `--i <prefix>` for numeric prefix override and `--filename <name>` for an explicit manuscript filename.
+
+## Template engine
+
+Stego builds and exports through TSX-based book templates.
+
+Templates live at:
+
+- `projects/<project-id>/templates/book.template.tsx`
+
+Template-specific inspection commands:
+
+```bash
+stego template build -p fiction-example
+stego template export -p fiction-example --format pdf
+stego template export -p fiction-example --format docx
+```
+
+Current behavior:
+
+- templates are plain TSX using normal JavaScript control flow
+- templates import `defineTemplate` and `Stego` from `@stego/engine`
+- the engine compiles project content into Stego IR and lowers it into a Pandoc-oriented render plan
+- template export supports `md`, `docx`, `pdf`, and `epub`
+- `dist/<project-id>.template.md` and `dist/<project-id>.template.render-plan.json` are written for inspection during `template build`
 
 Spine V2 is directory-inferred:
 
@@ -143,6 +170,8 @@ build --project|-p <project-id> [--root <path>]
 check-stage --project|-p <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]
 lint --project|-p <project-id> [--manuscript|--spine] [--root <path>]
 export --project|-p <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]
+template build --project|-p <project-id> [--template <path>] [--root <path>]
+template export --project|-p <project-id> --format <md|docx|pdf|epub> [--template <path>] [--output <path>] [--root <path>]
 spine read --project|-p <project-id> [--format <text|json>] [--root <path>]
 spine new-category --project|-p <project-id> --key <category> [--label <label>] [--require-metadata] [--format <text|json>] [--root <path>]
 spine new --project|-p <project-id> --category <category> [--filename <relative-path>] [--format <text|json>] [--root <path>]
@@ -175,7 +204,7 @@ When actively working on one project, open that project directory directly in VS
 
 The Stego VS Code extension is the official UI for Stego projects, and opening a single project keeps its UI context and Spine Browser focused. Project folders also include extension recommendations.
 
-## Develop `stego-cli` (this repo)
+## Develop `@stego/cli` (this repo)
 
 ```bash
 npm install

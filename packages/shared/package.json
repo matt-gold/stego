@@ -1,9 +1,84 @@
 {
   "name": "@stego/shared",
-  "private": true,
+  "version": "0.6.0",
   "type": "module",
+  "description": "Shared contracts and domain primitives for Stego packages.",
+  "license": "Apache-2.0",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matt-gold/stego.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/matt-gold/stego/tree/main/packages/shared#readme",
+  "files": [
+    "dist/**",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./contracts/cli": {
+      "types": "./dist/contracts/cli/index.d.ts",
+      "default": "./dist/contracts/cli/index.js"
+    },
+    "./domain/comments": {
+      "types": "./dist/domain/comments/index.d.ts",
+      "default": "./dist/domain/comments/index.js"
+    },
+    "./domain/frontmatter": {
+      "types": "./dist/domain/frontmatter/index.d.ts",
+      "default": "./dist/domain/frontmatter/index.js"
+    },
+    "./domain/images": {
+      "types": "./dist/domain/images/index.d.ts",
+      "default": "./dist/domain/images/index.js"
+    },
+    "./domain/project": {
+      "types": "./dist/domain/project/index.d.ts",
+      "default": "./dist/domain/project/index.js"
+    },
+    "./domain/stages": {
+      "types": "./dist/domain/stages/index.d.ts",
+      "default": "./dist/domain/stages/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "default": "./dist/utils/index.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "contracts/cli": [
+        "dist/contracts/cli/index.d.ts"
+      ],
+      "domain/comments": [
+        "dist/domain/comments/index.d.ts"
+      ],
+      "domain/frontmatter": [
+        "dist/domain/frontmatter/index.d.ts"
+      ],
+      "domain/images": [
+        "dist/domain/images/index.d.ts"
+      ],
+      "domain/project": [
+        "dist/domain/project/index.d.ts"
+      ],
+      "domain/stages": [
+        "dist/domain/stages/index.d.ts"
+      ],
+      "utils": [
+        "dist/utils/index.d.ts"
+      ]
+    }
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "compile": "npm run build"
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "compile": "npm run build",
+    "prepack": "npm run build",
+    "pack:dry-run": "npm pack --dry-run"
   }
 }

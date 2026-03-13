@@ -11,8 +11,8 @@ test('renderMarkdownForExplorer rewrites image src using resolver', () => {
   assert.match(html, /<img[^>]+src="resolved:\/\/\/tmp\/project\/spine\/characters\/example\.md\/\.\.\/assets\/maps\/city\.png"/);
 });
 
-test('renderMarkdownForExplorer supports legacy basePath argument', () => {
-  const html = renderMarkdownForExplorer('Body text', '/tmp/project/spine/characters/example.md');
+test('renderMarkdownForExplorer adds base-path data attribute when provided', () => {
+  const html = renderMarkdownForExplorer('Body text', { basePath: '/tmp/project/spine/characters/example.md' });
 
   assert.match(html, /data-base-path="\/tmp\/project\/spine\/characters\/example\.md"/);
 });

@@ -25,11 +25,12 @@ export function registerValidateCommand(registry: CommandRegistry): void {
       });
 
       const report = inspectProject(project, { onlyFile: readStringOption(context.options, "file") });
-      for (const line of formatIssues(report.issues)) {
+      const issues = [...report.issues];
+      for (const line of formatIssues(issues)) {
         writeText(line);
       }
 
-      if (issueHasErrors(report.issues)) {
+      if (issueHasErrors(issues)) {
         process.exitCode = 1;
         return;
       }

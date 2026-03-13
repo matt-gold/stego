@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { pickToastDetails, resolveStegoCommandInvocation, runCommand } from '../commands';
-import type { MetadataApplyEnvelope, MetadataApplyPayload } from '../../../../shared/src/contracts/cli';
+import type { MetadataApplyEnvelope, MetadataApplyPayload } from '@stego/shared/contracts/cli';
 import { extractCliErrorMessage, tryParseJson } from '../../shared/cli/json';
 import { withJsonPayloadFile } from '../../shared/cli/payload-file';
 
@@ -24,7 +24,7 @@ export class MetadataCliClient {
         { showWarning: options?.showWarning }
       );
       if (!invocation) {
-        return { warning: this.reportWarning('Could not edit metadata because stego-cli is unavailable.', options) };
+        return { warning: this.reportWarning('Could not edit metadata because @stego/cli is unavailable.', options) };
       }
 
       let result;
@@ -51,7 +51,7 @@ export class MetadataCliClient {
       const parsed = tryParseJson<MetadataApplyEnvelope>(result.stdout);
       if (!parsed || parsed.ok !== true || parsed.operation !== 'apply' || !parsed.state) {
         return {
-          warning: this.reportWarning('Could not edit metadata: stego-cli returned an unexpected response.', options)
+          warning: this.reportWarning('Could not edit metadata: @stego/cli returned an unexpected response.', options)
         };
       }
 

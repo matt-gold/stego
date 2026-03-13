@@ -8,7 +8,11 @@ export type RunExportInput = {
   project: ProjectContext;
   format: string;
   inputPath: string;
+  inputFormat?: string;
   explicitOutputPath?: string;
+  resourcePaths?: string[];
+  requiredFilters?: string[];
+  extraArgs?: string[];
 };
 
 export type RunExportResult = {

@@ -17,7 +17,13 @@
       "@cli/*": [
         "src/*"
       ],
-      "@shared/*": [
+      "@engine/*": [
+        "../stego-engine/src/*"
+      ],
+      "@stego/shared": [
+        "../shared/src/index.ts"
+      ],
+      "@stego/shared/*": [
         "../shared/src/*"
       ]
     }
@@ -25,6 +31,8 @@
   "include": [
     "src/**/*.ts",
     "tools/stego-cli.ts",
+    "../stego-engine/src/**/*.ts",
+    "../stego-engine/src/**/*.tsx",
     "../shared/src/**/*.ts"
   ]
 }

@@ -34,8 +34,21 @@ function createTempProject(projectId, projectJson, manuscriptFiles = [], extraFi
   fs.mkdirSync(path.join(projectRoot, "notes"), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, "assets"), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, "dist"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, "templates"), { recursive: true });
 
   writeFile(path.join(projectRoot, "stego-project.json"), `${JSON.stringify(projectJson, null, 2)}\n`);
+  writeFile(
+    path.join(projectRoot, "templates", "book.template.tsx"),
+    `import { defineTemplate, Stego } from "@stego/engine";
+export default defineTemplate((ctx) => (
+  <Stego.Document>
+    {ctx.collections.manuscripts.map((doc) => (
+      <Stego.Markdown source={doc.body} />
+    ))}
+  </Stego.Document>
+));
+`
+  );
 
   for (const [name, content] of manuscriptFiles) {
     writeFile(path.join(projectRoot, "manuscript", name), content);

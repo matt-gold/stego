@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { CliError } from "../../../../../shared/src/contracts/cli/index.ts";
-import { isValidProjectId } from "../../../../../shared/src/domain/project/index.ts";
+import { CliError } from "@stego/shared/contracts/cli";
+import { isValidProjectId } from "@stego/shared/domain/project";
 import type { CreateProjectInput, CreateProjectResult } from "../types.ts";
 import { ensureDirectory, pathExists, writeTextFile } from "../infra/project-repo.ts";
 
@@ -43,12 +43,14 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
   const notesDir = path.join(projectRoot, input.workspace.config.notesDir);
   const assetsDir = path.join(projectRoot, "assets");
   const distDir = path.join(projectRoot, input.workspace.config.distDir);
+  const templatesDir = path.join(projectRoot, "templates");
 
   ensureDirectory(manuscriptDir);
   ensureDirectory(spineDir);
   ensureDirectory(notesDir);
   ensureDirectory(assetsDir);
   ensureDirectory(distDir);
+  ensureDirectory(templatesDir);
 
   const projectJsonPath = path.join(projectRoot, "stego-project.json");
   writeTextFile(
@@ -57,19 +59,7 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
       {
         id: projectId,
         title: input.title?.trim() || toDisplayTitle(projectId),
-        requiredMetadata: ["status"],
-        compileStructure: {
-          levels: [
-            {
-              key: "chapter",
-              label: "Chapter",
-              titleKey: "chapter_title",
-              injectHeading: true,
-              headingTemplate: "{label} {value}: {title}",
-              pageBreak: "between-groups"
-            }
-          ]
-        }
+        requiredMetadata: ["status"]
       },
       null,
       2
@@ -91,8 +81,33 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
           validate: "npx --no-install stego validate",
           build: "npx --no-install stego build",
           "check-stage": "npx --no-install stego check-stage",
-          export: "npx --no-install stego export"
+          export: "npx --no-install stego export",
+          typecheck: "tsc -p tsconfig.json --noEmit"
         }
+      },
+      null,
+      2
+    )}\n`
+  );
+
+  const projectTsconfigPath = path.join(projectRoot, "tsconfig.json");
+  writeTextFile(
+    projectTsconfigPath,
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          target: "ES2022",
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          strict: true,
+          noEmit: true,
+          allowImportingTsExtensions: true,
+          types: ["node"],
+          jsx: "react-jsx",
+          jsxImportSource: "@stego/engine",
+          skipLibCheck: true
+        },
+        include: ["templates/**/*.tsx"]
       },
       null,
       2
@@ -111,6 +126,87 @@ chapter_title: Hello World
 # Hello World
 
 Start writing here.
+`
+  );
+
+  const starterTemplatePath = path.join(templatesDir, "book.template.tsx");
+  writeTextFile(
+    starterTemplatePath,
+    `import { defineTemplate, Stego } from "@stego/engine";
+
+export default defineTemplate((ctx) => {
+  const generatedAt = new Date().toISOString();
+  const chapterGroups = ctx.collections.manuscripts.splitBy("chapter");
+  const tocEntries = chapterGroups
+    .filter(hasTitledBoundary)
+    .map((group) => {
+      const heading = formatChapterHeading(group.value, group.first.metadata.chapter_title);
+      return \`- [\${heading}](#\${slugify(heading)})\`;
+    });
+
+  return (
+    <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
+      <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
+
+      <Stego.Markdown source={\`<!-- generated: \${generatedAt} -->\`} />
+      <Stego.Heading level={1}>
+        {String(ctx.project.metadata.title ?? ctx.project.id)}
+      </Stego.Heading>
+
+      {ctx.project.metadata.subtitle ? (
+        <Stego.Paragraph spaceAfter={18}>
+          {String(ctx.project.metadata.subtitle)}
+        </Stego.Paragraph>
+      ) : null}
+
+      {ctx.project.metadata.author ? (
+        <Stego.Paragraph spaceAfter={24}>
+          {String(ctx.project.metadata.author)}
+        </Stego.Paragraph>
+      ) : null}
+
+      <Stego.Markdown source={\`Generated: \${generatedAt}\`} />
+      <Stego.Heading level={2}>Table of Contents</Stego.Heading>
+      {tocEntries.length > 0 ? <Stego.Markdown source={tocEntries.join("\\n")} /> : null}
+
+      {chapterGroups.map((group, index) => (
+        <Stego.Section role="chapter" id={group.value ? \`chapter-\${group.value}\` : undefined}>
+          {group.value && index > 0 ? <Stego.PageBreak /> : null}
+          {group.value ? (
+            <Stego.Heading level={2} spaceBefore={48} spaceAfter={24}>
+              {formatChapterHeading(group.value, group.first.metadata.chapter_title)}
+            </Stego.Heading>
+          ) : null}
+          {group.items.map((doc) => (
+            <>
+              <Stego.Markdown
+                source={\`<!-- source: \${doc.relativePath} | order: \${doc.order} | status: \${String(doc.metadata.status ?? "")} -->\`}
+              />
+              <Stego.Markdown source={doc.body} />
+            </>
+          ))}
+        </Stego.Section>
+      ))}
+    </Stego.Document>
+  );
+});
+
+function formatChapterHeading(value: string, rawTitle: unknown): string {
+  const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
+  return title ? \`Chapter \${value}: \${title}\` : \`Chapter \${value}\`;
+}
+
+function hasTitledBoundary<T extends { value?: string }>(group: T): group is T & { value: string } {
+  return typeof group.value === "string" && group.value.trim().length > 0;
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\\s-]/g, "")
+    .trim()
+    .replace(/\\s+/g, "-");
+}
 `
   );
 
@@ -185,7 +281,9 @@ Global defaults belong in \`stego-project.json\` under \`images\`.
     files: [
       path.relative(input.workspace.repoRoot, projectJsonPath),
       path.relative(input.workspace.repoRoot, projectPackagePath),
+      path.relative(input.workspace.repoRoot, projectTsconfigPath),
       path.relative(input.workspace.repoRoot, starterManuscriptPath),
+      path.relative(input.workspace.repoRoot, starterTemplatePath),
       path.relative(input.workspace.repoRoot, charactersCategoryPath),
       path.relative(input.workspace.repoRoot, charactersEntryPath),
       path.relative(input.workspace.repoRoot, assetsReadmePath),

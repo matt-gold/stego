@@ -1,23 +1,11 @@
 {
   "id": "stego-docs",
   "title": "Stego Docs",
-  "subtitle": "Canonical documentation project for stego-cli and the Stego writing workflow",
+  "subtitle": "Canonical documentation project for @stego/cli, @stego/engine, and the Stego writing workflow",
   "author": "Matt Gold",
   "requiredMetadata": [
     "status",
     "chapter",
     "concepts"
-  ],
-  "compileStructure": {
-    "levels": [
-      {
-        "key": "chapter",
-        "label": "Chapter",
-        "titleKey": "chapter_title",
-        "injectHeading": true,
-        "headingTemplate": "{label} {value}: {title}",
-        "pageBreak": "between-groups"
-      }
-    ]
-  }
+  ]
 }

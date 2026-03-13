@@ -65,16 +65,21 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
 
       return { ok: true };
     },
-    run({ inputPath, outputPath, cwd, resourcePaths }) {
+    run({ inputPath, outputPath, cwd, inputFormat, resourcePaths, requiredFilters, extraArgs }) {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true });
       const args = [inputPath, "-o", outputPath];
-      const imageLayoutFilter = resolveBundledFile(path.join("filters", "image-layout.lua"));
-      if (imageLayoutFilter) {
-        args.push("--lua-filter", imageLayoutFilter);
+      if (inputFormat) {
+        args.push("--from", inputFormat);
       }
-      const imageLayoutStylesheet = resolveBundledFile(path.join("filters", "image-layout.css"));
-      if (format === "epub" && imageLayoutStylesheet) {
-        args.push("--css", imageLayoutStylesheet);
+      for (const filterId of resolveRequiredFilters(requiredFilters)) {
+        const luaFilter = resolveBundledFile(path.join("filters", `${filterId}.lua`));
+        if (luaFilter) {
+          args.push("--lua-filter", luaFilter);
+        }
+        const stylesheet = resolveBundledFile(path.join("filters", `${filterId}.css`));
+        if (format === "epub" && stylesheet) {
+          args.push("--css", stylesheet);
+        }
       }
       if (resourcePaths && resourcePaths.length > 0) {
         args.push(`--resource-path=${resourcePaths.join(path.delimiter)}`);
@@ -85,6 +90,9 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
           throw new Error(getMissingPdfEngineReason());
         }
         args.push(`--pdf-engine=${engine}`);
+      }
+      if (extraArgs && extraArgs.length > 0) {
+        args.push(...extraArgs);
       }
 
       const result = spawnSync("pandoc", args, {
@@ -102,4 +110,9 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
       return { outputPath };
     }
   };
+}
+
+function resolveRequiredFilters(requiredFilters: string[] | undefined): string[] {
+  const resolved = requiredFilters && requiredFilters.length > 0 ? requiredFilters : ["image-layout"];
+  return Array.from(new Set(resolved));
 }

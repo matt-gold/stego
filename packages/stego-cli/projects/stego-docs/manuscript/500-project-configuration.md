@@ -6,12 +6,13 @@ concepts:
   - CON-WORKSPACE
   - CON-PROJECT
   - CON-METADATA
-  - CON-COMPILE-STRUCTURE
+  - CON-TEMPLATE-ENGINE
   - CON-SPINE
   - CON-SPINE-CATEGORY
 commands:
   - CMD-VALIDATE
   - CMD-BUILD
+  - CMD-TEMPLATE-BUILD
 workflows:
   - FLOW-NEW-PROJECT
   - FLOW-DAILY-WRITING
@@ -19,11 +20,13 @@ configuration:
   - CFG-STEGO-CONFIG
   - CFG-STEGO-PROJECT
   - CFG-REQUIRED-METADATA
-  - CFG-COMPILE-STRUCTURE
-  - CFG-COMPILE-LEVELS
+  - CFG-TEMPLATES
+  - CFG-TEMPLATE-COLLECTIONS
   - CFG-SPINE-CATEGORIES
   - CFG-STAGE-POLICIES
   - CFG-ALLOWED-STATUSES
+integrations:
+  - INT-STEGO-ENGINE
 ---
 
 # Project Configuration
@@ -39,7 +42,7 @@ Projects can declare advisory metadata keys in `requiredMetadata`.
 
 Stego reports missing keys as warnings so teams can standardize frontmatter without blocking early drafting.
 
-Common keys include `status`, grouping fields such as `chapter`, and project-specific metadata such as point of view or timeline.
+Common keys include `status`, ordered boundary fields such as `chapter`, and project-specific metadata such as point of view, timeline, or reference identifiers.
 
 ## Manuscript image settings
 
@@ -70,21 +73,21 @@ images:
 
 Global keys are `width`, `height`, `classes`, `id`, `attrs`, `layout`, and `align`, but those defaults should be set in project config.
 
-All manuscript-frontmatter keys under `images` are treated as per-image overrides by project-relative asset path.
-
-`layout` and `align` are emitted in compiled markdown as `data-layout` and `data-align` image attrs.
+All manuscript-frontmatter keys under `images` that are not reserved defaults are treated as per-image overrides by project-relative asset path.
 
 When the same image also has inline Pandoc attrs in markdown, inline attrs win.
 
 Validation warns if a local image target is outside `assets/`.
 
-## Compile structure
+## Templates
 
-Projects can define `compileStructure.levels` to group manuscript files during build.
+Build structure now lives in `templates/book.template.tsx`.
 
-This is how Stego inserts structural headings and optional page breaks while still letting authors keep source files small and file-first.
+Templates are plain TSX modules powered by `@stego/engine`. They receive project metadata plus generic collections for manuscripts, spine entries, and spine categories.
 
-Grouping metadata can be repeated at boundaries only, because Stego inherits missing group values and titles from earlier files in order.
+Use template code to group manuscripts, insert headings, control page breaks, and render frontmatter or backmatter. Ordered grouping is typically done with `ctx.collections.manuscripts.splitBy(...)`, which preserves file order and lets boundary-only metadata flow across subsequent files.
+
+Use `groupBy(...)` when you want bucketed summaries that ignore file-order boundaries.
 
 ## Spine categories
 

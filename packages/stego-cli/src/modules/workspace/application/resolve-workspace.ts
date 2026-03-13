@@ -1,5 +1,5 @@
 import path from "node:path";
-import { CliError } from "../../../../../shared/src/contracts/cli/index.ts";
+import { CliError } from "@stego/shared/contracts/cli";
 import { ROOT_CONFIG_FILENAME, type WorkspaceConfig, type WorkspaceContext } from "../types.ts";
 import { findNearestFileUpward, isDirectory, pathExists, readJsonFile } from "../infra/workspace-repo.ts";
 

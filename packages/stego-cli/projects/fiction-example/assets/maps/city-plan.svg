@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240">
+  <rect width="400" height="240" fill="#f7f0df"/>
+  <rect x="24" y="24" width="352" height="192" rx="8" fill="#efe4c8" stroke="#6f5b42" stroke-width="3"/>
+  <path d="M70 60 L330 60" stroke="#6f5b42" stroke-width="6"/>
+  <path d="M70 120 L330 120" stroke="#6f5b42" stroke-width="4"/>
+  <path d="M120 40 L120 200" stroke="#6f5b42" stroke-width="5"/>
+  <path d="M220 40 L220 200" stroke="#6f5b42" stroke-width="5"/>
+  <circle cx="285" cy="155" r="22" fill="#c86b4a" stroke="#6f5b42" stroke-width="3"/>
+  <text x="40" y="210" font-family="Georgia, serif" font-size="20" fill="#3a2f25">Paris plague routes</text>
+</svg>

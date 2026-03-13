@@ -3,6 +3,7 @@
 .github/**
 .changeset/**
 src/**
+webview/**
 out/test/**
 examples/**
 **/*.ts
