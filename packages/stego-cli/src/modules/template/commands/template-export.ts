@@ -17,6 +17,7 @@ export function registerTemplateExportCommand(registry: CommandRegistry): void {
       { flags: "--root <path>", description: "Workspace root path" }
     ],
     action: async (context) => {
+      const format = normalizeTemplateExportFormat(readStringOption(context.options, "format"));
       const project = resolveProjectContext({
         workspace: resolveWorkspaceContext({
           cwd: context.cwd,
@@ -30,9 +31,9 @@ export function registerTemplateExportCommand(registry: CommandRegistry): void {
       const result = await exportTemplateProject({
         project,
         templatePath: readStringOption(context.options, "template"),
-        format: readStringOption(context.options, "format") || "pdf",
+        format,
         explicitOutputPath: readStringOption(context.options, "output")
-          || path.join(project.distDir, "exports", `${project.id}.template.${readStringOption(context.options, "format") || "pdf"}`)
+          || path.join(project.distDir, "exports", `${project.id}.template.${format}`)
       });
 
       writeText(`Template build markdown: ${result.markdownPath}`);
@@ -40,6 +41,10 @@ export function registerTemplateExportCommand(registry: CommandRegistry): void {
       writeText(`Template export output: ${result.outputPath}`);
     }
   });
+}
+
+function normalizeTemplateExportFormat(value: string | undefined): string {
+  return (value || "pdf").trim().toLowerCase();
 }
 
 function readStringOption(options: Record<string, unknown>, key: string): string | undefined {

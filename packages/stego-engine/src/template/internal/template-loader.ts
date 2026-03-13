@@ -22,27 +22,34 @@ export async function loadTemplateFromFile(templatePath: string): Promise<Loaded
   const jsxRuntimeEntry = resolveSourceOrBuiltModule(path.join(sourceRoot, "template/internal/jsx-runtime"));
   const jsxDevRuntimeEntry = resolveSourceOrBuiltModule(path.join(sourceRoot, "template/internal/jsx-dev-runtime"));
 
-  await build({
-    entryPoints: [templatePath],
-    outfile,
-    bundle: true,
-    format: "esm",
-    platform: "node",
-    sourcemap: "inline",
-    jsx: "automatic",
-    jsxImportSource: "@stego/engine",
-    alias: {
-      "@stego/engine": authoringEntry,
-      "@stego/engine/jsx-runtime": jsxRuntimeEntry,
-      "@stego/engine/jsx-dev-runtime": jsxDevRuntimeEntry
-    }
-  });
+  const cleanup = () => fs.rmSync(tempDir, { recursive: true, force: true });
 
-  const imported = await import(pathToFileURL(outfile).href);
-  return {
-    template: assertTemplateModule(imported.default),
-    cleanup: () => fs.rmSync(tempDir, { recursive: true, force: true })
-  };
+  try {
+    await build({
+      entryPoints: [templatePath],
+      outfile,
+      bundle: true,
+      format: "esm",
+      platform: "node",
+      sourcemap: "inline",
+      jsx: "automatic",
+      jsxImportSource: "@stego/engine",
+      alias: {
+        "@stego/engine": authoringEntry,
+        "@stego/engine/jsx-runtime": jsxRuntimeEntry,
+        "@stego/engine/jsx-dev-runtime": jsxDevRuntimeEntry
+      }
+    });
+
+    const imported = await import(pathToFileURL(outfile).href);
+    return {
+      template: assertTemplateModule(imported.default),
+      cleanup
+    };
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
 }
 
 function resolveSourceOrBuiltModule(...candidatesWithoutExtension: string[]): string {
