@@ -1,5 +1,11 @@
 # @stego-labs/shared
 
+## 1.0.1
+
+### Patch Changes
+
+- 2930e2f: Rename the publishable Stego package family from `@stego/*` to `@stego-labs/*` and update CI, release automation, docs, scaffolds, and workspace dependencies to use the new scope.
+
 ## 1.0.0
 
 ### Minor Changes
