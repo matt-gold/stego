@@ -1,4 +1,4 @@
-import { CliError } from "@stego/shared/contracts/cli";
+import { CliError } from "@stego-labs/shared/contracts/cli";
 import {
   normalizeFrontmatterRecord,
   parseMarkdownDocument,

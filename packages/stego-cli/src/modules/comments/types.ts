@@ -1,7 +1,7 @@
 import type {
   CommentsSubcommand,
   CommentsSuccessEnvelope
-} from "@stego/shared/contracts/cli";
+} from "@stego-labs/shared/contracts/cli";
 
 export type { CommentsSubcommand, CommentsSuccessEnvelope };
 

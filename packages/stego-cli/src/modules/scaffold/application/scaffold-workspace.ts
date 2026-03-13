@@ -4,7 +4,7 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import { CliError } from "@stego/shared/contracts/cli";
+import { CliError } from "@stego-labs/shared/contracts/cli";
 import { ROOT_CONFIG_FILENAME } from "../../workspace/index.ts";
 import {
   COMMENT_AUTHOR_PROMPT,
@@ -373,9 +373,9 @@ function writeInitRootPackageJson(targetRoot: string, packageRoot: string): void
       export: "stego export"
     },
     devDependencies: {
-      "@stego/cli": `^${cliVersion}`,
-      "@stego/engine": `^${engineVersion}`,
-      "@stego/shared": `^${sharedVersion}`,
+      "@stego-labs/cli": `^${cliVersion}`,
+      "@stego-labs/engine": `^${engineVersion}`,
+      "@stego-labs/shared": `^${sharedVersion}`,
       typescript: "^5.9.3",
       "@types/node": "^25.2.3",
       cspell: "^9.6.4",

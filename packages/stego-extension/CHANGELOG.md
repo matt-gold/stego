@@ -10,7 +10,7 @@
 
 - 3a64f57: codex/extension module api seams
 - Updated dependencies [c7cc376]
-  - @stego/shared@1.0.0
+  - @stego-labs/shared@1.0.0
 
 ## 0.6.0
 
@@ -44,7 +44,7 @@
 
 - 4f46fd3: Fix the release workflow packaging step for `stego-extension` so the shared package directory is prepared and copied into the isolated build context before packaging.
 
-  Also remove unused placeholder domain files in `@stego/cli` as part of the same cleanup.
+  Also remove unused placeholder domain files in `@stego-labs/cli` as part of the same cleanup.
 
 ## 0.5.2
 
@@ -68,7 +68,7 @@
 
 - ca8d540: Migrate Spine to the V2 directory-inferred model and align CLI/extension workflows around CLI-owned mutations.
 
-  For `@stego/cli`:
+  For `@stego-labs/cli`:
 
   - add `stego spine read`, `stego spine new-category`, and `stego spine new --filename`
   - add universal `stego metadata read|apply` commands for markdown frontmatter files
@@ -97,7 +97,7 @@
 
 - 3e39a31: Ship workspace-mode and manuscript workflow improvements across the CLI and VS Code extension.
 
-  For `@stego/cli`, this release adds explicit filename support to `stego new`, updates compile-structure defaults to use `between-groups` page breaks, and removes the default scaffold heading from newly created manuscript files.
+  For `@stego-labs/cli`, this release adds explicit filename support to `stego new`, updates compile-structure defaults to use `between-groups` page breaks, and removes the default scaffold heading from newly created manuscript files.
 
   For `stego-extension`, this release adds workspace-aware actions (`New Stego Project` and `Open Project`), improves `stego new` behavior (custom filename handling, compatibility fallback for older CLI versions, and no immediate metadata auto-collapse), adds a guided `Fill required metadata` action in the document tab, and includes monorepo debug launch/tasks support.
 
@@ -121,7 +121,7 @@
 
   - Adds a new extension command for creating manuscripts from the sidebar header.
   - Opens the newly created manuscript in the editor automatically.
-  - Falls back to direct `@stego/cli` commands when expected `package.json` scripts are missing.
+  - Falls back to direct `@stego-labs/cli` commands when expected `package.json` scripts are missing.
   - Updates workflow command resolution for `new`, `build`, `export`, `check-stage`, and `validate`.
 
 ## 0.2.2

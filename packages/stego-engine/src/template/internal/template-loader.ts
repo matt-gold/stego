@@ -33,11 +33,11 @@ export async function loadTemplateFromFile(templatePath: string): Promise<Loaded
       platform: "node",
       sourcemap: "inline",
       jsx: "automatic",
-      jsxImportSource: "@stego/engine",
+      jsxImportSource: "@stego-labs/engine",
       alias: {
-        "@stego/engine": authoringEntry,
-        "@stego/engine/jsx-runtime": jsxRuntimeEntry,
-        "@stego/engine/jsx-dev-runtime": jsxDevRuntimeEntry
+        "@stego-labs/engine": authoringEntry,
+        "@stego-labs/engine/jsx-runtime": jsxRuntimeEntry,
+        "@stego-labs/engine/jsx-dev-runtime": jsxDevRuntimeEntry
       }
     });
 

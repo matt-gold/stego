@@ -6,7 +6,7 @@ import type { ScriptRunResult } from '../../shared/types';
 import { pickToastDetails, resolveWorkspaceCommandInvocation, runCommand } from './workflowUtils';
 import type { WorkflowRunResult } from './workflowUtils';
 import { resolveStegoWorkspaceRoot } from '../project';
-import { isValidProjectId } from '@stego/shared/domain/project';
+import { isValidProjectId } from '@stego-labs/shared/domain/project';
 
 const DEFAULT_PROJECTS_DIR = 'projects';
 

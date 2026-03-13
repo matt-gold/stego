@@ -23,20 +23,20 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Compile @stego/shared
-        run: npm run -w @stego/shared compile
+      - name: Compile @stego-labs/shared
+        run: npm run -w @stego-labs/shared compile
 
       - name: Compile stego-engine
-        run: npm run -w packages/stego-engine compile
+        run: npm run -w @stego-labs/engine compile
 
       - name: Test stego-engine
-        run: npm run -w packages/stego-engine test
+        run: npm run -w @stego-labs/engine test
 
       - name: Compile stego-cli
-        run: npm run -w packages/stego-cli compile
+        run: npm run -w @stego-labs/cli compile
 
       - name: Test stego-cli
-        run: npm run -w packages/stego-cli test
+        run: npm run -w @stego-labs/cli test
 
       - name: Compile stego-extension
         run: npm run -w packages/stego-extension compile

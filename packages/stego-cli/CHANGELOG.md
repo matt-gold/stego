@@ -4,11 +4,11 @@
 
 ### Major Changes
 
-- c7cc376: Replace the legacy `compileStructure` build pipeline with the template-driven `@stego/engine` path.
+- c7cc376: Replace the legacy `compileStructure` build pipeline with the template-driven `@stego-labs/engine` path.
 
-  For `@stego/cli`, `build` and `export` now derive output from `templates/book.template.tsx`, and legacy `compileStructure` in `stego-project.json` is rejected as unsupported.
+  For `@stego-labs/cli`, `build` and `export` now derive output from `templates/book.template.tsx`, and legacy `compileStructure` in `stego-project.json` is rejected as unsupported.
 
-  For `@stego/engine`, this release establishes the public TSX template/runtime package, including collection helpers like `splitBy()`, Pandoc render-plan output, and the package/release surface needed for npm distribution.
+  For `@stego-labs/engine`, this release establishes the public TSX template/runtime package, including collection helpers like `splitBy()`, Pandoc render-plan output, and the package/release surface needed for npm distribution.
 
 ### Minor Changes
 
@@ -17,8 +17,8 @@
 ### Patch Changes
 
 - Updated dependencies [c7cc376]
-  - @stego/shared@1.0.0
-  - @stego/engine@1.0.0
+  - @stego-labs/shared@1.0.0
+  - @stego-labs/engine@1.0.0
 
 ## 0.5.0
 
@@ -46,7 +46,7 @@
 
 - 4f46fd3: Fix the release workflow packaging step for `stego-extension` so the shared package directory is prepared and copied into the isolated build context before packaging.
 
-  Also remove unused placeholder domain files in `@stego/cli` as part of the same cleanup.
+  Also remove unused placeholder domain files in `@stego-labs/cli` as part of the same cleanup.
 
 ## 0.4.2
 
@@ -70,7 +70,7 @@
 
 - ca8d540: Migrate Spine to the V2 directory-inferred model and align CLI/extension workflows around CLI-owned mutations.
 
-  For `@stego/cli`:
+  For `@stego-labs/cli`:
 
   - add `stego spine read`, `stego spine new-category`, and `stego spine new --filename`
   - add universal `stego metadata read|apply` commands for markdown frontmatter files
@@ -117,7 +117,7 @@
 
 - 3e39a31: Ship workspace-mode and manuscript workflow improvements across the CLI and VS Code extension.
 
-  For `@stego/cli`, this release adds explicit filename support to `stego new`, updates compile-structure defaults to use `between-groups` page breaks, and removes the default scaffold heading from newly created manuscript files.
+  For `@stego-labs/cli`, this release adds explicit filename support to `stego new`, updates compile-structure defaults to use `between-groups` page breaks, and removes the default scaffold heading from newly created manuscript files.
 
   For `stego-extension`, this release adds workspace-aware actions (`New Stego Project` and `Open Project`), improves `stego new` behavior (custom filename handling, compatibility fallback for older CLI versions, and no immediate metadata auto-collapse), adds a guided `Fill required metadata` action in the document tab, and includes monorepo debug launch/tasks support.
 
@@ -173,4 +173,4 @@
 
 ### Patch Changes
 
-- 69ec710: Publish the installable `@stego/cli` package with `stego init`, npm release automation, and scaffolded VS Code extension recommendations.
+- 69ec710: Publish the installable `@stego-labs/cli` package with `stego init`, npm release automation, and scaffolded VS Code extension recommendations.

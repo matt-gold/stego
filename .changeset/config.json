@@ -4,9 +4,9 @@
   "commit": false,
   "fixed": [
     [
-      "@stego/shared",
-      "@stego/engine",
-      "@stego/cli",
+      "@stego-labs/shared",
+      "@stego-labs/engine",
+      "@stego-labs/cli",
       "stego-extension"
     ]
   ],

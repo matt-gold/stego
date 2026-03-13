@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { parseCommentAppendix } from "@stego/shared/domain/comments";
+import { parseCommentAppendix } from "@stego-labs/shared/domain/comments";
 import type { ProjectContext } from "../../project/index.ts";
 import type { Issue, LintResult, LintSelection } from "../types.ts";
 

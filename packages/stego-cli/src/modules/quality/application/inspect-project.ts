@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { parseCommentAppendix } from "@stego/shared/domain/comments";
-import { parseMarkdownDocument } from "@stego/shared/domain/frontmatter";
-import { isStageName } from "@stego/shared/domain/stages";
+import { parseCommentAppendix } from "@stego-labs/shared/domain/comments";
+import { parseMarkdownDocument } from "@stego-labs/shared/domain/frontmatter";
+import { isStageName } from "@stego-labs/shared/domain/stages";
 import { readSpineCatalogForProject } from "../../spine/index.ts";
 import type {
   ChapterEntry,

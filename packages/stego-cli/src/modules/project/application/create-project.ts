@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { CliError } from "@stego/shared/contracts/cli";
-import { isValidProjectId } from "@stego/shared/domain/project";
+import { CliError } from "@stego-labs/shared/contracts/cli";
+import { isValidProjectId } from "@stego-labs/shared/domain/project";
 import type { CreateProjectInput, CreateProjectResult } from "../types.ts";
 import { ensureDirectory, pathExists, writeTextFile } from "../infra/project-repo.ts";
 
@@ -104,7 +104,7 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
           allowImportingTsExtensions: true,
           types: ["node"],
           jsx: "react-jsx",
-          jsxImportSource: "@stego/engine",
+          jsxImportSource: "@stego-labs/engine",
           skipLibCheck: true
         },
         include: ["templates/**/*.tsx"]
@@ -132,7 +132,7 @@ Start writing here.
   const starterTemplatePath = path.join(templatesDir, "book.template.tsx");
   writeTextFile(
     starterTemplatePath,
-    `import { defineTemplate, Stego } from "@stego/engine";
+    `import { defineTemplate, Stego } from "@stego-labs/engine";
 
 export default defineTemplate((ctx) => {
   const generatedAt = new Date().toISOString();

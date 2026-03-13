@@ -113,13 +113,31 @@ jobs:
           CLI_TAG="stego-cli-v${CLI_VERSION}"
           EXT_TAG="stego-extension-v${EXT_VERSION}"
 
-          if [ "$SHARED_CHANGED" = "true" ] && git show-ref --tags --verify --quiet "refs/tags/${SHARED_TAG}"; then
+          if npm view "@stego-labs/shared@${SHARED_VERSION}" version >/dev/null 2>&1; then
+            SHARED_PUBLISHED=true
+          else
+            SHARED_PUBLISHED=false
+          fi
+
+          if npm view "@stego-labs/engine@${ENGINE_VERSION}" version >/dev/null 2>&1; then
+            ENGINE_PUBLISHED=true
+          else
+            ENGINE_PUBLISHED=false
+          fi
+
+          if npm view "@stego-labs/cli@${CLI_VERSION}" version >/dev/null 2>&1; then
+            CLI_PUBLISHED=true
+          else
+            CLI_PUBLISHED=false
+          fi
+
+          if [ "$SHARED_CHANGED" = "true" ] && [ "$SHARED_PUBLISHED" = "true" ]; then
             SHARED_CHANGED=false
           fi
-          if [ "$ENGINE_CHANGED" = "true" ] && git show-ref --tags --verify --quiet "refs/tags/${ENGINE_TAG}"; then
+          if [ "$ENGINE_CHANGED" = "true" ] && [ "$ENGINE_PUBLISHED" = "true" ]; then
             ENGINE_CHANGED=false
           fi
-          if [ "$CLI_CHANGED" = "true" ] && git show-ref --tags --verify --quiet "refs/tags/${CLI_TAG}"; then
+          if [ "$CLI_CHANGED" = "true" ] && [ "$CLI_PUBLISHED" = "true" ]; then
             CLI_CHANGED=false
           fi
           if [ "$EXT_CHANGED" = "true" ] && git show-ref --tags --verify --quiet "refs/tags/${EXT_TAG}"; then
@@ -130,6 +148,9 @@ jobs:
           echo "ENGINE_CHANGED=$ENGINE_CHANGED" >> "$GITHUB_ENV"
           echo "CLI_CHANGED=$CLI_CHANGED" >> "$GITHUB_ENV"
           echo "EXT_CHANGED=$EXT_CHANGED" >> "$GITHUB_ENV"
+          echo "SHARED_PUBLISHED=$SHARED_PUBLISHED" >> "$GITHUB_ENV"
+          echo "ENGINE_PUBLISHED=$ENGINE_PUBLISHED" >> "$GITHUB_ENV"
+          echo "CLI_PUBLISHED=$CLI_PUBLISHED" >> "$GITHUB_ENV"
           echo "SHARED_VERSION=$SHARED_VERSION" >> "$GITHUB_ENV"
           echo "ENGINE_VERSION=$ENGINE_VERSION" >> "$GITHUB_ENV"
           echo "CLI_VERSION=$CLI_VERSION" >> "$GITHUB_ENV"
@@ -139,27 +160,27 @@ jobs:
           echo "CLI_TAG=$CLI_TAG" >> "$GITHUB_ENV"
           echo "EXT_TAG=$EXT_TAG" >> "$GITHUB_ENV"
 
-      - name: Compile @stego/shared
+      - name: Compile @stego-labs/shared
         if: ${{ env.SHARED_CHANGED == 'true' }}
-        run: npm run -w @stego/shared compile
+        run: npm run -w @stego-labs/shared compile
 
-      - name: Package @stego/shared tarball
+      - name: Package @stego-labs/shared tarball
         if: ${{ env.SHARED_CHANGED == 'true' }}
         run: |
           cd packages/shared
           npm pack
 
-      - name: Resolve @stego/shared tarball path
+      - name: Resolve @stego-labs/shared tarball path
         if: ${{ env.SHARED_CHANGED == 'true' }}
         run: |
           SHARED_TGZ_PATH="$(ls -1t packages/shared/*.tgz | head -n 1)"
           if [ -z "$SHARED_TGZ_PATH" ]; then
-            echo "No npm tarball found for @stego/shared."
+            echo "No npm tarball found for @stego-labs/shared."
             exit 1
           fi
           echo "SHARED_TGZ_PATH=$SHARED_TGZ_PATH" >> "$GITHUB_ENV"
 
-      - name: Upload @stego/shared tarball to GitHub Release
+      - name: Upload @stego-labs/shared tarball to GitHub Release
         if: ${{ env.SHARED_CHANGED == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
@@ -203,27 +224,35 @@ jobs:
             exit 1
           fi
 
-      - name: Publish @stego/shared to npm
+      - name: Publish @stego-labs/shared to npm
         if: ${{ env.SHARED_CHANGED == 'true' }}
-        run: npm publish "${{ env.SHARED_TGZ_PATH }}" --access public
+        run: |
+          if ! npm publish "${{ env.SHARED_TGZ_PATH }}" --access public; then
+            echo "::error::Publishing @stego-labs/shared failed. Ensure the @stego-labs npm scope exists and the NPM_TOKEN user has publish rights to it."
+            exit 1
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Wait for @stego/shared on npm
+      - name: Wait for @stego-labs/shared on npm
         if: ${{ env.SHARED_CHANGED == 'true' && (env.ENGINE_CHANGED == 'true' || env.CLI_CHANGED == 'true' || env.EXT_CHANGED == 'true') }}
         run: |
           for attempt in $(seq 1 30); do
-            if npm view "@stego/shared@${SHARED_VERSION}" version >/dev/null 2>&1; then
+            if npm view "@stego-labs/shared@${SHARED_VERSION}" version >/dev/null 2>&1; then
               exit 0
             fi
             sleep 10
           done
-          echo "@stego/shared@${SHARED_VERSION} was not visible on npm in time."
+          echo "@stego-labs/shared@${SHARED_VERSION} was not visible on npm in time."
           exit 1
 
       - name: Publish stego-engine to npm
         if: ${{ env.ENGINE_CHANGED == 'true' }}
-        run: npm publish "${{ env.ENGINE_TGZ_PATH }}" --access public
+        run: |
+          if ! npm publish "${{ env.ENGINE_TGZ_PATH }}" --access public; then
+            echo "::error::Publishing @stego-labs/engine failed. Ensure the @stego-labs npm scope exists and the NPM_TOKEN user has publish rights to it."
+            exit 1
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -231,12 +260,12 @@ jobs:
         if: ${{ env.ENGINE_CHANGED == 'true' && env.CLI_CHANGED == 'true' }}
         run: |
           for attempt in $(seq 1 30); do
-            if npm view "@stego/engine@${ENGINE_VERSION}" version >/dev/null 2>&1; then
+            if npm view "@stego-labs/engine@${ENGINE_VERSION}" version >/dev/null 2>&1; then
               exit 0
             fi
             sleep 10
           done
-          echo "@stego/engine@${ENGINE_VERSION} was not visible on npm in time."
+          echo "@stego-labs/engine@${ENGINE_VERSION} was not visible on npm in time."
           exit 1
 
       - name: Test stego-cli
@@ -269,7 +298,11 @@ jobs:
 
       - name: Publish stego-cli to npm
         if: ${{ env.CLI_CHANGED == 'true' }}
-        run: npm publish "${{ env.CLI_TGZ_PATH }}" --access public
+        run: |
+          if ! npm publish "${{ env.CLI_TGZ_PATH }}" --access public; then
+            echo "::error::Publishing @stego-labs/cli failed. Ensure the @stego-labs npm scope exists and the NPM_TOKEN user has publish rights to it."
+            exit 1
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

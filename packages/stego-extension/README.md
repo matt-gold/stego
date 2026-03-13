@@ -1,10 +1,10 @@
-# Stego - VS Code Extension for `@stego/cli`
+# Stego - VS Code Extension for `@stego-labs/cli`
 
 <div align="center">
   <img src="assets/stego.png" alt="Stego logo" width="128" />
 </div>
 
-[`@stego/cli`](https://github.com/matt-gold/stego/tree/main/packages/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
+[`@stego-labs/cli`](https://github.com/matt-gold/stego/tree/main/packages/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
 
 This extension provides the native UX for Stego projects:
 
@@ -23,13 +23,13 @@ I created Stego with my own needs in mind. As a software developer by trade, I w
   - This idea is sometimes called a "Story Bible" in fiction-oriented apps, but Stego Spine works equally well for glossaries, academic reference tracking, etc.   
 - **Manuscript**: Your manuscript is the ordered set of Markdown files in `manuscript/`. A manuscript file usually holds one scene or section. File-system order is derived from the numeric filename prefix, so names like `100-scene-name.md` and `1200-appendix.md` are both valid.
 - **Identifier**: A unique string used for inline references and comments where applicable (for example `CMT-0001`).
-- **Template**: Build structure lives in `templates/book.template.tsx`, powered by `@stego/engine`. Templates decide how manuscript and spine records become compiled output.
+- **Template**: Build structure lives in `templates/book.template.tsx`, powered by `@stego-labs/engine`. Templates decide how manuscript and spine records become compiled output.
 - **Project**: A directory with a `stego-project.json`, `manuscript/`, and usually `templates/`. VS Code should be opened at the project directory when using the Stego extension.
 - **Workspace**: The Stego workspace contains all stego projects and global configuration shared by projects. This provides a monorepo-like workflow to your stego projects when combined with git.
 
 ## Project Setup
 
-Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Use `@stego/cli` to scaffold a new stego workspace in an empty directory with `npm i -g @stego/cli`, then `stego init`.
+Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Use `@stego-labs/cli` to scaffold a new stego workspace in an empty directory with `npm i -g @stego-labs/cli`, then `stego init`.
 
 
 ### Supported `stego-project.json` fields (current)
@@ -58,7 +58,7 @@ The VS Code extension UI delegates build/validate actions to scripts in the near
 
 This is intentional: Stego keeps the sidebar UX and command wiring in the extension, while each project owns the exact workflow (for example custom Pandoc flags, pre/post processing, or other project-specific steps).
 
-In most projects, these scripts are thin wrappers around `@stego/cli` commands.
+In most projects, these scripts are thin wrappers around `@stego-labs/cli` commands.
 
 ### Preferred scripts by action
 
@@ -83,7 +83,7 @@ In most projects, these scripts are thin wrappers around `@stego/cli` commands.
 
 The extension invokes these scripts with `npm run ...` and passes arguments where relevant.
 
-If a script is missing, the extension falls back to direct `stego` CLI commands when `@stego/cli` is available in your PATH (or via `npx --no-install stego`):
+If a script is missing, the extension falls back to direct `stego` CLI commands when `@stego-labs/cli` is available in your PATH (or via `npx --no-install stego`):
 
 - `new` creates a manuscript file (same as `stego new`)
 - `check-stage` receives `--stage ...`
@@ -91,7 +91,7 @@ If a script is missing, the extension falls back to direct `stego` CLI commands 
 - `validate` receives `--file ...`
 - `Validate Current File` also runs `check-stage -- --stage <status> --file <relative-path>` after `validate`
 
-If you need custom behavior, wrap `@stego/cli` in your own scripts and keep these script names (`new`, `build`, `export`, `check-stage`, `validate`) so the extension can call them directly.
+If you need custom behavior, wrap `@stego-labs/cli` in your own scripts and keep these script names (`new`, `build`, `export`, `check-stage`, `validate`) so the extension can call them directly.
 
 ## Comments
 

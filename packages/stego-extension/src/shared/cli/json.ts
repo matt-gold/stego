@@ -1,4 +1,4 @@
-import type { CliErrorEnvelope } from "@stego/shared/contracts/cli";
+import type { CliErrorEnvelope } from "@stego-labs/shared/contracts/cli";
 
 type MinimalCliErrorEnvelope = {
   ok: false;

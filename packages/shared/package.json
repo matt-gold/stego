@@ -1,5 +1,5 @@
 {
-  "name": "@stego/shared",
+  "name": "@stego-labs/shared",
   "version": "1.0.0",
   "type": "module",
   "description": "Shared contracts and domain primitives for Stego packages.",

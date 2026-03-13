@@ -2,7 +2,7 @@ import type {
   MetadataApplyEnvelope,
   MetadataReadEnvelope,
   MetadataState
-} from "@stego/shared/contracts/cli";
+} from "@stego-labs/shared/contracts/cli";
 
 export type { MetadataApplyEnvelope, MetadataReadEnvelope, MetadataState };
 

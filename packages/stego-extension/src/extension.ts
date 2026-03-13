@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { END_SENTINEL, START_SENTINEL } from '@stego/shared/domain/comments';
+import { END_SENTINEL, START_SENTINEL } from '@stego-labs/shared/domain/comments';
 import { METADATA_VIEW_ID } from './shared/constants';
 import {
   runInsertImageWorkflow,

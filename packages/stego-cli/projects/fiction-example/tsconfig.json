@@ -11,16 +11,16 @@
       "node"
     ],
     "jsx": "react-jsx",
-    "jsxImportSource": "@stego/engine",
+    "jsxImportSource": "@stego-labs/engine",
     "skipLibCheck": true,
     "paths": {
-      "@stego/engine": [
+      "@stego-labs/engine": [
         "../../../stego-engine/src/index.ts"
       ],
-      "@stego/engine/jsx-runtime": [
+      "@stego-labs/engine/jsx-runtime": [
         "../../../stego-engine/src/template/internal/jsx-runtime.ts"
       ],
-      "@stego/engine/jsx-dev-runtime": [
+      "@stego-labs/engine/jsx-dev-runtime": [
         "../../../stego-engine/src/template/internal/jsx-dev-runtime.ts"
       ]
     }

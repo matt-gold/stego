@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { parseMarkdownDocument } from "@stego/shared/domain/frontmatter";
+import { parseMarkdownDocument } from "@stego-labs/shared/domain/frontmatter";
 import type { SpineCategoryRecord, SpineEntryRecord } from "../../template/index.ts";
 
 export type LoadedSpine = {

@@ -1,13 +1,13 @@
-# @stego/shared
+# @stego-labs/shared
 
-`@stego/shared` contains shared contracts and domain primitives used across Stego packages.
+`@stego-labs/shared` contains shared contracts and domain primitives used across Stego packages.
 
 Public subpaths:
 
-- `@stego/shared/contracts/cli`
-- `@stego/shared/domain/comments`
-- `@stego/shared/domain/frontmatter`
-- `@stego/shared/domain/images`
-- `@stego/shared/domain/project`
-- `@stego/shared/domain/stages`
-- `@stego/shared/utils`
+- `@stego-labs/shared/contracts/cli`
+- `@stego-labs/shared/domain/comments`
+- `@stego-labs/shared/domain/frontmatter`
+- `@stego-labs/shared/domain/images`
+- `@stego-labs/shared/domain/project`
+- `@stego-labs/shared/domain/stages`
+- `@stego-labs/shared/utils`

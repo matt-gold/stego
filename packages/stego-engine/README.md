@@ -1,6 +1,6 @@
-# @stego/engine
+# @stego-labs/engine
 
-`@stego/engine` is the template-driven document engine for Stego.
+`@stego-labs/engine` is the template-driven document engine for Stego.
 
 It provides four public areas:
 
@@ -18,7 +18,7 @@ V1 intentionally does not expose backend-specific escape hatches, arbitrary CSS,
 Templates default-export `defineTemplate(...)` from a `.tsx` file:
 
 ```tsx
-import { defineTemplate, Stego } from "@stego/engine";
+import { defineTemplate, Stego } from "@stego-labs/engine";
 
 export default defineTemplate((ctx) => (
   <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
@@ -47,13 +47,13 @@ For VS Code and TypeScript language-server support, put template files in a TS p
     "noEmit": true,
     "types": ["node"],
     "jsx": "react-jsx",
-    "jsxImportSource": "@stego/engine"
+    "jsxImportSource": "@stego-labs/engine"
   },
   "include": ["templates/**/*.tsx"]
 }
 ```
 
-The TypeScript server also needs to be able to resolve `@stego/engine`, either from `node_modules` or a local link during development.
+The TypeScript server also needs to be able to resolve `@stego-labs/engine`, either from `node_modules` or a local link during development.
 
 For block spacing, use `spaceBefore` / `spaceAfter`. For horizontally inset blocks such as custom pull quotes or blockquote-style wrappers, use `insetLeft` / `insetRight`. For fiction-style paragraph indentation, use `firstLineIndent` at the section or paragraph level.
 

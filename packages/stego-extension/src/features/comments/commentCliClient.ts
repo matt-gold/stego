@@ -7,7 +7,7 @@ import {
   type CommentSyncAnchorsPayload,
   type CommentsSubcommand,
   type CommentsSuccessEnvelope
-} from '@stego/shared/contracts/cli';
+} from '@stego-labs/shared/contracts/cli';
 import { extractCliErrorMessage, tryParseJson } from '../../shared/cli/json';
 import { withJsonPayloadFile } from '../../shared/cli/payload-file';
 
@@ -120,7 +120,7 @@ export class CommentCliClient {
       );
       if (!invocation) {
         return {
-          warning: `Could not ${actionLabel} because @stego/cli is unavailable.`
+          warning: `Could not ${actionLabel} because @stego-labs/cli is unavailable.`
         };
       }
 
@@ -149,7 +149,7 @@ export class CommentCliClient {
       if (!parsed || parsed.ok !== true || !('state' in parsed) || parsed.operation !== subcommand) {
         return {
           warning: this.reportWarning(
-            `Could not ${actionLabel}: @stego/cli returned an unexpected response.`,
+            `Could not ${actionLabel}: @stego-labs/cli returned an unexpected response.`,
             options
           )
         };

@@ -1,6 +1,6 @@
 # Stego CLI Architecture
 
-`@stego/cli` now uses a domain-first module layout under `src/modules`.
+`@stego-labs/cli` now uses a domain-first module layout under `src/modules`.
 
 ## High-level layout
 
@@ -8,7 +8,7 @@
 - `src/app`: app boundary (registry, context, error/output)
 - `src/platform`: fs/time/temp adapters
 - `src/modules`: domain modules with explicit `index.ts` APIs
-- `@stego/shared`: shared contracts and domain primitives published as a first-class package boundary
+- `@stego-labs/shared`: shared contracts and domain primitives published as a first-class package boundary
 
 ## Module API contract
 

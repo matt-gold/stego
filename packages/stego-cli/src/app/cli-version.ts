@@ -18,7 +18,7 @@ export function resolveCliVersion(): string {
           name?: unknown;
           version?: unknown;
         };
-        if (parsed.name === "@stego/cli" && typeof parsed.version === "string") {
+        if (parsed.name === "@stego-labs/cli" && typeof parsed.version === "string") {
           cachedVersion = parsed.version;
           return cachedVersion;
         }

@@ -23,7 +23,7 @@ integrations:
 Install the CLI globally so the `stego` command is available in your shell.
 
 ```bash
-npm install -g @stego/cli
+npm install -g @stego-labs/cli
 ```
 
 ## Create a workspace
@@ -48,7 +48,7 @@ After scaffolding, install the workspace dependencies used by local scripts, tem
 npm install
 ```
 
-That workspace install includes `@stego/engine`, so every scaffolded project's `templates/book.template.tsx` is ready for IntelliSense and type-checking in VS Code.
+That workspace install includes `@stego-labs/engine`, so every scaffolded project's `templates/book.template.tsx` is ready for IntelliSense and type-checking in VS Code.
 
 ## Open a project in the official UI
 

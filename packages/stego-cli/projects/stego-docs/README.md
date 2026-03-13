@@ -5,7 +5,7 @@ This is the canonical Stego documentation project.
 It is a real Stego project that demonstrates:
 
 - docs-first usage of the workspace model
-- TSX template authoring with `@stego/engine`
+- TSX template authoring with `@stego-labs/engine`
 - Spine-driven navigation in the editor and spine-rendered backmatter in build output
 - build/export behavior for documentation teams
 

@@ -83,7 +83,7 @@ Validation warns if a local image target is outside `assets/`.
 
 Build structure now lives in `templates/book.template.tsx`.
 
-Templates are plain TSX modules powered by `@stego/engine`. They receive project metadata plus generic collections for manuscripts, spine entries, and spine categories.
+Templates are plain TSX modules powered by `@stego-labs/engine`. They receive project metadata plus generic collections for manuscripts, spine entries, and spine categories.
 
 Use template code to group manuscripts, insert headings, control page breaks, and render frontmatter or backmatter. Ordered grouping is typically done with `ctx.collections.manuscripts.splitBy(...)`, which preserves file order and lets boundary-only metadata flow across subsequent files.
 
