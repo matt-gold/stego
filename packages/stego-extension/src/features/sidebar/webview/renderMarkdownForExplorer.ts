@@ -35,18 +35,8 @@ EXPLORER_MARKDOWN_RENDERER.renderer.rules.image = (tokens, idx, options, env, se
   return defaultImageRenderer(tokens, idx, options, env, self);
 };
 
-function normalizeRenderOptions(options?: string | RenderMarkdownOptions): RenderMarkdownOptions {
-  if (!options) {
-    return {};
-  }
-  if (typeof options === 'string') {
-    return { basePath: options };
-  }
-  return options;
-}
-
-export function renderMarkdownForExplorer(rawText: string, options?: string | RenderMarkdownOptions): string {
-  const resolvedOptions = normalizeRenderOptions(options);
+export function renderMarkdownForExplorer(rawText: string, options?: RenderMarkdownOptions): string {
+  const resolvedOptions = options ?? {};
   const rendered = EXPLORER_MARKDOWN_RENDERER.render(rawText, {
     basePath: resolvedOptions.basePath,
     resolveImageSrc: resolvedOptions.resolveImageSrc

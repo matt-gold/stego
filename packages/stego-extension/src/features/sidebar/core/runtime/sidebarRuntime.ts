@@ -132,11 +132,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   private readonly expandedTocBacklinks = new Set<string>();
   private readonly overviewFileCache = new Map<string, OverviewFileCache>();
   private readonly gateSnapshotByProject: GateSnapshotByProject = new Map();
-  private readonly structureSummaryCache = new Map<string, {
-    version: number;
-    projectMtimeMs?: number;
-    summary?: string;
-  }>();
   private readonly bus = new SidebarEventBus<SidebarRuntimeEvent>();
   private readonly effectRunner = new SidebarEffectRunner();
   private readonly stateSubscribers = new Set<(state: SidebarWebviewState) => void>();
@@ -843,7 +838,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
 
   private buildMetadataEntriesFromFrontmatter(
     frontmatter: Record<string, unknown>,
-    structuralOrderByKey: Map<string, number>,
     categoryByKey: Map<string, ProjectSpineCategory>,
     categoryOrderByKey: Map<string, number>,
     index: Map<string, SpineRecord>,
@@ -853,22 +847,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     return Object.entries(frontmatter)
       .filter(([key]) => key !== 'status')
       .sort(([a], [b]) => {
-        const aIsStructural = structuralOrderByKey.has(a);
-        const bIsStructural = structuralOrderByKey.has(b);
         const aIsSpineCategory = categoryByKey.has(a);
         const bIsSpineCategory = categoryByKey.has(b);
-
-        if (aIsStructural !== bIsStructural) {
-          return aIsStructural ? -1 : 1;
-        }
-
-        if (aIsStructural && bIsStructural) {
-          const aOrder = structuralOrderByKey.get(a) ?? Number.MAX_SAFE_INTEGER;
-          const bOrder = structuralOrderByKey.get(b) ?? Number.MAX_SAFE_INTEGER;
-          if (aOrder !== bOrder) {
-            return aOrder - bOrder;
-          }
-        }
 
         if (aIsSpineCategory !== bIsSpineCategory) {
           return aIsSpineCategory ? -1 : 1;
@@ -887,7 +867,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       .map(([key, value]) => buildMetadataEntry(
         key,
         value,
-        structuralOrderByKey.has(key),
+        false,
         categoryByKey.get(key),
         index,
         document,
@@ -974,7 +954,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         documentTabDetached: false,
         documentPath: activeDocument?.uri.fsPath ?? '',
         projectDir: projectContext?.projectDir,
-        structureSummary: undefined,
         warnings,
         canShowOverview,
         overview,
@@ -1058,13 +1037,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
 
     const categoryByKey = new Map<string, ProjectSpineCategory>();
     const categoryOrderByKey = new Map<string, number>();
-    const structuralOrderByKey = new Map<string, number>();
-    let structuralOrder = 0;
-    for (const key of projectContext?.structuralKeys ?? []) {
-      structuralOrderByKey.set(key, structuralOrder);
-      structuralOrder += 1;
-    }
-
     let categoryOrder = 0;
     for (const category of projectContext?.categories ?? []) {
       categoryByKey.set(category.key, category);
@@ -1121,7 +1093,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           const parsed = parseMarkdownDocument(document.getText());
           metadataEntries = this.buildMetadataEntriesFromFrontmatter(
             parsed.frontmatter,
-            structuralOrderByKey,
             categoryByKey,
             categoryOrderByKey,
             index,
@@ -1140,7 +1111,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         documentTabDetached: false,
         documentPath: document.uri.fsPath,
         projectDir: projectContext?.projectDir,
-        structureSummary: undefined,
         warnings,
         canShowOverview,
         overview,
@@ -1178,11 +1148,9 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       const parsed = parseMarkdownDocument(document.getText());
       const projectDir = projectContext?.projectDir ?? path.dirname(document.uri.fsPath);
       const projectImageDefaults = projectContext?.imageDefaults ?? {};
-      const structureSummary = await this.resolveStructureSummary(document, parsed.frontmatter, projectContext);
       const statusControl = await buildStatusControl(parsed.frontmatter, document);
       const metadataEntries = this.buildMetadataEntriesFromFrontmatter(
         parsed.frontmatter,
-        structuralOrderByKey,
         categoryByKey,
         categoryOrderByKey,
         index,
@@ -1204,7 +1172,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         documentTabDetached: false,
         documentPath: document.uri.fsPath,
         projectDir,
-        structureSummary,
         warnings,
         canShowOverview,
         overview,
@@ -1243,7 +1210,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         documentTabDetached: false,
         documentPath: document.uri.fsPath,
         projectDir: projectContext?.projectDir,
-        structureSummary: undefined,
         warnings,
         canShowOverview,
         overview,
@@ -1278,122 +1244,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }
   }
 
-  private async resolveStructureSummary(
-    document: vscode.TextDocument,
-    frontmatter: Record<string, unknown>,
-    projectContext: { projectDir: string; projectMtimeMs?: number; structuralLevels: { key: string; label: string; titleKey?: string; headingTemplate: string }[] } | undefined
-  ): Promise<string | undefined> {
-    const cacheKey = path.resolve(document.uri.fsPath);
-    const cached = this.structureSummaryCache.get(cacheKey);
-    if (cached && cached.version === document.version && cached.projectMtimeMs === projectContext?.projectMtimeMs) {
-      return cached.summary;
-    }
-
-    if (!projectContext || projectContext.structuralLevels.length === 0) {
-      this.structureSummaryCache.set(cacheKey, {
-        version: document.version,
-        projectMtimeMs: projectContext?.projectMtimeMs,
-        summary: undefined
-      });
-      return undefined;
-    }
-
-    const files = await collectManuscriptMarkdownFiles(projectContext.projectDir);
-    if (files.length === 0) {
-      const summary = this.formatStructureSummary(projectContext.structuralLevels, frontmatter);
-      this.structureSummaryCache.set(cacheKey, {
-        version: document.version,
-        projectMtimeMs: projectContext.projectMtimeMs,
-        summary
-      });
-      return summary;
-    }
-
-    const normalizedCurrent = path.resolve(document.uri.fsPath);
-    const sorted = [...files].sort((a, b) => this.compareManuscriptFiles(a, b));
-    const currentIndex = sorted.findIndex((filePath) => path.resolve(filePath) === normalizedCurrent);
-    if (currentIndex < 0) {
-      const summary = this.formatStructureSummary(projectContext.structuralLevels, frontmatter);
-      this.structureSummaryCache.set(cacheKey, {
-        version: document.version,
-        projectMtimeMs: projectContext.projectMtimeMs,
-        summary
-      });
-      return summary;
-    }
-
-    const effective = new Map<string, string>();
-    const effectiveTitles = new Map<string, string>();
-    for (let index = 0; index <= currentIndex; index += 1) {
-      const filePath = sorted[index];
-      const sourceFrontmatter = index === currentIndex
-        ? frontmatter
-        : await this.readFrontmatterFromDisk(filePath);
-
-      for (const level of projectContext.structuralLevels) {
-        const value = this.toScalarString(sourceFrontmatter[level.key]);
-        if (value) {
-          effective.set(level.key, value);
-        }
-
-        if (level.titleKey) {
-          const title = this.toScalarString(sourceFrontmatter[level.titleKey]);
-          if (title) {
-            effectiveTitles.set(level.key, title);
-          }
-        }
-      }
-    }
-
-    const parts = projectContext.structuralLevels
-      .map((level) => {
-        const value = effective.get(level.key);
-        if (!value) {
-          return '';
-        }
-
-        const title = effectiveTitles.get(level.key);
-        return this.formatStructureHeading(level, value, title);
-      })
-      .filter((value) => value.length > 0);
-
-    const summary = parts.length > 0 ? parts.join(', ') : undefined;
-    this.structureSummaryCache.set(cacheKey, {
-      version: document.version,
-      projectMtimeMs: projectContext.projectMtimeMs,
-      summary
-    });
-    return summary;
-  }
-
-  private async readFrontmatterFromDisk(filePath: string): Promise<Record<string, unknown>> {
-    try {
-      const text = await fs.readFile(filePath, 'utf8');
-      return parseMarkdownDocument(text).frontmatter;
-    } catch {
-      return {};
-    }
-  }
-
-  private formatStructureSummary(
-    levels: { key: string; label: string; titleKey?: string; headingTemplate: string }[],
-    frontmatter: Record<string, unknown>
-  ): string | undefined {
-    const parts = levels
-      .map((level) => {
-        const value = this.toScalarString(frontmatter[level.key]);
-        if (!value) {
-          return '';
-        }
-
-        const title = level.titleKey ? this.toScalarString(frontmatter[level.titleKey]) : undefined;
-        return this.formatStructureHeading(level, value, title);
-      })
-      .filter((value) => value.length > 0);
-
-    return parts.length > 0 ? parts.join(', ') : undefined;
-  }
-
   private compareManuscriptFiles(aPath: string, bPath: string): number {
     const aName = path.basename(aPath, path.extname(aPath));
     const bName = path.basename(bPath, path.extname(bPath));
@@ -1413,34 +1263,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }
 
     return aPath.localeCompare(bPath);
-  }
-
-  private toScalarString(value: unknown): string | undefined {
-    if (value === null || value === undefined || Array.isArray(value)) {
-      return undefined;
-    }
-
-    const normalized = String(value).trim();
-    return normalized.length > 0 ? normalized : undefined;
-  }
-
-  private formatStructureHeading(
-    level: { label: string; headingTemplate: string },
-    value: string,
-    title?: string
-  ): string {
-    const normalizedTitle = title?.trim() || '';
-    if (!normalizedTitle && level.headingTemplate === '{label} {value}: {title}') {
-      return `${level.label} ${value}`;
-    }
-
-    return level.headingTemplate
-      .replaceAll('{label}', level.label)
-      .replaceAll('{value}', value)
-      .replaceAll('{title}', normalizedTitle)
-      .replace(/\s+/g, ' ')
-      .replace(/:\s*$/, '')
-      .trim();
   }
 
   private collectReferencedSpineIdsInDocument(
@@ -1647,7 +1469,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (!payload.type.startsWith('ui.')) {
       return false;
     }
-    await this.handleMessageLegacy(payload);
+    await this.handleActionByType(payload);
     return true;
   }
 
@@ -1655,7 +1477,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (!payload.type.startsWith('nav.') && !payload.type.startsWith('doc.')) {
       return false;
     }
-    await this.handleMessageLegacy(payload);
+    await this.handleActionByType(payload);
     return true;
   }
 
@@ -1663,7 +1485,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (!payload.type.startsWith('metadata.')) {
       return false;
     }
-    await this.handleMessageLegacy(payload);
+    await this.handleActionByType(payload);
     return true;
   }
 
@@ -1671,7 +1493,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (!payload.type.startsWith('images.')) {
       return false;
     }
-    await this.handleMessageLegacy(payload);
+    await this.handleActionByType(payload);
     return true;
   }
 
@@ -1679,7 +1501,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (!payload.type.startsWith('spine.')) {
       return false;
     }
-    await this.handleMessageLegacy(payload);
+    await this.handleActionByType(payload);
     return true;
   }
 
@@ -1687,7 +1509,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (!payload.type.startsWith('comments.')) {
       return false;
     }
-    await this.handleMessageLegacy(payload);
+    await this.handleActionByType(payload);
     return true;
   }
 
@@ -1695,7 +1517,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (!payload.type.startsWith('workflow.')) {
       return false;
     }
-    await this.handleMessageLegacy(payload);
+    await this.handleActionByType(payload);
     return true;
   }
 
@@ -1703,11 +1525,11 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (!payload.type.startsWith('overview.')) {
       return false;
     }
-    await this.handleMessageLegacy(payload);
+    await this.handleActionByType(payload);
     return true;
   }
 
-  private async handleMessageLegacy(payload: SidebarActionMessage): Promise<void> {
+  private async handleActionByType(payload: SidebarActionMessage): Promise<void> {
     let shouldRefreshDiagnostics = true;
 
     switch (payload.type) {
@@ -2465,7 +2287,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     projectTitle?: string;
     requiredMetadata: string[];
     issues: ProjectConfigIssue[];
-    structuralLevels: { key: string; label: string; titleKey?: string; headingTemplate: string }[];
   }): Promise<OverviewBuildResult> {
     const manuscriptFiles = (await collectManuscriptMarkdownFiles(projectContext.projectDir))
       .sort((a, b) => this.compareManuscriptFiles(a, b));
@@ -2493,9 +2314,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     let skippedFiles = 0;
     const stageCounts = new Map<string, number>();
     const mapRows: SidebarOverviewState['mapRows'] = [];
-    const effectiveStructureValues = new Map<string, string>();
-    const effectiveStructureTitles = new Map<string, string>();
-    const previousStructureHeadings: string[] = [];
     let firstUnresolvedComment: SidebarOverviewState['firstUnresolvedComment'];
     let firstMissingMetadata: SidebarOverviewState['firstMissingMetadata'];
 
@@ -2595,47 +2413,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       }
 
       stageCounts.set(status, (stageCounts.get(status) ?? 0) + 1);
-
-      for (const level of projectContext.structuralLevels) {
-        const value = this.toScalarString(frontmatter[level.key]);
-        if (value) {
-          effectiveStructureValues.set(level.key, value);
-        }
-
-        if (level.titleKey) {
-          const title = this.toScalarString(frontmatter[level.titleKey]);
-          if (title) {
-            effectiveStructureTitles.set(level.key, title);
-          }
-        }
-      }
-
-      const structureParts = projectContext.structuralLevels
-        .map((level) => {
-          const value = effectiveStructureValues.get(level.key);
-          if (!value) {
-            return '';
-          }
-
-          const title = effectiveStructureTitles.get(level.key);
-          return this.formatStructureHeading(level, value, title);
-        })
-        .filter((value) => value.length > 0);
-
-      for (let level = 0; level < structureParts.length; level += 1) {
-        const heading = structureParts[level];
-        if (previousStructureHeadings[level] === heading) {
-          continue;
-        }
-
-        previousStructureHeadings.length = level;
-        previousStructureHeadings[level] = heading;
-        mapRows.push({
-          kind: 'group',
-          level,
-          label: heading
-        });
-      }
 
       mapRows.push({
         kind: 'file',

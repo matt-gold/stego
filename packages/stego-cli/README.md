@@ -4,9 +4,9 @@
 
 It scaffolds a Stego workspace, validates manuscript structure and metadata, runs stage-aware quality gates, builds compiled markdown outputs, and exports release formats.
 
-It also includes an experimental template-driven compile path through `stego template ...`, powered by `@stego/engine`.
+Builds are template-driven through `templates/book.template.tsx`, powered by `@stego/engine`.
 
-This repository is the source for the CLI and the template/example projects that `stego init` scaffolds.
+This repository is the source for the CLI and the example projects that `stego init` scaffolds.
 
 ## Quick start (install + init)
 
@@ -37,7 +37,7 @@ For day-to-day editing, open a project folder in VS Code (for example `projects/
 The full user documentation lives in the `stego-docs` project.
 
 - In a scaffolded workspace: `projects/stego-docs`
-- In this source repo: `projects/stego-docs`
+- In this source repo: `packages/stego-cli/projects/stego-docs`
 
 Start by reading the manuscript files in order, or build the docs project:
 
@@ -73,15 +73,15 @@ All project-scoped commands accept `-p` as shorthand for `--project`.
 
 `stego new` also supports `--i <prefix>` for numeric prefix override and `--filename <name>` for an explicit manuscript filename.
 
-## Experimental template engine
+## Template engine
 
-Stego now includes a parallel, experimental template path for TSX-based book templates. This does not replace the existing `build` / `export` flow yet.
+Stego builds and exports through TSX-based book templates.
 
 Templates live at:
 
 - `projects/<project-id>/templates/book.template.tsx`
 
-Current experimental commands:
+Template-specific inspection commands:
 
 ```bash
 stego template build -p fiction-example

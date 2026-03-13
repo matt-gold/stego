@@ -7,8 +7,7 @@ import type {
   ImageStyle,
   ProjectSpineCategory,
   ProjectConfigIssue,
-  ProjectScanContext,
-  ProjectStructuralLevel
+  ProjectScanContext
 } from '../../shared/types';
 import { parseProjectImageDefaults } from '../metadata';
 
@@ -20,8 +19,7 @@ const PROJECT_JSON_SCHEMA = {
     title: { type: 'string', optional: true },
     name: { type: 'string', optional: true },
     requiredMetadata: { type: 'array<string>', optional: true },
-    images: { type: 'object', optional: true },
-    compileStructure: { type: 'object', optional: true }
+    images: { type: 'object', optional: true }
   }
 } as const;
 
@@ -125,32 +123,13 @@ function validateProjectJsonSchema(parsed: unknown): { record?: Record<string, u
     issues.push(issue('$.spineCategories', 'Legacy spineCategories is unsupported in Spine V2. Use spine/<category>/ directories.'));
   }
 
-  const compileStructure = record.compileStructure;
-  if (compileStructure !== undefined && !asObject(compileStructure)) {
-    issues.push(issue('$.compileStructure', 'Expected object.'));
+  if (record.compileStructure !== undefined) {
+    issues.push(issue('$.compileStructure', 'Legacy compileStructure is unsupported. Define build behavior in templates/book.template.tsx.'));
   }
 
   const images = record.images;
   if (images !== undefined && !asObject(images)) {
     issues.push(issue('$.images', 'Expected object.'));
-  }
-
-  if (compileStructure !== undefined) {
-    const structureRecord = asObject(compileStructure);
-    if (structureRecord) {
-      const levels = structureRecord.levels;
-      if (levels !== undefined && !Array.isArray(levels)) {
-        issues.push(issue('$.compileStructure.levels', 'Expected array of objects.'));
-      }
-
-      if (Array.isArray(levels)) {
-        for (let index = 0; index < levels.length; index += 1) {
-          if (!asObject(levels[index])) {
-            issues.push(issue(`$.compileStructure.levels[${index}]`, 'Expected object.'));
-          }
-        }
-      }
-    }
   }
 
   return { record, issues };
@@ -267,8 +246,6 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
 
   const source = parsedRecord ?? {};
   const projectTitle = extractProjectTitle(source, issues);
-  const structuralLevels = extractProjectStructuralLevels(source, issues);
-  const structuralKeys = extractProjectStructuralKeysFromLevels(structuralLevels);
   const requiredMetadata = extractProjectRequiredMetadata(source, issues);
   const imageDefaults = extractProjectImageDefaults(source);
   const categories = await discoverProjectCategories(path.dirname(projectFilePath), requiredMetadata, issues);
@@ -280,8 +257,6 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
     projectDir: path.dirname(projectFilePath),
     projectMtimeMs: stat.mtimeMs,
     projectTitle,
-    structuralKeys,
-    structuralLevels,
     requiredMetadata,
     imageDefaults,
     categories,
@@ -369,118 +344,6 @@ export function extractProjectRequiredMetadata(parsed: unknown, issues?: Project
   }
 
   return result;
-}
-
-export function extractProjectStructuralLevels(parsed: unknown, issues?: ProjectConfigIssue[]): ProjectStructuralLevel[] {
-  const record = asObject(parsed);
-  if (!record) {
-    return [];
-  }
-
-  const compileStructure = record.compileStructure;
-  if (compileStructure === undefined) {
-    return [];
-  }
-  const compileRecord = asObject(compileStructure);
-  if (!compileRecord) {
-    if (issues) {
-      issues.push(issue('$.compileStructure', 'Ignored non-object compileStructure.'));
-    }
-    return [];
-  }
-
-  const levels = compileRecord.levels;
-  if (levels === undefined) {
-    return [];
-  }
-  if (!Array.isArray(levels)) {
-    if (issues) {
-      issues.push(issue('$.compileStructure.levels', 'Ignored non-array levels.'));
-    }
-    return [];
-  }
-
-  const parsedLevels: ProjectStructuralLevel[] = [];
-  const seen = new Set<string>();
-
-  for (let index = 0; index < levels.length; index += 1) {
-    const level = levels[index];
-    const levelPath = `$.compileStructure.levels[${index}]`;
-    const levelRecord = asObject(level);
-    if (!levelRecord) {
-      if (issues) {
-        issues.push(issue(levelPath, 'Ignored non-object level.'));
-      }
-      continue;
-    }
-
-    const key = asTrimmedString(levelRecord.key);
-    const label = asTrimmedString(levelRecord.label);
-    if (!key || !isValidMetadataKey(key)) {
-      if (issues) {
-        issues.push(issue(`${levelPath}.key`, 'Ignored level with invalid key.'));
-      }
-      continue;
-    }
-    if (!label) {
-      if (issues) {
-        issues.push(issue(`${levelPath}.label`, 'Ignored level with missing label.'));
-      }
-      continue;
-    }
-
-    if (seen.has(key)) {
-      if (issues) {
-        issues.push(issue(`${levelPath}.key`, `Ignored duplicate level key '${key}'.`));
-      }
-      continue;
-    }
-
-    const titleKey = asTrimmedString(levelRecord.titleKey);
-    if (titleKey && !isValidMetadataKey(titleKey)) {
-      if (issues) {
-        issues.push(issue(`${levelPath}.titleKey`, `Ignored invalid titleKey '${titleKey}'.`));
-      }
-      continue;
-    }
-
-    const headingTemplateRaw = levelRecord.headingTemplate;
-    if (headingTemplateRaw !== undefined && typeof headingTemplateRaw !== 'string') {
-      if (issues) {
-        issues.push(issue(`${levelPath}.headingTemplate`, 'Ignored non-string headingTemplate.'));
-      }
-    }
-    const headingTemplate = asTrimmedString(headingTemplateRaw) ?? '{label} {value}: {title}';
-
-    seen.add(key);
-    parsedLevels.push({
-      key,
-      label,
-      titleKey: titleKey || undefined,
-      headingTemplate
-    });
-  }
-
-  return parsedLevels;
-}
-
-export function extractProjectStructuralKeysFromLevels(levels: ProjectStructuralLevel[]): string[] {
-  const keys: string[] = [];
-  const seen = new Set<string>();
-
-  for (const level of levels) {
-    if (!seen.has(level.key)) {
-      seen.add(level.key);
-      keys.push(level.key);
-    }
-
-    if (level.titleKey && !seen.has(level.titleKey)) {
-      seen.add(level.titleKey);
-      keys.push(level.titleKey);
-    }
-  }
-
-  return keys;
 }
 
 async function discoverProjectCategories(

@@ -79,18 +79,12 @@ export type SidebarOverviewGateSnapshot = {
   build: SidebarOverviewGateStatus;
 };
 
-export type SidebarOverviewMapRow =
-  | {
-    kind: 'group';
-    level: number;
-    label: string;
-  }
-  | {
-    kind: 'file';
-    filePath: string;
-    fileLabel: string;
-    status: string;
-  };
+export type SidebarOverviewMapRow = {
+  kind: 'file';
+  filePath: string;
+  fileLabel: string;
+  status: string;
+};
 
 export type SidebarOverviewFirstUnresolved = {
   filePath: string;
@@ -209,7 +203,6 @@ export type SidebarWebviewState = {
   documentFileStem: string;
   showSpineFilenameSubtitle: boolean;
   projectDir?: string;
-  structureSummary?: string;
   warnings: string[];
   canShowOverview: boolean;
   activeTab: SidebarViewTab;

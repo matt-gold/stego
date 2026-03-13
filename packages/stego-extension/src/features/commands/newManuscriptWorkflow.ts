@@ -166,7 +166,7 @@ function extractCreatedManuscriptPath(result: ScriptRunResult): string | undefin
       return parsed.result.filePath;
     }
   } catch {
-    // fallback to legacy text parsing
+    // fall through to text-output parsing
   }
 
   const lines = text

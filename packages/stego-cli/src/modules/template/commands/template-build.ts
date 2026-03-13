@@ -7,7 +7,7 @@ import { buildTemplateProject } from "../application/build-template-project.ts";
 export function registerTemplateBuildCommand(registry: CommandRegistry): void {
   registry.register({
     name: "template build",
-    description: "Compile a project through the experimental TSX template engine",
+    description: "Compile a project directly through the TSX template engine",
     options: [
       { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--template <path>", description: "Project-relative template path" },

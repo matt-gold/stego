@@ -375,9 +375,6 @@ export function DocumentTab(props: { state: SidebarWebviewState }): JSX.Element 
               <Show when={props.state.showSpineFilenameSubtitle && props.state.documentFileStem}>
                 <div class="title-structure">{props.state.documentFileStem}</div>
               </Show>
-              <Show when={props.state.structureSummary}>
-                <div class="title-structure">{props.state.structureSummary}</div>
-              </Show>
             </div>
             <div class="actions">
               <RunMenu

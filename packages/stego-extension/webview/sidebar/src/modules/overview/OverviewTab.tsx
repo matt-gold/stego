@@ -152,28 +152,21 @@ export function OverviewTab(props: { state: SidebarWebviewState }): JSX.Element 
           <Show when={props.state.overview && props.state.overview.mapRows.length > 0} fallback={<div class="empty tiny">No manuscript files found.</div>}>
             <div class="overview-file-list">
               <For each={props.state.overview?.mapRows ?? []}>{(row) => (
-                <Show
-                  when={row.kind === 'file'}
-                  fallback={<div class={`overview-group-row lvl-${row.kind === 'group' ? row.level : 0}`}>{row.kind === 'group' ? row.label : ''}</div>}
-                >
-                  <article class="item metadata-item overview-file-item">
-                    <div class="item-main">
-                      <div class="item-title-row">
-                        <button
-                          class="backlink-link"
-                          onClick={() => {
-                            if (row.kind === 'file') {
-                              dispatchSidebarAction(sidebarActions.openOverviewFile(row.filePath));
-                            }
-                          }}
-                        >
-                          {row.kind === 'file' ? row.fileLabel : ''}
-                        </button>
-                        <span class="badge">{row.kind === 'file' ? row.status : ''}</span>
-                      </div>
+                <article class="item metadata-item overview-file-item">
+                  <div class="item-main">
+                    <div class="item-title-row">
+                      <button
+                        class="backlink-link"
+                        onClick={() => {
+                          dispatchSidebarAction(sidebarActions.openOverviewFile(row.filePath));
+                        }}
+                      >
+                        {row.fileLabel}
+                      </button>
+                      <span class="badge">{row.status}</span>
                     </div>
-                  </article>
-                </Show>
+                  </div>
+                </article>
               )}</For>
             </div>
           </Show>

@@ -1,6 +1,6 @@
 import type { CliErrorEnvelope } from "@stego/shared/contracts/cli";
 
-type LegacyCliErrorEnvelope = {
+type MinimalCliErrorEnvelope = {
   ok: false;
   message?: string;
 };
@@ -19,12 +19,12 @@ export function tryParseJson<T>(text: string): T | undefined {
 }
 
 export function extractCliErrorMessage(stdout: string, stderr: string): string | undefined {
-  const stderrPayload = tryParseJson<CliErrorEnvelope | LegacyCliErrorEnvelope>(stderr);
+  const stderrPayload = tryParseJson<CliErrorEnvelope | MinimalCliErrorEnvelope>(stderr);
   if (stderrPayload && stderrPayload.ok === false && typeof stderrPayload.message === 'string') {
     return stderrPayload.message;
   }
 
-  const stdoutPayload = tryParseJson<CliErrorEnvelope | LegacyCliErrorEnvelope>(stdout);
+  const stdoutPayload = tryParseJson<CliErrorEnvelope | MinimalCliErrorEnvelope>(stdout);
   if (stdoutPayload && stdoutPayload.ok === false && typeof stdoutPayload.message === 'string') {
     return stdoutPayload.message;
   }

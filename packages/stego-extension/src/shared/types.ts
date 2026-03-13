@@ -44,7 +44,6 @@ export type SidebarState = {
   documentTabDetached?: boolean;
   documentPath: string;
   projectDir?: string;
-  structureSummary?: string;
   warnings: string[];
   canShowOverview: boolean;
   activeTab: SidebarViewTab;
@@ -122,15 +121,7 @@ export type SidebarOverviewGateStatus = {
   stage?: string;
 };
 
-export type SidebarOverviewMapRow = SidebarOverviewGroupRow | SidebarOverviewFileRow;
-
-export type SidebarOverviewGroupRow = {
-  kind: 'group';
-  level: number;
-  label: string;
-};
-
-export type SidebarOverviewFileRow = {
+export type SidebarOverviewMapRow = {
   kind: 'file';
   filePath: string;
   fileLabel: string;
@@ -303,19 +294,10 @@ export type ProjectScanContext = {
   projectDir: string;
   projectMtimeMs: number;
   projectTitle?: string;
-  structuralKeys: string[];
-  structuralLevels: ProjectStructuralLevel[];
   requiredMetadata: string[];
   imageDefaults: ImageStyle;
   categories: ProjectSpineCategory[];
   issues: ProjectConfigIssue[];
-};
-
-export type ProjectStructuralLevel = {
-  key: string;
-  label: string;
-  titleKey?: string;
-  headingTemplate: string;
 };
 
 export type FileIdentifierUsage = {

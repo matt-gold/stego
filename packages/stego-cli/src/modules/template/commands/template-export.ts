@@ -8,7 +8,7 @@ import { exportTemplateProject } from "../application/export-template-project.ts
 export function registerTemplateExportCommand(registry: CommandRegistry): void {
   registry.register({
     name: "template export",
-    description: "Export formats through the experimental TSX template engine",
+    description: "Export formats directly through the TSX template engine",
     options: [
       { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--template <path>", description: "Project-relative template path" },
