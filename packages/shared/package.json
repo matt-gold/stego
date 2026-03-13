@@ -1,6 +1,6 @@
 {
   "name": "@stego/shared",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Shared contracts and domain primitives for Stego packages.",
   "license": "Apache-2.0",

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0
+
+### Minor Changes
+
+- c083c12: [codex] polish image insert workflow and sidebar image cards
+
+### Patch Changes
+
+- 3a64f57: codex/extension module api seams
+- Updated dependencies [c7cc376]
+  - @stego/shared@1.0.0
+
 ## 0.6.0
 
 ### Minor Changes
