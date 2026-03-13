@@ -1,9 +1,7 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
     branches: [main]
 
 permissions:
@@ -11,53 +9,20 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: release-main
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  changesets:
-    name: changesets
+  release:
+    name: release
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     outputs:
-      has_changesets: ${{ steps.changesets.outputs.hasChangesets }}
+      published: ${{ steps.changesets.outputs.published }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "lts/*"
-          cache: npm
-
-      - name: Install deps
-        run: npm ci
-
-      - name: Run Changesets action
-        id: changesets
-        uses: changesets/action@v1
-        with:
-          version: npm run release:version
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  publish:
-    name: publish
-    runs-on: ubuntu-latest
-    needs: changesets
-    if: ${{ needs.changesets.outputs.has_changesets == 'false' }}
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout release ref
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -70,265 +35,107 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Resolve release metadata
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: npm run release:version
+          publish: npm run release:publish
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-extension:
+    name: publish extension
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ needs.release.outputs.published == 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Resolve extension release metadata
         run: |
-          git fetch --force --tags
-
-          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
-            BASE_REF="HEAD^"
-          else
-            BASE_REF="$(git hash-object -t tree /dev/null)"
-          fi
-
-          if git diff --name-only "$BASE_REF" HEAD -- packages/stego-engine/package.json | grep -q .; then
-            ENGINE_CHANGED=true
-          else
-            ENGINE_CHANGED=false
-          fi
-
-          if git diff --name-only "$BASE_REF" HEAD -- packages/shared/package.json | grep -q .; then
-            SHARED_CHANGED=true
-          else
-            SHARED_CHANGED=false
-          fi
-
-          if git diff --name-only "$BASE_REF" HEAD -- packages/stego-cli/package.json | grep -q .; then
-            CLI_CHANGED=true
-          else
-            CLI_CHANGED=false
-          fi
-
-          if git diff --name-only "$BASE_REF" HEAD -- packages/stego-extension/package.json | grep -q .; then
-            EXT_CHANGED=true
-          else
-            EXT_CHANGED=false
-          fi
-
-          SHARED_VERSION="$(node -p "require('./packages/shared/package.json').version")"
-          ENGINE_VERSION="$(node -p "require('./packages/stego-engine/package.json').version")"
-          CLI_VERSION="$(node -p "require('./packages/stego-cli/package.json').version")"
           EXT_VERSION="$(node -p "require('./packages/stego-extension/package.json').version")"
-          SHARED_TAG="stego-shared-v${SHARED_VERSION}"
-          ENGINE_TAG="stego-engine-v${ENGINE_VERSION}"
-          CLI_TAG="stego-cli-v${CLI_VERSION}"
           EXT_TAG="stego-extension-v${EXT_VERSION}"
-
-          if npm view "@stego-labs/shared@${SHARED_VERSION}" version >/dev/null 2>&1; then
-            SHARED_PUBLISHED=true
-          else
-            SHARED_PUBLISHED=false
-          fi
-
-          if npm view "@stego-labs/engine@${ENGINE_VERSION}" version >/dev/null 2>&1; then
-            ENGINE_PUBLISHED=true
-          else
-            ENGINE_PUBLISHED=false
-          fi
-
-          if npm view "@stego-labs/cli@${CLI_VERSION}" version >/dev/null 2>&1; then
-            CLI_PUBLISHED=true
-          else
-            CLI_PUBLISHED=false
-          fi
-
-          if [ "$SHARED_CHANGED" = "true" ] && [ "$SHARED_PUBLISHED" = "true" ]; then
-            SHARED_CHANGED=false
-          fi
-          if [ "$ENGINE_CHANGED" = "true" ] && [ "$ENGINE_PUBLISHED" = "true" ]; then
-            ENGINE_CHANGED=false
-          fi
-          if [ "$CLI_CHANGED" = "true" ] && [ "$CLI_PUBLISHED" = "true" ]; then
-            CLI_CHANGED=false
-          fi
-          if [ "$EXT_CHANGED" = "true" ] && git show-ref --tags --verify --quiet "refs/tags/${EXT_TAG}"; then
-            EXT_CHANGED=false
-          fi
-
-          echo "SHARED_CHANGED=$SHARED_CHANGED" >> "$GITHUB_ENV"
-          echo "ENGINE_CHANGED=$ENGINE_CHANGED" >> "$GITHUB_ENV"
-          echo "CLI_CHANGED=$CLI_CHANGED" >> "$GITHUB_ENV"
-          echo "EXT_CHANGED=$EXT_CHANGED" >> "$GITHUB_ENV"
-          echo "SHARED_PUBLISHED=$SHARED_PUBLISHED" >> "$GITHUB_ENV"
-          echo "ENGINE_PUBLISHED=$ENGINE_PUBLISHED" >> "$GITHUB_ENV"
-          echo "CLI_PUBLISHED=$CLI_PUBLISHED" >> "$GITHUB_ENV"
-          echo "SHARED_VERSION=$SHARED_VERSION" >> "$GITHUB_ENV"
-          echo "ENGINE_VERSION=$ENGINE_VERSION" >> "$GITHUB_ENV"
-          echo "CLI_VERSION=$CLI_VERSION" >> "$GITHUB_ENV"
           echo "EXT_VERSION=$EXT_VERSION" >> "$GITHUB_ENV"
-          echo "SHARED_TAG=$SHARED_TAG" >> "$GITHUB_ENV"
-          echo "ENGINE_TAG=$ENGINE_TAG" >> "$GITHUB_ENV"
-          echo "CLI_TAG=$CLI_TAG" >> "$GITHUB_ENV"
           echo "EXT_TAG=$EXT_TAG" >> "$GITHUB_ENV"
 
-      - name: Compile @stego-labs/shared
-        if: ${{ env.SHARED_CHANGED == 'true' }}
-        run: npm run -w @stego-labs/shared compile
-
-      - name: Package @stego-labs/shared tarball
-        if: ${{ env.SHARED_CHANGED == 'true' }}
+      - name: Validate VS Marketplace token
         run: |
-          cd packages/shared
-          npm pack
+          if [ -z "${{ secrets.VSCE_PAT }}" ]; then
+            echo "Missing VSCE_PAT secret."
+            exit 1
+          fi
 
-      - name: Resolve @stego-labs/shared tarball path
-        if: ${{ env.SHARED_CHANGED == 'true' }}
+      - name: Compile extension
+        run: npm run -w packages/stego-extension compile
+
+      - name: Pack local shared tarball for extension
         run: |
-          SHARED_TGZ_PATH="$(ls -1t packages/shared/*.tgz | head -n 1)"
-          if [ -z "$SHARED_TGZ_PATH" ]; then
-            echo "No npm tarball found for @stego-labs/shared."
+          SHARED_TGZ_PATH="$(npm pack ./packages/shared --pack-destination "$RUNNER_TEMP" | tail -n 1)"
+          SHARED_TGZ_PATH="$RUNNER_TEMP/$SHARED_TGZ_PATH"
+          if [ ! -f "$SHARED_TGZ_PATH" ]; then
+            echo "Could not create local shared tarball for extension packaging."
             exit 1
           fi
           echo "SHARED_TGZ_PATH=$SHARED_TGZ_PATH" >> "$GITHUB_ENV"
 
-      - name: Upload @stego-labs/shared tarball to GitHub Release
-        if: ${{ env.SHARED_CHANGED == 'true' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.SHARED_TAG }}
-          target_commitish: ${{ github.event.workflow_run.head_sha }}
-          files: ${{ env.SHARED_TGZ_PATH }}
-
-      - name: Test stego-engine
-        if: ${{ env.ENGINE_CHANGED == 'true' }}
-        run: npm run -w packages/stego-engine test
-
-      - name: Package stego-engine tarball
-        if: ${{ env.ENGINE_CHANGED == 'true' }}
-        run: |
-          cd packages/stego-engine
-          npm pack
-
-      - name: Resolve stego-engine tarball path
-        if: ${{ env.ENGINE_CHANGED == 'true' }}
-        run: |
-          ENGINE_TGZ_PATH="$(ls -1t packages/stego-engine/*.tgz | head -n 1)"
-          if [ -z "$ENGINE_TGZ_PATH" ]; then
-            echo "No npm tarball found for stego-engine."
-            exit 1
-          fi
-          echo "ENGINE_TGZ_PATH=$ENGINE_TGZ_PATH" >> "$GITHUB_ENV"
-
-      - name: Upload stego-engine tarball to GitHub Release
-        if: ${{ env.ENGINE_CHANGED == 'true' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.ENGINE_TAG }}
-          target_commitish: ${{ github.event.workflow_run.head_sha }}
-          files: ${{ env.ENGINE_TGZ_PATH }}
-
-      - name: Validate npm token
-        if: ${{ env.SHARED_CHANGED == 'true' || env.ENGINE_CHANGED == 'true' || env.CLI_CHANGED == 'true' }}
-        run: |
-          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
-            echo "Missing NPM_TOKEN secret."
-            exit 1
-          fi
-
-      - name: Publish @stego-labs/shared to npm
-        if: ${{ env.SHARED_CHANGED == 'true' }}
-        run: |
-          if ! npm publish "${{ env.SHARED_TGZ_PATH }}" --access public; then
-            echo "::error::Publishing @stego-labs/shared failed. Ensure the @stego-labs npm scope exists and the NPM_TOKEN user has publish rights to it."
-            exit 1
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Wait for @stego-labs/shared on npm
-        if: ${{ env.SHARED_CHANGED == 'true' && (env.ENGINE_CHANGED == 'true' || env.CLI_CHANGED == 'true' || env.EXT_CHANGED == 'true') }}
-        run: |
-          for attempt in $(seq 1 30); do
-            if npm view "@stego-labs/shared@${SHARED_VERSION}" version >/dev/null 2>&1; then
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "@stego-labs/shared@${SHARED_VERSION} was not visible on npm in time."
-          exit 1
-
-      - name: Publish stego-engine to npm
-        if: ${{ env.ENGINE_CHANGED == 'true' }}
-        run: |
-          if ! npm publish "${{ env.ENGINE_TGZ_PATH }}" --access public; then
-            echo "::error::Publishing @stego-labs/engine failed. Ensure the @stego-labs npm scope exists and the NPM_TOKEN user has publish rights to it."
-            exit 1
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Wait for stego-engine on npm
-        if: ${{ env.ENGINE_CHANGED == 'true' && env.CLI_CHANGED == 'true' }}
-        run: |
-          for attempt in $(seq 1 30); do
-            if npm view "@stego-labs/engine@${ENGINE_VERSION}" version >/dev/null 2>&1; then
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "@stego-labs/engine@${ENGINE_VERSION} was not visible on npm in time."
-          exit 1
-
-      - name: Test stego-cli
-        if: ${{ env.CLI_CHANGED == 'true' }}
-        run: npm run -w packages/stego-cli test
-
-      - name: Package stego-cli tarball
-        if: ${{ env.CLI_CHANGED == 'true' }}
-        run: |
-          cd packages/stego-cli
-          npm pack
-
-      - name: Resolve stego-cli tarball path
-        if: ${{ env.CLI_CHANGED == 'true' }}
-        run: |
-          CLI_TGZ_PATH="$(ls -1t packages/stego-cli/*.tgz | head -n 1)"
-          if [ -z "$CLI_TGZ_PATH" ]; then
-            echo "No npm tarball found for stego-cli."
-            exit 1
-          fi
-          echo "CLI_TGZ_PATH=$CLI_TGZ_PATH" >> "$GITHUB_ENV"
-
-      - name: Upload stego-cli tarball to GitHub Release
-        if: ${{ env.CLI_CHANGED == 'true' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.CLI_TAG }}
-          target_commitish: ${{ github.event.workflow_run.head_sha }}
-          files: ${{ env.CLI_TGZ_PATH }}
-
-      - name: Publish stego-cli to npm
-        if: ${{ env.CLI_CHANGED == 'true' }}
-        run: |
-          if ! npm publish "${{ env.CLI_TGZ_PATH }}" --access public; then
-            echo "::error::Publishing @stego-labs/cli failed. Ensure the @stego-labs npm scope exists and the NPM_TOKEN user has publish rights to it."
-            exit 1
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Test stego-extension
-        if: ${{ env.EXT_CHANGED == 'true' }}
-        run: npm run -w packages/stego-extension test
-
-      - name: Prepare isolated stego-extension package dir
-        if: ${{ env.EXT_CHANGED == 'true' }}
+      - name: Prepare isolated extension package
         run: |
           EXT_PKG_DIR="$RUNNER_TEMP/stego-extension-package"
           rm -rf "$EXT_PKG_DIR"
           mkdir -p "$EXT_PKG_DIR"
           cp -R packages/stego-extension/. "$EXT_PKG_DIR/"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const pkgPath = path.join(process.env.EXT_PKG_DIR, 'package.json');
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          delete pkg.scripts['vscode:prepublish'];
+          pkg.dependencies['@stego-labs/shared'] = `file:${process.env.SHARED_TGZ_PATH}`;
+          fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
           echo "EXT_PKG_DIR=$EXT_PKG_DIR" >> "$GITHUB_ENV"
+        env:
+          EXT_PKG_DIR: ${{ runner.temp }}/stego-extension-package
+          SHARED_TGZ_PATH: ${{ env.SHARED_TGZ_PATH }}
 
-      - name: Package stego-extension VSIX
-        if: ${{ env.EXT_CHANGED == 'true' }}
+      - name: Install isolated extension deps
         run: |
           cd "$EXT_PKG_DIR"
           npm install
-          ln -sfn "$EXT_PKG_DIR/node_modules" "$RUNNER_TEMP/node_modules"
-          npm run package
+        env:
+          EXT_PKG_DIR: ${{ env.EXT_PKG_DIR }}
 
-      - name: Resolve stego-extension VSIX path
-        if: ${{ env.EXT_CHANGED == 'true' }}
+      - name: Sync compiled extension output
+        run: |
+          rm -rf "$EXT_PKG_DIR/out"
+          mkdir -p "$EXT_PKG_DIR"
+          cp -R packages/stego-extension/out "$EXT_PKG_DIR/out"
+        env:
+          EXT_PKG_DIR: ${{ env.EXT_PKG_DIR }}
+
+      - name: Package extension VSIX
+        run: |
+          cd "$EXT_PKG_DIR"
+          npx @vscode/vsce package
+        env:
+          EXT_PKG_DIR: ${{ env.EXT_PKG_DIR }}
+
+      - name: Resolve extension VSIX path
         run: |
           EXT_VSIX_PATH="$(ls -1t "$EXT_PKG_DIR"/*.vsix | head -n 1)"
           if [ -z "$EXT_VSIX_PATH" ]; then
@@ -337,22 +144,12 @@ jobs:
           fi
           echo "EXT_VSIX_PATH=$EXT_VSIX_PATH" >> "$GITHUB_ENV"
 
-      - name: Upload stego-extension VSIX to GitHub Release
-        if: ${{ env.EXT_CHANGED == 'true' }}
+      - name: Upload extension VSIX to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.EXT_TAG }}
-          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          target_commitish: ${{ github.sha }}
           files: ${{ env.EXT_VSIX_PATH }}
 
-      - name: Validate VS Marketplace token
-        if: ${{ env.EXT_CHANGED == 'true' }}
-        run: |
-          if [ -z "${{ secrets.VSCE_PAT }}" ]; then
-            echo "Missing VSCE_PAT secret."
-            exit 1
-          fi
-
-      - name: Publish stego-extension to VS Marketplace
-        if: ${{ env.EXT_CHANGED == 'true' }}
+      - name: Publish extension to VS Marketplace
         run: npx @vscode/vsce publish --packagePath "${{ env.EXT_VSIX_PATH }}" -p "${{ secrets.VSCE_PAT }}"
