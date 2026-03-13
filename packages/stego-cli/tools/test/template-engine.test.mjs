@@ -63,7 +63,7 @@ Hello template world.
   writeFile(path.join(projectRoot, "spine", "sources", "_category.md"), "---\nlabel: Sources\n---\n");
   writeFile(path.join(projectRoot, "spine", "sources", "SRC-ONE.md"), "# Source One\n\nA note.\n");
   writePng(path.join(projectRoot, "assets", "maps", "city-plan.png"));
-  writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego/engine";
+  writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
     <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />

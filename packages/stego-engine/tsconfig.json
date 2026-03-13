@@ -13,22 +13,22 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "@stego/engine",
+    "jsxImportSource": "@stego-labs/engine",
     "baseUrl": ".",
     "paths": {
-      "@stego/engine": [
+      "@stego-labs/engine": [
         "src/index.ts"
       ],
-      "@stego/engine/jsx-runtime": [
+      "@stego-labs/engine/jsx-runtime": [
         "src/template/internal/jsx-runtime.ts"
       ],
-      "@stego/engine/jsx-dev-runtime": [
+      "@stego-labs/engine/jsx-dev-runtime": [
         "src/template/internal/jsx-dev-runtime.ts"
       ],
-      "@stego/shared": [
+      "@stego-labs/shared": [
         "../shared/src/index.ts"
       ],
-      "@stego/shared/*": [
+      "@stego-labs/shared/*": [
         "../shared/src/*"
       ]
     }

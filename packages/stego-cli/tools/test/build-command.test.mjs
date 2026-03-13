@@ -35,7 +35,7 @@ function createTempProject(projectId, projectJson, manuscriptFiles, templateCont
   writeFile(path.join(projectRoot, 'spine', 'characters.md'), '# Characters\n');
   writeFile(
     path.join(projectRoot, 'templates', 'book.template.tsx'),
-    templateContent || `import { defineTemplate, Stego } from "@stego/engine";
+    templateContent || `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document>
     {ctx.collections.manuscripts.splitBy("chapter").map((group) => (

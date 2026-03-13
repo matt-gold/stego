@@ -49,7 +49,7 @@ import {
   setMetadataStatus,
   promptAndFillRequiredMetadata
 } from '../../../metadata';
-import { isValidMetadataKey as isSharedMetadataKey } from '@stego/shared/domain/frontmatter';
+import { isValidMetadataKey as isSharedMetadataKey } from '@stego-labs/shared/domain/frontmatter';
 import { collectIdentifierOccurrencesFromLines, extractIdentifierTokensFromValue } from '../../../identifiers';
 import { openBacklinkFile, openExternalLink, openLineInActiveDocument } from '../../../navigation';
 import {

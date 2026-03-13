@@ -1,5 +1,5 @@
 {
-  "name": "@stego/engine",
+  "name": "@stego-labs/engine",
   "version": "1.0.0",
   "type": "module",
   "description": "Template-driven document engine for Stego.",
@@ -32,17 +32,17 @@
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "npm run -w @stego/shared compile && npm run clean && tsc -p tsconfig.build.json",
+    "build": "npm run -w @stego-labs/shared compile && npm run clean && tsc -p tsconfig.build.json",
     "compile": "npm run build",
     "prepack": "npm run build",
     "pack:dry-run": "npm pack --dry-run",
-    "test": "npm run -w @stego/shared compile && npm run test:engine && npm run check:module-apis && npm run check:boundaries",
+    "test": "npm run -w @stego-labs/shared compile && npm run test:engine && npm run check:module-apis && npm run check:boundaries",
     "test:engine": "node --test tools/test/*.test.mjs",
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
     "check:module-apis": "node scripts/check-module-apis.mjs"
   },
   "dependencies": {
-    "@stego/shared": "^1.0.0",
+    "@stego-labs/shared": "^1.0.0",
     "esbuild": "^0.25.11",
     "js-yaml": "^4.1.1"
   },

@@ -268,7 +268,7 @@ export async function resolveWorkflowCommandInvocation(
       ? `Script '${options.scriptName}' is not defined in ${context.packagePath}.`
       : `No package.json found in ${context.projectDir}.`;
     void vscode.window.showWarningMessage(
-      `${packageHint} Install @stego/cli (or add the script) to run ${options.actionLabel}.`
+      `${packageHint} Install @stego-labs/cli (or add the script) to run ${options.actionLabel}.`
     );
     return undefined;
   }
@@ -290,7 +290,7 @@ export async function resolveStegoCommandInvocation(
   if (!stegoRunner) {
     if (options?.showWarning !== false) {
       void vscode.window.showWarningMessage(
-        `Install @stego/cli to run ${actionLabel}.`
+        `Install @stego-labs/cli to run ${actionLabel}.`
       );
     }
     return undefined;
@@ -334,7 +334,7 @@ export async function resolveWorkspaceCommandInvocation(
       ? `Script '${options.scriptName}' is not defined in ${scriptState.packagePath}.`
       : `No package.json found in ${workspaceDir}.`;
     void vscode.window.showWarningMessage(
-      `${packageHint} Install @stego/cli (or add the script) to run ${options.actionLabel}.`
+      `${packageHint} Install @stego-labs/cli (or add the script) to run ${options.actionLabel}.`
     );
     return undefined;
   }

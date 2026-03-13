@@ -185,7 +185,7 @@
   "scripts": {
     "compile": "npm run compile:host && npm run compile:webview",
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
-    "compile:host": "npm run -w @stego/shared compile && npm run clean && tsc -p tsconfig.build.json",
+    "compile:host": "npm run -w @stego-labs/shared compile && npm run clean && tsc -p tsconfig.build.json",
     "compile:webview": "vite build --config webview/sidebar/vite.config.ts",
     "watch": "tsc -watch -p ./",
     "watch:webview": "vite build --watch --config webview/sidebar/vite.config.ts",
@@ -212,7 +212,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
-    "@stego/shared": "^1.0.0",
+    "@stego-labs/shared": "^1.0.0",
     "dayjs": "^1.11.19",
     "js-yaml": "^4.1.0",
     "markdown-it": "^14.1.1"

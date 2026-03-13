@@ -6,7 +6,7 @@ Stego is a markdown-first writing system for long-form projects.
   <img src="packages/stego-extension/assets/stego.png" alt="Stego logo" width="128" />
 </div>
 
-It combines a CLI workflow (`@stego/cli`) with a VS Code UI (`stego-extension`) so teams can draft, validate, and release manuscripts with structured references and repeatable build pipelines.
+It combines a CLI workflow (`@stego-labs/cli`) with a VS Code UI (`stego-extension`) so teams can draft, validate, and release manuscripts with structured references and repeatable build pipelines.
 
 ## What Stego Is For
 
@@ -49,7 +49,7 @@ For complete docs, start here:
  - Create your stego workspace in an empty directory:
 
 ```bash
-npm install -g @stego/cli
+npm install -g @stego-labs/cli
 stego init
 stego new-project -p hello-world
 ```

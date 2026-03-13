@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { parseMarkdownDocument } from "@stego/shared/domain/frontmatter";
-import { parseCommentAppendix } from "@stego/shared/domain/comments";
-import { rewriteMarkdownImagesForChapter } from "@stego/shared/domain/images";
+import { parseMarkdownDocument } from "@stego-labs/shared/domain/frontmatter";
+import { parseCommentAppendix } from "@stego-labs/shared/domain/comments";
+import { rewriteMarkdownImagesForChapter } from "@stego-labs/shared/domain/images";
 import type { ManuscriptRecord } from "../../template/index.ts";
 
 export function loadManuscripts(

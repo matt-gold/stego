@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as yaml from 'js-yaml';
 import { FRONTMATTER_YAML_SCHEMA } from '../../shared/constants';
 import type { FrontmatterLineRange, ParsedMarkdownDocument } from '../../shared/types';
-import { START_SENTINEL, END_SENTINEL } from '@stego/shared/domain/comments';
+import { START_SENTINEL, END_SENTINEL } from '@stego-labs/shared/domain/comments';
 import {
   formatMetadataValue as formatSharedMetadataValue,
   isValidMetadataKey as isSharedValidMetadataKey,
@@ -11,7 +11,7 @@ import {
   serializeMarkdownDocument as serializeSharedMarkdownDocument,
   type FrontmatterRecord,
   type ParsedMarkdownDocument as SharedParsedMarkdownDocument
-} from '@stego/shared/domain/frontmatter';
+} from '@stego-labs/shared/domain/frontmatter';
 
 export function parseMarkdownDocument(text: string): ParsedMarkdownDocument {
   return parseSharedMarkdownDocument(text);

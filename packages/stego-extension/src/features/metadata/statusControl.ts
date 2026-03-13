@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { asString } from '../../shared/value';
 import type { SidebarStatusControl } from '../../shared/types';
 import { findNearestFileUpward } from '../project';
-import { DEFAULT_ALLOWED_STATUSES } from '@stego/shared/domain/stages';
+import { DEFAULT_ALLOWED_STATUSES } from '@stego-labs/shared/domain/stages';
 
 export async function buildStatusControl(
   frontmatter: Record<string, unknown>,

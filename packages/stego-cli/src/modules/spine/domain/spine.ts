@@ -3,7 +3,7 @@ import path from "node:path";
 import {
   parseMarkdownDocument,
   serializeMarkdownDocument
-} from "@stego/shared/domain/frontmatter";
+} from "@stego-labs/shared/domain/frontmatter";
 
 const CATEGORY_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
 

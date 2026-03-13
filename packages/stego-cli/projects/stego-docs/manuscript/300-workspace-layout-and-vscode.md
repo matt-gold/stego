@@ -44,7 +44,7 @@ Typical folders:
 - `notes/` for planning and references
 - `spine/` for canonical entities
 - `assets/` for local images and other manuscript assets
-- `templates/` for TSX build templates powered by `@stego/engine`
+- `templates/` for TSX build templates powered by `@stego-labs/engine`
 - `dist/` for generated outputs
 
 ## Recommended VS Code workflow
@@ -55,7 +55,7 @@ That keeps editor context focused and ensures project recommendations, metadata 
 
 ## Template authoring support
 
-Scaffolded projects include a `tsconfig.json` that points TSX files at `@stego/engine`.
+Scaffolded projects include a `tsconfig.json` that points TSX files at `@stego-labs/engine`.
 
 Open `templates/book.template.tsx` and VS Code will understand the template context, `Stego.*` components, and collection helpers such as `groupBy(...)` and `splitBy(...)`.
 

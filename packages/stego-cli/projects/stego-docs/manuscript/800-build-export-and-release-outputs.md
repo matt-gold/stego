@@ -43,7 +43,7 @@ Generated files in `dist/` should not be hand-edited.
 - `dist/<project-id>.template.md`
 - `dist/<project-id>.template.render-plan.json`
 
-Use them when you are authoring or debugging a template with `@stego/engine`.
+Use them when you are authoring or debugging a template with `@stego-labs/engine`.
 
 ## Export formats
 

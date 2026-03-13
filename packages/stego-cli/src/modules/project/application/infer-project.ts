@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { CliError } from "@stego/shared/contracts/cli";
+import { CliError } from "@stego-labs/shared/contracts/cli";
 import type { ProjectContext, ProjectMeta, ResolveProjectInput } from "../types.ts";
 import { listProjectIds, readJsonFile } from "../infra/project-repo.ts";
 

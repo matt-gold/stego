@@ -4,7 +4,7 @@ import type { SidebarCommentsState } from '../../shared/types';
 import {
   normalizeAuthor as normalizeSharedAuthor,
   parseCommentAppendix
-} from '@stego/shared/domain/comments';
+} from '@stego-labs/shared/domain/comments';
 import { CommentCliClient } from './commentCliClient';
 import {
   buildAddCommentPayload,

@@ -1,7 +1,7 @@
 import type { AppContext } from "./command-context.ts";
 import { CommandRegistry } from "./command-registry.ts";
 import { coreModules } from "../modules/index.ts";
-import { CliError } from "@stego/shared/contracts/cli";
+import { CliError } from "@stego-labs/shared/contracts/cli";
 import { writeText } from "./output-renderer.ts";
 import { resolveCliVersion } from "./cli-version.ts";
 

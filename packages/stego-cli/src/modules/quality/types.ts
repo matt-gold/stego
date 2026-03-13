@@ -1,5 +1,5 @@
 import type { ProjectContext } from "../project/index.ts";
-import type { StageName } from "@stego/shared/domain/stages";
+import type { StageName } from "@stego-labs/shared/domain/stages";
 
 export type QualityModuleName = "quality";
 
