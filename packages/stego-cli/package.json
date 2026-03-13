@@ -1,6 +1,6 @@
 {
   "name": "@stego-labs/cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Installable CLI for the Stego writing monorepo workflow.",
   "license": "Apache-2.0",
@@ -74,9 +74,9 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@stego-labs/shared": "^1.0.0",
+    "@stego-labs/shared": "^1.0.1",
     "cac": "^7.0.0",
     "js-yaml": "^4.1.1",
-    "@stego-labs/engine": "^1.0.0"
+    "@stego-labs/engine": "^1.0.1"
   }
 }
