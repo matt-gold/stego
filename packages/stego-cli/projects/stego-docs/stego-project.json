@@ -1,7 +1,7 @@
 {
   "id": "stego-docs",
   "title": "Stego Docs",
-  "subtitle": "Canonical documentation project for stego-cli and the Stego writing workflow",
+  "subtitle": "Canonical documentation project for @stego/cli, @stego/engine, and the Stego writing workflow",
   "author": "Matt Gold",
   "requiredMetadata": [
     "status",

@@ -5,32 +5,45 @@ chapter_title: Build, Export, and Release Outputs
 concepts:
   - CON-MANUSCRIPT
   - CON-DIST
-  - CON-COMPILE-STRUCTURE
+  - CON-TEMPLATE-ENGINE
   - CON-STAGE-GATE
 commands:
   - CMD-BUILD
   - CMD-EXPORT
   - CMD-CHECK-STAGE
+  - CMD-TEMPLATE-BUILD
+  - CMD-TEMPLATE-EXPORT
 workflows:
   - FLOW-BUILD-EXPORT
   - FLOW-PROOF-RELEASE
 configuration:
-  - CFG-COMPILE-STRUCTURE
+  - CFG-TEMPLATES
+  - CFG-TEMPLATE-COLLECTIONS
 integrations:
   - INT-PANDOC
   - INT-MARKDOWNLINT
   - INT-CSPELL
+  - INT-STEGO-ENGINE
 ---
 
 # Build, Export, and Release Outputs
 
 ## Build contract
 
-`stego build` compiles one project's manuscript files into a single markdown output in `dist/`.
+`stego build` compiles one project's source through `templates/book.template.tsx` and writes a generated markdown artifact to `dist/`.
 
-The build is deterministic because source ordering comes from filename prefixes and grouping behavior comes from project configuration.
+The build is deterministic because source ordering comes from filename prefixes, while structure, headings, frontmatter, and backmatter come from template code.
 
 Generated files in `dist/` should not be hand-edited.
+
+## Render-plan inspection
+
+`stego template build` writes two debug artifacts:
+
+- `dist/<project-id>.template.md`
+- `dist/<project-id>.template.render-plan.json`
+
+Use them when you are authoring or debugging a template with `@stego/engine`.
 
 ## Export formats
 
@@ -38,7 +51,7 @@ Generated files in `dist/` should not be hand-edited.
 
 For local manuscript images, keep files in `assets/`. Stego exports with project-aware resource paths so image references in compiled markdown can resolve during Pandoc conversion.
 
-EPUB exports include a default stylesheet for image layout metadata (`data-layout` and `data-align`), so block/inline and left/center/right image alignment rules apply without extra setup.
+EPUB exports include a default stylesheet for image layout metadata (`data-layout`, `data-align`, and related block-layout attrs), so block/inline and left/center/right image alignment rules apply without extra setup.
 
 If you export pdf through Pandoc, you also need a compatible PDF engine installed on your machine.
 
@@ -52,6 +65,6 @@ If you export pdf through Pandoc, you also need a compatible PDF engine installe
 
 ## Reproducibility rule
 
-Treat `manuscript/`, `notes/`, and `spine/` as source of truth.
+Treat `manuscript/`, `notes/`, `spine/`, `assets/`, and `templates/` as source of truth.
 
 Treat `dist/` as reproducible output that can be rebuilt at any time.

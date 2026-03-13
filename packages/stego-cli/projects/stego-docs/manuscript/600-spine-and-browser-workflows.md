@@ -7,16 +7,21 @@ concepts:
   - CON-SPINE-CATEGORY
   - CON-METADATA
   - CON-PROJECT
+  - CON-TEMPLATE-ENGINE
 commands:
   - CMD-VALIDATE
+  - CMD-BUILD
 workflows:
   - FLOW-DAILY-WRITING
   - FLOW-STAGE-PROMOTION
+  - FLOW-BUILD-EXPORT
 configuration:
   - CFG-SPINE-CATEGORIES
+  - CFG-TEMPLATES
 integrations:
   - INT-STEGO-EXTENSION
   - INT-VSCODE
+  - INT-STEGO-ENGINE
 ---
 
 # Spine and Browser Workflows
@@ -33,7 +38,7 @@ The documentation project defines categories for:
 - configuration topics
 - integrations
 
-Each manuscript chapter references relevant entries in frontmatter metadata. That lets the Stego extension's Spine Browser act as an alternate way to explore the docs.
+Each manuscript chapter references relevant entries in frontmatter metadata. That lets the Stego extension's Spine Browser act as an alternate way to explore the docs while you edit.
 
 ## Why this is useful for documentation teams
 
@@ -43,6 +48,12 @@ Using Spine in docs gives you:
 - a browseable map of commands and workflows
 - traceability from a chapter to the concepts it depends on
 - a reusable pattern for internal process documentation
+
+## Spine as build input
+
+This project's `templates/book.template.tsx` also renders the spine into a backmatter appendix.
+
+That means the same canonical graph powers both the editor experience and the compiled manual, which is a good example of how nonfiction projects can turn reference records into appendices, glossaries, or release notes.
 
 ## Fiction workflows still use the same model
 
