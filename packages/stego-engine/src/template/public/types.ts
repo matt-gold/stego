@@ -1,5 +1,5 @@
 import type { Collection } from "../../collections/index.ts";
-import type { StegoDocumentNode } from "../../ir/index.ts";
+import type { StegoNode } from "../../ir/index.ts";
 
 export type ManuscriptRecord = {
   kind: "manuscript";
@@ -46,5 +46,5 @@ export type TemplateContext = {
 
 export type StegoTemplate = {
   kind: "stego-template";
-  render: (context: TemplateContext) => StegoDocumentNode;
+  render: (context: TemplateContext) => StegoNode;
 };
