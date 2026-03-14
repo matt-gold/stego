@@ -19,6 +19,7 @@ export type PageSpec = {
 export type StegoNode =
   | StegoDocumentNode
   | StegoFragmentNode
+  | StegoKeepTogetherNode
   | StegoSectionNode
   | StegoHeadingNode
   | StegoParagraphNode
@@ -37,6 +38,11 @@ export type StegoDocumentNode = {
 
 export type StegoFragmentNode = {
   kind: "fragment";
+  children: StegoNode[];
+};
+
+export type StegoKeepTogetherNode = {
+  kind: "keepTogether";
   children: StegoNode[];
 };
 

@@ -33,8 +33,9 @@ local function apply_html_styles(el)
   local inset_right = get_layout_value(el, "inset-right")
   local first_line_indent = get_layout_value(el, "first-line-indent")
   local align = get_layout_value(el, "align")
+  local keep_together = get_layout_value(el, "keep-together")
 
-  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align then
+  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not keep_together then
     return nil
   end
 
@@ -56,6 +57,10 @@ local function apply_html_styles(el)
   end
   if align == "left" or align == "center" or align == "right" then
     style = append_css_rule(style, "text-align:" .. align .. ";")
+  end
+  if keep_together == "true" then
+    style = append_css_rule(style, "break-inside:avoid;")
+    style = append_css_rule(style, "page-break-inside:avoid;")
   end
 
   if style ~= "" then
@@ -84,8 +89,9 @@ local function apply_latex_layout(block)
   local inset_right = get_layout_value(block, "inset-right")
   local first_line_indent = get_layout_value(block, "first-line-indent")
   local align = get_layout_value(block, "align")
+  local keep_together = get_layout_value(block, "keep-together")
 
-  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align then
+  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not keep_together then
     return nil
   end
 
@@ -95,6 +101,9 @@ local function apply_latex_layout(block)
   end
 
   local wrapper = { "\\begingroup" }
+  if keep_together == "true" then
+    table.insert(wrapper, "\\begin{samepage}")
+  end
   if inset_left then
     table.insert(wrapper, "\\leftskip=" .. inset_left)
   end
@@ -117,6 +126,9 @@ local function apply_latex_layout(block)
   table.insert(blocks, block)
 
   if needs_wrapper then
+    if keep_together == "true" then
+      table.insert(blocks, pandoc.RawBlock("latex", "\\end{samepage}"))
+    end
     table.insert(blocks, pandoc.RawBlock("latex", "\\par\\endgroup"))
   end
 

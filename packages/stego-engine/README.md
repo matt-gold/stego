@@ -73,7 +73,18 @@ function ChapterBody(props: { children?: unknown }) {
     </Stego.Section>
   );
 }
+
+function KeptHeading(props: { title: string; children?: unknown }) {
+  return (
+    <Stego.KeepTogether>
+      <Stego.Heading level={2}>{props.title}</Stego.Heading>
+      {props.children}
+    </Stego.KeepTogether>
+  );
+}
 ```
+
+`Stego.KeepTogether` is a best-effort layout wrapper for short block groups such as a heading plus its opening paragraph, an image plus caption, or a compact epigraph. It maps to a keep-together block in supported render targets rather than forcing templates to manage layout hacks directly.
 
 ## Collections: `groupBy()` vs `splitBy()`
 

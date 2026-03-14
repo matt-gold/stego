@@ -1,6 +1,7 @@
 import {
   createDocumentNode,
   createFragmentNode,
+  createKeepTogetherNode,
   createHeadingNode,
   createImageNode,
   createMarkdownNode,
@@ -20,6 +21,7 @@ import {
   type StegoFragmentNode,
   type StegoHeadingNode,
   type StegoImageNode,
+  type StegoKeepTogetherNode,
   type StegoMarkdownNode,
   type StegoPageBreakNode,
   type StegoPageNumberNode,
@@ -35,6 +37,10 @@ export function Document(props: { page?: PageSpec; children?: unknown }): StegoD
 
 export function Fragment(props: { children?: unknown }): StegoFragmentNode {
   return createFragmentNode(normalizeChildren(props.children));
+}
+
+export function KeepTogether(props: { children?: unknown }): StegoKeepTogetherNode {
+  return createKeepTogetherNode(normalizeChildren(props.children));
 }
 
 export function Section(props: {
@@ -109,6 +115,7 @@ export function PageNumber(): StegoPageNumberNode {
 export const Stego = {
   Document,
   Fragment,
+  KeepTogether,
   Section,
   Heading,
   Paragraph,

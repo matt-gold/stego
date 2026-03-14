@@ -21,6 +21,10 @@ function renderNode(node: StegoNode): string {
     case "document":
     case "fragment":
       return node.children.map(renderNode).filter(Boolean).join("\n\n");
+    case "keepTogether": {
+      const body = node.children.map(renderNode).filter(Boolean).join("\n\n");
+      return `::: {data-keep-together=true}\n${body}\n:::`;
+    }
     case "pageTemplate":
       return "";
     case "section": {

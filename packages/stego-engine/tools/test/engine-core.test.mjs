@@ -111,6 +111,12 @@ test("renderDocument emits footer page-number metadata and image attrs", () => {
     page: { size: "6x9", margin: "0.75in" },
     children: [
       engine.Stego.PageTemplate({ footer: { right: engine.Stego.PageNumber() } }),
+      engine.Stego.KeepTogether({
+        children: [
+          engine.Stego.Heading({ level: 2, children: "Kept heading" }),
+          engine.Stego.Paragraph({ children: "Kept paragraph" })
+        ]
+      }),
       engine.Stego.Section({
         insetLeft: "24pt",
         insetRight: "24pt",
@@ -135,6 +141,7 @@ test("renderDocument emits footer page-number metadata and image attrs", () => {
   const rendered = engine.renderDocument({ document, projectRoot: "/tmp/demo" });
   assert.equal(rendered.backend, "pandoc");
   assert.equal(rendered.inputFormat, "markdown-implicit_figures");
+  assert.match(rendered.markdown, /data-keep-together=true/);
   assert.match(rendered.markdown, /data-space-before=18pt/);
   assert.match(rendered.markdown, /data-space-after=12pt/);
   assert.match(rendered.markdown, /data-inset-left=24pt/);
