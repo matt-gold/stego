@@ -1,13 +1,15 @@
+import { createKeepTogetherBookmarkName } from "@stego-labs/shared/domain/layout";
 import type { AlignValue, IndentValue, InsetValue, SpacingValue, StegoNode } from "../../../../ir/index.ts";
 import { formatSizeValue, formatSpacingValue } from "../../normalize/index.ts";
 
 export function writePandocMarkdown(nodes: StegoNode[]): string {
   const blocks: string[] = [];
+  const context = { keepTogetherIndex: 0 };
   for (const node of nodes) {
     if (node.kind === "pageTemplate") {
       continue;
     }
-    const rendered = renderNode(node);
+    const rendered = renderNode(node, context);
     if (!rendered) {
       continue;
     }
@@ -16,19 +18,21 @@ export function writePandocMarkdown(nodes: StegoNode[]): string {
   return `${blocks.join("\n\n").replace(/\n{3,}/g, "\n\n")}\n`;
 }
 
-function renderNode(node: StegoNode): string {
+function renderNode(node: StegoNode, context: { keepTogetherIndex: number }): string {
   switch (node.kind) {
     case "document":
     case "fragment":
-      return node.children.map(renderNode).filter(Boolean).join("\n\n");
+      return node.children.map((child) => renderNode(child, context)).filter(Boolean).join("\n\n");
     case "keepTogether": {
-      const body = node.children.map(renderNode).filter(Boolean).join("\n\n");
-      return `::: {data-keep-together=true}\n${body}\n:::`;
+      context.keepTogetherIndex += 1;
+      const markerId = createKeepTogetherBookmarkName(context.keepTogetherIndex);
+      const body = node.children.map((child) => renderNode(child, context)).filter(Boolean).join("\n\n");
+      return `::: {#${markerId} data-keep-together=true}\n${body}\n:::`;
     }
     case "pageTemplate":
       return "";
     case "section": {
-      const body = node.children.map(renderNode).filter(Boolean).join("\n\n");
+      const body = node.children.map((child) => renderNode(child, context)).filter(Boolean).join("\n\n");
       const attrs = renderBlockAttrs({
         id: node.id,
         role: node.role,

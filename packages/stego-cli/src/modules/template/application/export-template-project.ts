@@ -29,7 +29,7 @@ export async function exportTemplateProject(input: ExportTemplateProjectInput): 
     : null;
 
   try {
-    const exported = runExport({
+    const exported = await runExport({
       project: input.project,
       format,
       inputPath: built.markdownPath,

@@ -36,6 +36,10 @@
       "types": "./dist/domain/images/index.d.ts",
       "default": "./dist/domain/images/index.js"
     },
+    "./domain/layout": {
+      "types": "./dist/domain/layout/index.d.ts",
+      "default": "./dist/domain/layout/index.js"
+    },
     "./domain/project": {
       "types": "./dist/domain/project/index.d.ts",
       "default": "./dist/domain/project/index.js"
@@ -62,6 +66,9 @@
       ],
       "domain/images": [
         "dist/domain/images/index.d.ts"
+      ],
+      "domain/layout": [
+        "dist/domain/layout/index.d.ts"
       ],
       "domain/project": [
         "dist/domain/project/index.d.ts"

@@ -23,7 +23,7 @@ export interface Exporter {
   id: ExportFormat;
   description: string;
   canRun: () => ExportCapability;
-  run: (args: ExportRunArgs) => ExportResult;
+  run: (args: ExportRunArgs) => Promise<ExportResult> | ExportResult;
 }
 
 export function parseExportFormat(value: string): ExportFormat {
