@@ -39,7 +39,8 @@ export async function runExport(input: RunExportInput): Promise<RunExportResult>
     inputFormat: input.inputFormat,
     resourcePaths,
     requiredFilters: input.requiredFilters,
-    extraArgs: input.extraArgs
+    extraArgs: input.extraArgs,
+    postprocess: input.postprocess
   });
 
   return {

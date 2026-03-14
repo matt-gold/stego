@@ -7,12 +7,18 @@ import { writePandocMarkdown } from "./markdown-writer.ts";
 
 export function lowerToPandocRenderPlan(document: StegoDocumentNode, projectRoot: string): RenderDocumentResult {
   const layout = normalizePageLayout(document);
+  const markdown = writePandocMarkdown(document.children);
   return {
     backend: "pandoc",
     inputFormat: "markdown-implicit_figures",
-    markdown: writePandocMarkdown(document.children),
+    markdown: markdown.markdown,
     metadata: buildPandocMetadata(layout),
     resourcePaths: [projectRoot, path.join(projectRoot, "assets")],
-    requiredFilters: ["image-layout", "block-layout"]
+    requiredFilters: ["image-layout", "block-layout"],
+    postprocess: {
+      docx: {
+        blockLayouts: markdown.docxBlockLayouts
+      }
+    }
   };
 }

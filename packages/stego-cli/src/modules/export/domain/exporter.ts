@@ -1,4 +1,5 @@
 import type { ExportFormat } from "../types.ts";
+import type { DocxExportPostprocess } from "../types.ts";
 
 export interface ExportRunArgs {
   inputPath: string;
@@ -8,6 +9,9 @@ export interface ExportRunArgs {
   resourcePaths?: string[];
   requiredFilters?: string[];
   extraArgs?: string[];
+  postprocess?: {
+    docx?: DocxExportPostprocess;
+  };
 }
 
 export interface ExportCapability {

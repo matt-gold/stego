@@ -41,7 +41,8 @@ export async function exportTemplateProject(input: ExportTemplateProjectInput): 
       ],
       requiredFilters: built.renderPlan.requiredFilters,
       explicitOutputPath: input.explicitOutputPath,
-      extraArgs: metadataFilePath ? ["--metadata-file", metadataFilePath] : []
+      extraArgs: metadataFilePath ? ["--metadata-file", metadataFilePath] : [],
+      postprocess: built.renderPlan.postprocess
     });
 
     return {

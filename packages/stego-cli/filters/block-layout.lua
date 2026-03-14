@@ -34,8 +34,9 @@ local function apply_html_styles(el)
   local first_line_indent = get_layout_value(el, "first-line-indent")
   local align = get_layout_value(el, "align")
   local keep_together = get_layout_value(el, "keep-together")
+  local page_break = get_layout_value(el, "page-break")
 
-  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not keep_together then
+  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not keep_together and not page_break then
     return nil
   end
 
@@ -61,6 +62,10 @@ local function apply_html_styles(el)
   if keep_together == "true" then
     style = append_css_rule(style, "break-inside:avoid;")
     style = append_css_rule(style, "page-break-inside:avoid;")
+  end
+  if page_break == "true" then
+    style = append_css_rule(style, "break-before:page;")
+    style = append_css_rule(style, "page-break-before:always;")
   end
 
   if style ~= "" then
@@ -90,12 +95,16 @@ local function apply_latex_layout(block)
   local first_line_indent = get_layout_value(block, "first-line-indent")
   local align = get_layout_value(block, "align")
   local keep_together = get_layout_value(block, "keep-together")
+  local page_break = get_layout_value(block, "page-break")
 
-  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not keep_together then
+  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not keep_together and not page_break then
     return nil
   end
 
   local blocks = {}
+  if page_break == "true" then
+    table.insert(blocks, pandoc.RawBlock("latex", "\\newpage"))
+  end
   if space_before then
     table.insert(blocks, pandoc.RawBlock("latex", "\\vspace*{" .. space_before .. "}"))
   end
