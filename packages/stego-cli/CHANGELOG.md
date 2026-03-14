@@ -1,5 +1,14 @@
 # stego-cli
 
+## 1.0.2
+
+### Patch Changes
+
+- 6e1fc96: Add a `Stego.KeepTogether` template primitive with real DOCX, PDF, and HTML/EPUB support, add DOCX parity for existing block layout props (`spaceBefore`, `spaceAfter`, `insetLeft`, `insetRight`, `firstLineIndent`, and `align`) plus aligned block images, and fix template authoring types so TSX templates typecheck correctly.
+- Updated dependencies [6e1fc96]
+  - @stego-labs/shared@1.0.2
+  - @stego-labs/engine@1.0.2
+
 ## 1.0.1
 
 ### Patch Changes
