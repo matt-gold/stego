@@ -11,7 +11,7 @@ const exporters: Record<ExportFormat, Exporter> = {
   epub: createPandocExporter("epub")
 };
 
-export function runExport(input: RunExportInput): RunExportResult {
+export async function runExport(input: RunExportInput): Promise<RunExportResult> {
   const format = parseExportFormat(input.format.toLowerCase());
   const exporter = exporters[format];
   const targetPath = input.explicitOutputPath
@@ -32,14 +32,15 @@ export function runExport(input: RunExportInput): RunExportResult {
       path.dirname(input.inputPath)
     ]);
 
-  exporter.run({
+  await exporter.run({
     inputPath: input.inputPath,
     outputPath,
     cwd: input.project.root,
     inputFormat: input.inputFormat,
     resourcePaths,
     requiredFilters: input.requiredFilters,
-    extraArgs: input.extraArgs
+    extraArgs: input.extraArgs,
+    postprocess: input.postprocess
   });
 
   return {

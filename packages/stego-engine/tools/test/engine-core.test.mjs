@@ -106,11 +106,18 @@ export default defineTemplate((ctx) => (
   }
 });
 
-test("renderDocument emits footer page-number metadata and image attrs", () => {
+test("renderDocument emits keep-together, layout, footer page-number metadata, and image attrs", () => {
   const document = engine.Stego.Document({
     page: { size: "6x9", margin: "0.75in" },
     children: [
       engine.Stego.PageTemplate({ footer: { right: engine.Stego.PageNumber() } }),
+      engine.Stego.PageBreak(),
+      engine.Stego.KeepTogether({
+        children: [
+          engine.Stego.Heading({ level: 2, children: "Kept heading" }),
+          engine.Stego.Paragraph({ children: "Kept paragraph" })
+        ]
+      }),
       engine.Stego.Section({
         insetLeft: "24pt",
         insetRight: "24pt",
@@ -135,6 +142,8 @@ test("renderDocument emits footer page-number metadata and image attrs", () => {
   const rendered = engine.renderDocument({ document, projectRoot: "/tmp/demo" });
   assert.equal(rendered.backend, "pandoc");
   assert.equal(rendered.inputFormat, "markdown-implicit_figures");
+  assert.match(rendered.markdown, /data-page-break=true/);
+  assert.match(rendered.markdown, /data-keep-together=true/);
   assert.match(rendered.markdown, /data-space-before=18pt/);
   assert.match(rendered.markdown, /data-space-after=12pt/);
   assert.match(rendered.markdown, /data-inset-left=24pt/);
@@ -143,5 +152,21 @@ test("renderDocument emits footer page-number metadata and image attrs", () => {
   assert.match(rendered.markdown, /data-first-line-indent=2em/);
   assert.match(rendered.markdown, /data-layout=block/);
   assert.deepEqual(rendered.requiredFilters, ["image-layout", "block-layout"]);
+  assert.equal(Array.isArray(rendered.postprocess.docx.blockLayouts), true);
+  assert.equal(rendered.postprocess.docx.blockLayouts.length >= 4, true);
+  assert.equal(rendered.postprocess.docx.blockLayouts.some((entry) => entry.keepTogether === true), true);
+  assert.equal(
+    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceBefore === "18pt" && entry.firstLineIndent === "1.5em"),
+    true
+  );
+  assert.equal(
+    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceBefore === "24pt" && entry.spaceAfter === "18pt"),
+    true
+  );
+  assert.equal(
+    rendered.postprocess.docx.blockLayouts.some((entry) => entry.align === "center" && !entry.spaceBefore && !entry.keepTogether),
+    true
+  );
+  assert.equal(rendered.postprocess.docx.blockLayouts.some((entry) => entry.pageBreak === true), true);
   assert.ok(Array.isArray(rendered.metadata["header-includes"]));
 });

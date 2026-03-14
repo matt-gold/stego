@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { ExportFormat } from "../types.ts";
 import type { Exporter } from "../domain/exporter.ts";
+import { applyDocxLayout } from "./docx-layout.ts";
 
 function hasPandoc(): boolean {
   const result = spawnSync("pandoc", ["--version"], { stdio: "ignore" });
@@ -65,7 +66,7 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
 
       return { ok: true };
     },
-    run({ inputPath, outputPath, cwd, inputFormat, resourcePaths, requiredFilters, extraArgs }) {
+    async run({ inputPath, outputPath, cwd, inputFormat, resourcePaths, requiredFilters, extraArgs, postprocess }) {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true });
       const args = [inputPath, "-o", outputPath];
       if (inputFormat) {
@@ -105,6 +106,10 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
         const stdout = (result.stdout || "").trim();
         const details = stderr || stdout || "Unknown pandoc error";
         throw new Error(`pandoc export failed: ${details}`);
+      }
+
+      if (format === "docx") {
+        await applyDocxLayout(outputPath, postprocess?.docx?.blockLayouts || []);
       }
 
       return { outputPath };

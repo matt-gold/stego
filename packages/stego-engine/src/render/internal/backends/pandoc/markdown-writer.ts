@@ -1,32 +1,64 @@
+import { createDocxLayoutBookmarkName, type DocxBlockLayoutSpec } from "@stego-labs/shared/domain/layout";
 import type { AlignValue, IndentValue, InsetValue, SpacingValue, StegoNode } from "../../../../ir/index.ts";
 import { formatSizeValue, formatSpacingValue } from "../../normalize/index.ts";
 
-export function writePandocMarkdown(nodes: StegoNode[]): string {
+export function writePandocMarkdown(nodes: StegoNode[]): {
+  markdown: string;
+  docxBlockLayouts: DocxBlockLayoutSpec[];
+} {
   const blocks: string[] = [];
+  const context = {
+    docxBlockLayoutIndex: 0,
+    docxBlockLayouts: [] as DocxBlockLayoutSpec[]
+  };
   for (const node of nodes) {
     if (node.kind === "pageTemplate") {
       continue;
     }
-    const rendered = renderNode(node);
+    const rendered = renderNode(node, context);
     if (!rendered) {
       continue;
     }
     blocks.push(rendered);
   }
-  return `${blocks.join("\n\n").replace(/\n{3,}/g, "\n\n")}\n`;
+  return {
+    markdown: `${blocks.join("\n\n").replace(/\n{3,}/g, "\n\n")}\n`,
+    docxBlockLayouts: context.docxBlockLayouts
+  };
 }
 
-function renderNode(node: StegoNode): string {
+function renderNode(node: StegoNode, context: {
+  docxBlockLayoutIndex: number;
+  docxBlockLayouts: DocxBlockLayoutSpec[];
+}): string {
   switch (node.kind) {
     case "document":
     case "fragment":
-      return node.children.map(renderNode).filter(Boolean).join("\n\n");
+      return node.children.map((child) => renderNode(child, context)).filter(Boolean).join("\n\n");
+    case "keepTogether": {
+      const markerId = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
+      context.docxBlockLayouts.push({
+        bookmarkName: markerId,
+        keepTogether: true
+      });
+      const body = node.children.map((child) => renderNode(child, context)).filter(Boolean).join("\n\n");
+      return `::: {#${markerId} data-keep-together=true}\n${body}\n:::`;
+    }
     case "pageTemplate":
       return "";
     case "section": {
-      const body = node.children.map(renderNode).filter(Boolean).join("\n\n");
+      const body = node.children.map((child) => renderNode(child, context)).filter(Boolean).join("\n\n");
+      const markerId = getOrCreateDocxBlockLayoutMarker(context, {
+        bookmarkName: node.id,
+        spaceBefore: node.spaceBefore,
+        spaceAfter: node.spaceAfter,
+        insetLeft: node.insetLeft,
+        insetRight: node.insetRight,
+        firstLineIndent: node.firstLineIndent,
+        align: node.align
+      });
       const attrs = renderBlockAttrs({
-        id: node.id,
+        id: markerId || node.id,
         role: node.role,
         spaceBefore: node.spaceBefore,
         spaceAfter: node.spaceAfter,
@@ -38,17 +70,43 @@ function renderNode(node: StegoNode): string {
       return attrs ? `::: ${attrs}\n${body}\n:::` : body;
     }
     case "heading": {
-      const attrs = renderBlockAttrs({
+      const layout = toDocxBlockLayout({
         spaceBefore: node.spaceBefore,
         spaceAfter: node.spaceAfter,
         insetLeft: node.insetLeft,
         insetRight: node.insetRight,
         align: node.align
       });
-      return `${"#".repeat(node.level)} ${renderInlineChildren(node.children)}${attrs ? ` ${attrs}` : ""}`;
+      const body = `${"#".repeat(node.level)} ${renderInlineChildren(node.children)}`;
+      if (!layout) {
+        return body;
+      }
+      const markerId = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
+      context.docxBlockLayouts.push({
+        bookmarkName: markerId,
+        ...layout
+      });
+      const attrs = renderBlockAttrs({
+        id: markerId,
+        spaceBefore: node.spaceBefore,
+        spaceAfter: node.spaceAfter,
+        insetLeft: node.insetLeft,
+        insetRight: node.insetRight,
+        align: node.align
+      });
+      return `::: ${attrs}\n${body}\n:::`;
     }
     case "paragraph": {
+      const markerId = getOrCreateDocxBlockLayoutMarker(context, {
+        spaceBefore: node.spaceBefore,
+        spaceAfter: node.spaceAfter,
+        insetLeft: node.insetLeft,
+        insetRight: node.insetRight,
+        firstLineIndent: node.firstLineIndent,
+        align: node.align
+      });
       const attrs = renderBlockAttrs({
+        id: markerId,
         spaceBefore: node.spaceBefore,
         spaceAfter: node.spaceAfter,
         insetLeft: node.insetLeft,
@@ -79,13 +137,21 @@ function renderNode(node: StegoNode): string {
       }
       const attrText = tokens.length > 0 ? `{${tokens.join(" ")}}` : "";
       const image = `![${node.alt ?? ""}](${node.src})${attrText}`;
-      if (!node.caption) {
-        return image;
+      const body = !node.caption ? image : `${image}\n\n_${node.caption}_`;
+      if (!node.align) {
+        return body;
       }
-      return `${image}\n\n_${node.caption}_`;
+      const markerId = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
+      context.docxBlockLayouts.push({
+        bookmarkName: markerId,
+        align: node.align
+      });
+      return `::: {#${markerId}}\n${body}\n:::`;
     }
     case "pageBreak":
-      return "\\newpage";
+      return renderDocxLayoutMarker(context, {
+        pageBreak: true
+      }, ["data-page-break=true"]);
     case "pageNumber":
       throw new Error("<Stego.PageNumber /> may only appear inside <Stego.PageTemplate /> in V1.");
     case "text":
@@ -100,6 +166,77 @@ function renderInlineChildren(children: StegoNode[]): string {
     }
     return child.value;
   }).join("");
+}
+
+function getOrCreateDocxBlockLayoutMarker(context: {
+  docxBlockLayoutIndex: number;
+  docxBlockLayouts: DocxBlockLayoutSpec[];
+}, input: {
+  bookmarkName?: string;
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+  firstLineIndent?: IndentValue;
+  align?: AlignValue;
+}): string | undefined {
+  const layout = toDocxBlockLayout(input);
+  if (!layout) {
+    return undefined;
+  }
+  const bookmarkName = input.bookmarkName || createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
+  context.docxBlockLayouts.push({
+    bookmarkName,
+    ...layout
+  });
+  return bookmarkName;
+}
+
+function renderDocxLayoutMarker(
+  context: {
+    docxBlockLayoutIndex: number;
+    docxBlockLayouts: DocxBlockLayoutSpec[];
+  },
+  layout: Omit<DocxBlockLayoutSpec, "bookmarkName">,
+  extraTokens: string[] = [],
+  body = ""
+): string {
+  const bookmarkName = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
+  context.docxBlockLayouts.push({
+    bookmarkName,
+    ...layout
+  });
+  const attrs = renderRawAttrs({ id: bookmarkName, tokens: extraTokens });
+  return body ? `::: ${attrs}\n${body}\n:::` : `::: ${attrs}\n:::`;
+}
+
+function toDocxBlockLayout(input: {
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+  firstLineIndent?: IndentValue;
+  align?: AlignValue;
+}): Omit<DocxBlockLayoutSpec, "bookmarkName"> | undefined {
+  const spaceBefore = formatSpacingValue(input.spaceBefore);
+  const spaceAfter = formatSpacingValue(input.spaceAfter);
+  const insetLeft = formatSpacingValue(input.insetLeft);
+  const insetRight = formatSpacingValue(input.insetRight);
+  const firstLineIndent = formatIndentValue(input.firstLineIndent);
+  const align = input.align;
+
+  if (!spaceBefore && !spaceAfter && !insetLeft && !insetRight && !firstLineIndent && !align) {
+    return undefined;
+  }
+
+  return {
+    spaceBefore,
+    spaceAfter,
+    insetLeft,
+    insetRight,
+    firstLineIndent,
+    align
+  };
 }
 
 function renderBlockAttrs(input: {
@@ -143,6 +280,17 @@ function renderBlockAttrs(input: {
     tokens.push(`data-align=${String(input.align)}`);
   }
   return tokens.length > 0 ? `{${tokens.join(" ")}}` : "";
+}
+
+function renderRawAttrs(input: { id?: string; tokens?: string[] }): string {
+  const tokens: string[] = [];
+  if (input.id) {
+    tokens.push(`#${input.id}`);
+  }
+  if (input.tokens && input.tokens.length > 0) {
+    tokens.push(...input.tokens);
+  }
+  return `{${tokens.join(" ")}}`;
 }
 
 function formatIndentValue(value: IndentValue | undefined): string | undefined {

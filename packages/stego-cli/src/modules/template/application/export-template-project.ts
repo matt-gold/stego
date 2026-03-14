@@ -29,7 +29,7 @@ export async function exportTemplateProject(input: ExportTemplateProjectInput): 
     : null;
 
   try {
-    const exported = runExport({
+    const exported = await runExport({
       project: input.project,
       format,
       inputPath: built.markdownPath,
@@ -41,7 +41,8 @@ export async function exportTemplateProject(input: ExportTemplateProjectInput): 
       ],
       requiredFilters: built.renderPlan.requiredFilters,
       explicitOutputPath: input.explicitOutputPath,
-      extraArgs: metadataFilePath ? ["--metadata-file", metadataFilePath] : []
+      extraArgs: metadataFilePath ? ["--metadata-file", metadataFilePath] : [],
+      postprocess: built.renderPlan.postprocess
     });
 
     return {

@@ -1,3 +1,4 @@
+import type { DocxBlockLayoutSpec } from "@stego-labs/shared/domain/layout";
 import type { StegoDocumentNode } from "../../ir/index.ts";
 
 export type RenderDocumentInput = {
@@ -12,4 +13,9 @@ export type RenderDocumentResult = {
   metadata: Record<string, unknown>;
   resourcePaths: string[];
   requiredFilters: string[];
+  postprocess: {
+    docx: {
+      blockLayouts: DocxBlockLayoutSpec[];
+    };
+  };
 };

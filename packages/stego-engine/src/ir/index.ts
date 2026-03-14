@@ -1,6 +1,7 @@
 export * from "./types.ts";
 export { createDocumentNode } from "./nodes/document.ts";
 export { createFragmentNode } from "./nodes/fragment.ts";
+export { createKeepTogetherNode } from "./nodes/keep-together.ts";
 export { createSectionNode } from "./nodes/section.ts";
 export { createHeadingNode } from "./nodes/heading.ts";
 export { createParagraphNode } from "./nodes/paragraph.ts";

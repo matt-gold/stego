@@ -143,9 +143,22 @@ while [[ "$#" -gt 0 ]]; do
   fi
   shift
 done
-if [[ -n "$out" ]]; then
-  mkdir -p "$(dirname "$out")"
-  : > "$out"
+  if [[ -n "$out" ]]; then
+    mkdir -p "$(dirname "$out")"
+  if [[ "$out" == *.docx ]]; then
+    node - "$out" <<'NODE'
+const fs = require('node:fs');
+const JSZip = require('jszip');
+
+const outputPath = process.argv[2];
+const zip = new JSZip();
+zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
+zip.file('word/document.xml', '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body></w:body></w:document>');
+zip.generateAsync({ type: 'nodebuffer' }).then((buffer) => fs.writeFileSync(outputPath, buffer));
+NODE
+  else
+    : > "$out"
+  fi
 fi
 `);
   fs.chmodSync(fakePandocPath, 0o755);

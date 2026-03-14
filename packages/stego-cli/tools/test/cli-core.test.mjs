@@ -9,6 +9,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "../..");
 const cliPath = path.join(repoRoot, "tools", "stego-cli.ts");
 const packageJsonPath = path.join(repoRoot, "package.json");
+const builtCliPath = path.join(repoRoot, "dist", "stego-cli", "src", "main.js");
 
 function runCli(args) {
   return spawnSync("node", ["--experimental-strip-types", cliPath, ...args], {
@@ -65,4 +66,9 @@ test("core commands reject unknown options", () => {
   const result = runCli(["validate", "--bogus"]);
   assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stderr, /Unknown option `--bogus`/);
+});
+
+test("built CLI entrypoint is executable for npx --no-install stego", () => {
+  const stats = fs.statSync(builtCliPath);
+  assert.notEqual(stats.mode & 0o111, 0, `${builtCliPath} is not executable`);
 });
