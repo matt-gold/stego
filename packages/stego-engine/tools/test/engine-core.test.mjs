@@ -106,7 +106,7 @@ export default defineTemplate((ctx) => (
   }
 });
 
-test("renderDocument emits footer page-number metadata and image attrs", () => {
+test("renderDocument emits keep-together, layout, footer page-number metadata, and image attrs", () => {
   const document = engine.Stego.Document({
     page: { size: "6x9", margin: "0.75in" },
     children: [
