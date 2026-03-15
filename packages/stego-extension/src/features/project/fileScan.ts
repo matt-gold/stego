@@ -76,7 +76,7 @@ export async function collectMarkdownFiles(rootDir: string): Promise<string[]> {
   return results;
 }
 
-export async function collectReferenceMarkdownFiles(projectDir: string): Promise<string[]> {
+export async function collectProjectContentFiles(projectDir: string): Promise<string[]> {
   const roots = [
     path.join(projectDir, CONTENT_DIR),
     path.join(projectDir, 'notes')

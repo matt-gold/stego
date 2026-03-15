@@ -1,7 +1,7 @@
 export {
   buildProjectScanPlan,
   resolveBranchNotesFile,
-  collectReferenceMarkdownFiles,
+  collectProjectContentFiles,
   collectManuscriptMarkdownFiles,
   resolveCurrentBranchFile
 } from './fileScan';
