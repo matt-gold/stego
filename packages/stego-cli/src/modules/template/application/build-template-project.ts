@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { compileProject, renderDocument, type RenderDocumentResult } from "@stego-labs/engine";
+import type { PresentationTarget } from "@stego-labs/shared/domain/templates";
 import type { ProjectContext } from "../../project/index.ts";
 
 export type TemplateBuildArtifactPaths = {
@@ -9,6 +10,7 @@ export type TemplateBuildArtifactPaths = {
 };
 
 export type BuildTemplateProjectResult = {
+  declaredTargets: readonly PresentationTarget[] | null;
   markdownPath: string;
   renderPlanPath: string;
   renderPlan: RenderDocumentResult;
@@ -41,6 +43,7 @@ export async function buildTemplateProject(
   fs.writeFileSync(renderPlanPath, `${JSON.stringify(renderPlan, null, 2)}\n`, "utf8");
 
   return {
+    declaredTargets: compiled.declaredTargets,
     markdownPath,
     renderPlanPath,
     renderPlan

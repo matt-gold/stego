@@ -16,6 +16,7 @@ export type ProjectContext = {
   root: string;
   contentDir: string;
   notesDir: string;
+  templatesDir: string;
   distDir: string;
   meta: ProjectMeta;
   workspace: WorkspaceContext;

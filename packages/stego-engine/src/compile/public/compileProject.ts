@@ -18,6 +18,7 @@ export async function compileProject(input: CompileProjectInput): Promise<Compil
     return {
       projectRoot,
       templatePath,
+      declaredTargets: loaded.template.targets,
       context,
       document
     };

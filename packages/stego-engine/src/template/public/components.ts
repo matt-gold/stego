@@ -36,9 +36,160 @@ import {
 } from "../../ir/index.ts";
 import { groupCollectionItems, splitCollectionItems, type Group, type GroupSelector, type SplitGroup } from "../../collections/index.ts";
 import type { LeafMetadata, LeafRecord } from "./types.ts";
+import type { PresentationTarget, TemplateCapability } from "@stego-labs/shared/domain/templates";
+import { TARGET_CAPABILITIES } from "@stego-labs/shared/domain/templates";
 import { normalizeChildren, normalizeInlineChildren } from "../internal/normalizeChildren.ts";
 
-export function Document(props: { page?: PageSpec; children?: unknown }): StegoDocumentNode {
+export type DocumentProps = {
+  page?: PageSpec;
+  children?: unknown;
+};
+
+export type SectionProps = {
+  role?: StegoSectionNode["role"];
+  id?: string;
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+  firstLineIndent?: IndentValue;
+  align?: AlignValue;
+  children?: unknown;
+};
+
+export type HeadingProps = {
+  level: StegoHeadingNode["level"];
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+  align?: AlignValue;
+  children?: unknown;
+};
+
+export type ParagraphProps = {
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+  firstLineIndent?: IndentValue;
+  align?: AlignValue;
+  children?: unknown;
+};
+
+export type ImageProps = {
+  src: string;
+  alt?: string;
+  width?: SizeValue;
+  height?: SizeValue;
+  layout?: "block" | "inline";
+  align?: AlignValue;
+  caption?: string;
+};
+
+type CapabilityMap = typeof TARGET_CAPABILITIES;
+type AllTargetsSupport<TTargets extends PresentationTarget, TCapability extends TemplateCapability> =
+  false extends (TTargets extends any ? CapabilityMap[TTargets][TCapability] : never) ? false : true;
+
+type GatedProps<
+  TTargets extends PresentationTarget,
+  TCapability extends TemplateCapability,
+  TProps extends object
+> = AllTargetsSupport<TTargets, TCapability> extends true
+  ? TProps
+  : { [TKey in keyof TProps]?: never };
+
+type NarrowDocumentProps<TTargets extends PresentationTarget> = {
+  children?: unknown;
+} & GatedProps<TTargets, "pageLayout", { page?: PageSpec }>;
+
+type NarrowSectionProps<TTargets extends PresentationTarget> = {
+  role?: StegoSectionNode["role"];
+  id?: string;
+  children?: unknown;
+} & GatedProps<TTargets, "spacing", {
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+}> & GatedProps<TTargets, "inset", {
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+}> & GatedProps<TTargets, "indent", {
+  firstLineIndent?: IndentValue;
+}> & GatedProps<TTargets, "align", {
+  align?: AlignValue;
+}>;
+
+type NarrowHeadingProps<TTargets extends PresentationTarget> = {
+  level: StegoHeadingNode["level"];
+  children?: unknown;
+} & GatedProps<TTargets, "spacing", {
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+}> & GatedProps<TTargets, "inset", {
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+}> & GatedProps<TTargets, "align", {
+  align?: AlignValue;
+}>;
+
+type NarrowParagraphProps<TTargets extends PresentationTarget> = {
+  children?: unknown;
+} & GatedProps<TTargets, "spacing", {
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+}> & GatedProps<TTargets, "inset", {
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+}> & GatedProps<TTargets, "indent", {
+  firstLineIndent?: IndentValue;
+}> & GatedProps<TTargets, "align", {
+  align?: AlignValue;
+}>;
+
+type NarrowImageProps<TTargets extends PresentationTarget> = {
+  src: string;
+  alt?: string;
+  width?: SizeValue;
+  height?: SizeValue;
+  caption?: string;
+} & GatedProps<TTargets, "imageLayout", {
+  layout?: "block" | "inline";
+}> & GatedProps<TTargets, "imageAlign", {
+  align?: AlignValue;
+}>;
+
+type NarrowDocumentComponent<TTargets extends PresentationTarget> = (props: NarrowDocumentProps<TTargets>) => StegoDocumentNode;
+type NarrowSectionComponent<TTargets extends PresentationTarget> = (props: NarrowSectionProps<TTargets>) => StegoSectionNode;
+type NarrowHeadingComponent<TTargets extends PresentationTarget> = (props: NarrowHeadingProps<TTargets>) => StegoHeadingNode;
+type NarrowParagraphComponent<TTargets extends PresentationTarget> = (props: NarrowParagraphProps<TTargets>) => StegoParagraphNode;
+type NarrowImageComponent<TTargets extends PresentationTarget> = (props: NarrowImageProps<TTargets>) => StegoImageNode;
+type MaybeComponent<
+  TKey extends string,
+  TTargets extends PresentationTarget,
+  TCapability extends TemplateCapability,
+  TValue
+> = AllTargetsSupport<TTargets, TCapability> extends true
+  ? { [TProp in TKey]: TValue }
+  : {};
+
+export type StegoApi<TTargets extends PresentationTarget> = {
+  Document: NarrowDocumentComponent<TTargets>;
+  Fragment: typeof Fragment;
+  Section: NarrowSectionComponent<TTargets>;
+  Heading: NarrowHeadingComponent<TTargets>;
+  Paragraph: NarrowParagraphComponent<TTargets>;
+  Markdown: typeof Markdown;
+  PlainText: typeof PlainText;
+  Link: typeof Link;
+  Image: NarrowImageComponent<TTargets>;
+  groupBy: typeof groupBy;
+  splitBy: typeof splitBy;
+} & MaybeComponent<"KeepTogether", TTargets, "keepTogether", typeof KeepTogether>
+  & MaybeComponent<"PageBreak", TTargets, "pageBreak", typeof PageBreak>
+  & MaybeComponent<"PageTemplate", TTargets, "pageTemplate", typeof PageTemplate>
+  & MaybeComponent<"PageNumber", TTargets, "pageNumber", typeof PageNumber>;
+
+export function Document(props: DocumentProps): StegoDocumentNode {
   return createDocumentNode(props.page, normalizeChildren(props.children));
 }
 
@@ -50,41 +201,15 @@ export function KeepTogether(props: { children?: unknown }): StegoKeepTogetherNo
   return createKeepTogetherNode(normalizeChildren(props.children));
 }
 
-export function Section(props: {
-  role?: StegoSectionNode["role"];
-  id?: string;
-  spaceBefore?: SpacingValue;
-  spaceAfter?: SpacingValue;
-  insetLeft?: InsetValue;
-  insetRight?: InsetValue;
-  firstLineIndent?: IndentValue;
-  align?: AlignValue;
-  children?: unknown;
-}): StegoSectionNode {
+export function Section(props: SectionProps): StegoSectionNode {
   return createSectionNode(props, normalizeChildren(props.children));
 }
 
-export function Heading(props: {
-  level: StegoHeadingNode["level"];
-  spaceBefore?: SpacingValue;
-  spaceAfter?: SpacingValue;
-  insetLeft?: InsetValue;
-  insetRight?: InsetValue;
-  align?: AlignValue;
-  children?: unknown;
-}): StegoHeadingNode {
+export function Heading(props: HeadingProps): StegoHeadingNode {
   return createHeadingNode(props.level, props, normalizeInlineChildren(props.children));
 }
 
-export function Paragraph(props: {
-  spaceBefore?: SpacingValue;
-  spaceAfter?: SpacingValue;
-  insetLeft?: InsetValue;
-  insetRight?: InsetValue;
-  firstLineIndent?: IndentValue;
-  align?: AlignValue;
-  children?: unknown;
-}): StegoParagraphNode {
+export function Paragraph(props: ParagraphProps): StegoParagraphNode {
   return createParagraphNode(props, normalizeInlineChildren(props.children));
 }
 
@@ -128,15 +253,7 @@ export function Link(props: {
   return createLinkNode(props.leaf, props, normalizeInlineChildren(props.children));
 }
 
-export function Image(props: {
-  src: string;
-  alt?: string;
-  width?: SizeValue;
-  height?: SizeValue;
-  layout?: "block" | "inline";
-  align?: AlignValue;
-  caption?: string;
-}): StegoImageNode {
+export function Image(props: ImageProps): StegoImageNode {
   return createImageNode(props);
 }
 

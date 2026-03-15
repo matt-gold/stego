@@ -38,7 +38,7 @@ A practical Stego writing loop looks like this:
 1. Open one project folder in VS Code.
 2. Write or revise leaves in `content/`.
 3. Run `stego validate` for fast structural feedback.
-4. Run `stego build` to inspect the compiled manuscript from the current template.
+4. Run `stego build` to inspect the compiled manuscript from the current template or templates.
 5. Run `stego check-stage` before moving to the next editorial milestone.
 6. Export formats as needed for review or delivery.
 
@@ -58,14 +58,14 @@ stego export -p fiction-example --format md
 
 ## Template debugging commands
 
-Normal `build` and `export` already use the project template. When you want to inspect the render plan directly, use the template commands.
+Normal `build` and `export` already use the project template flow. In the default lane that is `templates/book.template.tsx`. In advanced template mode, Stego auto-discovers `templates/*.template.tsx`, builds every discovered template, and exports through the unique matching template for the requested presentation target.
 
 ```bash
 stego template build -p fiction-example
 stego template export -p fiction-example --format pdf
 ```
 
-`template build` writes a compiled markdown artifact and a render-plan JSON file to `dist/` so you can inspect exactly what `@stego-labs/engine` produced.
+`template build` writes a compiled markdown artifact and a render-plan JSON file to `dist/` so you can inspect exactly what `@stego-labs/engine` produced for one explicit template.
 
 ## Create a new project
 

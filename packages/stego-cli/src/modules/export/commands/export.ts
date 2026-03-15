@@ -2,7 +2,7 @@ import type { CommandRegistry } from "../../../app/command-registry.ts";
 import { writeText } from "../../../app/output-renderer.ts";
 import { resolveProjectContext } from "../../project/index.ts";
 import { formatIssues, inspectProject, issueHasErrors } from "../../quality/index.ts";
-import { exportTemplateProject } from "../../template/index.ts";
+import { createTemplatePlanner, exportTemplateProject } from "../../template/index.ts";
 import { resolveWorkspaceContext } from "../../workspace/index.ts";
 
 export function registerExportCommand(registry: CommandRegistry): void {
@@ -37,19 +37,46 @@ export function registerExportCommand(registry: CommandRegistry): void {
         return;
       }
 
-      const exported = await exportTemplateProject({
-        project,
-        templatePath: readStringOption(context.options, "template"),
-        format,
-        explicitOutputPath: readStringOption(context.options, "output"),
-        artifactPaths: {
-          markdownFileName: `${project.id}.md`,
-          renderPlanFileName: `${project.id}.render-plan.json`
+      const explicitTemplatePath = readStringOption(context.options, "template");
+      if (explicitTemplatePath || format === "md") {
+        const exported = await exportTemplateProject({
+          project,
+          templatePath: explicitTemplatePath,
+          format,
+          explicitOutputPath: readStringOption(context.options, "output"),
+          artifactPaths: {
+            markdownFileName: `${project.id}.md`,
+            renderPlanFileName: `${project.id}.render-plan.json`
+          }
+        });
+        writeText(`Export build markdown: ${exported.markdownPath}`);
+        writeText(`Export render plan: ${exported.renderPlanPath}`);
+        writeText(`Export output: ${exported.outputPath}`);
+        return;
+      }
+
+      const planner = createTemplatePlanner(project);
+      try {
+        const inspection = await planner.inspectDiscoveredTemplates();
+        for (const line of formatIssues(inspection.issues)) {
+          writeText(line);
         }
-      });
-      writeText(`Export build markdown: ${exported.markdownPath}`);
-      writeText(`Export render plan: ${exported.renderPlanPath}`);
-      writeText(`Export output: ${exported.outputPath}`);
+        if (inspection.issues.some((issue) => issue.level === "error")) {
+          process.exitCode = 1;
+          return;
+        }
+
+        const exported = await planner.exportDiscoveredTemplate(
+          format,
+          readStringOption(context.options, "output"),
+          inspection
+        );
+        writeText(`Export build markdown: ${exported.markdownPath}`);
+        writeText(`Export render plan: ${exported.renderPlanPath}`);
+        writeText(`Export output: ${exported.outputPath}`);
+      } finally {
+        planner.dispose();
+      }
     }
   });
 }

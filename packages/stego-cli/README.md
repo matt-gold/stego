@@ -4,7 +4,7 @@
 
 It scaffolds a Stego workspace, validates leaf structure and metadata, runs stage-aware quality gates, builds compiled manuscripts, and exports delivery formats.
 
-Builds are template-driven through `templates/book.template.tsx`, powered by `@stego-labs/engine`.
+Builds are template-driven through `templates/`, powered by `@stego-labs/engine`. New projects still start with `templates/book.template.tsx`.
 
 ## Quick start
 
@@ -54,7 +54,12 @@ stego metadata read projects/fiction-example/content/100-the-commission.md --for
 
 ## Template engine
 
-Templates live at `projects/<project-id>/templates/book.template.tsx`.
+Stego has two template lanes:
+
+- Default lane: one simple `templates/book.template.tsx` using the broad `Stego` API
+- Advanced template mode: multiple templates per project, auto-discovered from `templates/*.template.tsx`, with target-aware declarations and a narrowed Stego API
+
+Templates live in `projects/<project-id>/templates/`. New projects still scaffold only `templates/book.template.tsx`.
 
 ```bash
 stego template build -p fiction-example
@@ -67,10 +72,29 @@ Current behavior:
 - templates are plain TSX using normal JavaScript control flow
 - templates import `defineTemplate` and `Stego` from `@stego-labs/engine`
 - the engine loads ordered leaves from `content/`
+- default projects can stay on `defineTemplate((ctx) => ...)` and export to `md`, `docx`, `pdf`, and `epub` without extra configuration
+- advanced template mode is opt-in: `defineTemplate({ targets: [...] }, (ctx, Stego) => ...)` narrows the Stego API to the strict intersection of those presentation targets
+- advanced template mode supports multiple templates per project through auto-discovery in `templates/`
 - template export supports `md`, `docx`, `pdf`, and `epub`
 - `md` is the low-fidelity compiled/debug artifact: useful for inspection, diffing, and portable handoff, but not a full presentation-fidelity target for all Stego layout primitives
+- `md` is a special-case export artifact: it stays on the deterministic default template path unless you explicitly bypass it with `--template`
 - `docx`, `pdf`, and `epub` are the presentation targets when you need richer layout fidelity
 - `dist/<project-id>.template.md` and `dist/<project-id>.template.render-plan.json` are written for inspection during `template build`
+
+### Default vs advanced templates
+
+Default projects keep the low-friction path:
+
+- `stego build` compiles the default `book.template.tsx`
+- `stego export --format md|docx|pdf|epub` uses that same default template
+
+Advanced template mode is for sophisticated projects that want target-aware templates, multiple templates per project, or a narrowed Stego API:
+
+- Stego auto-discovers `templates/*.template.tsx`
+- `stego build` compiles every discovered template once and writes per-template markdown/render-plan artifacts
+- `stego export --format docx|pdf|epub` chooses the unique matching discovered template
+- if more than one discovered template supports the same presentation target, export fails with an ambiguity error until you pass `--template`
+- `stego template build` and `stego template export` remain the direct single-template debug/bypass commands
 
 ## Images
 
@@ -115,10 +139,10 @@ new-project --project|-p <project-id> [--title <title>] [--prose-font <yes|no|pr
 new --project|-p <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--id <leaf-id>] [--format <text|json>] [--root <path>]
 content read --project|-p <project-id> [--format <text|json>] [--root <path>]
 validate --project|-p <project-id> [--file <project-relative-content-path>] [--root <path>]
-build --project|-p <project-id> [--root <path>]
+build --project|-p <project-id> [--template <path>] [--root <path>]
 check-stage --project|-p <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-content-path>] [--root <path>]
 lint --project|-p <project-id> [--manuscript|--notes] [--root <path>]
-export --project|-p <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]
+export --project|-p <project-id> --format <md|docx|pdf|epub> [--template <path>] [--output <path>] [--root <path>]
 template build --project|-p <project-id> [--template <path>] [--root <path>]
 template export --project|-p <project-id> --format <md|docx|pdf|epub> [--template <path>] [--output <path>] [--root <path>]
 metadata read <markdown-path> [--format <text|json>]

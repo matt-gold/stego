@@ -8,5 +8,8 @@ export type {
   LeafRecord,
   BranchRecord,
   TemplateContext,
-  StegoTemplate
+  StegoTemplate,
+  TemplateDefinitionOptions
 } from "./types.ts";
+export type { StegoApi } from "./components.ts";
+export type { ExportTarget, PresentationTarget } from "@stego-labs/shared/domain/templates";

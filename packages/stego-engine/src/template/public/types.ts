@@ -1,8 +1,11 @@
 import type { StegoNode } from "../../ir/index.ts";
 import type { LeafFormat, LeafHeadingTarget } from "@stego-labs/shared/domain/content";
+import type { PresentationTarget } from "@stego-labs/shared/domain/templates";
 
 export type ProjectMetadata = Record<string, unknown>;
-export type LeafMetadata = Record<string, unknown>;
+export type LeafMetadata = Record<string, unknown> & {
+  id: string;
+};
 export type BranchMetadata = {
   label?: string;
 };
@@ -54,8 +57,14 @@ export type TemplateContext<
 export type StegoTemplate<
   TProjectMetadata extends ProjectMetadata = ProjectMetadata,
   TLeafMetadata extends LeafMetadata = LeafMetadata,
-  TBranchMetadata extends BranchMetadata = BranchMetadata
+  TBranchMetadata extends BranchMetadata = BranchMetadata,
+  TTargets extends PresentationTarget = never
 > = {
   kind: "stego-template";
+  targets: readonly TTargets[] | null;
   render: (context: TemplateContext<TProjectMetadata, TLeafMetadata, TBranchMetadata>) => StegoNode;
+};
+
+export type TemplateDefinitionOptions<TTargets extends readonly PresentationTarget[]> = {
+  targets: TTargets;
 };

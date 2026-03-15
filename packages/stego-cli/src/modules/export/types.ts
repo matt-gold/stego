@@ -1,9 +1,10 @@
 import type { ProjectContext } from "../project/index.ts";
 import type { DocxBlockLayoutSpec } from "@stego-labs/shared/domain/layout";
+import type { ExportTarget } from "@stego-labs/shared/domain/templates";
 
 export type ExportModuleName = "export";
 
-export type ExportFormat = "md" | "docx" | "pdf" | "epub";
+export type ExportFormat = ExportTarget;
 
 export type RunExportInput = {
   project: ProjectContext;

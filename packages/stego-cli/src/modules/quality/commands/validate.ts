@@ -1,6 +1,7 @@
 import type { CommandRegistry } from "../../../app/command-registry.ts";
 import { writeText } from "../../../app/output-renderer.ts";
 import { resolveProjectContext } from "../../project/index.ts";
+import { createTemplatePlanner } from "../../template/index.ts";
 import { resolveWorkspaceContext } from "../../workspace/index.ts";
 import { formatIssues, inspectProject, issueHasErrors } from "../application/inspect-project.ts";
 
@@ -13,7 +14,7 @@ export function registerValidateCommand(registry: CommandRegistry): void {
       { flags: "--file <path>", description: "Project-relative manuscript path" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],
-    action: (context) => {
+    action: async (context) => {
       const project = resolveProjectContext({
         workspace: resolveWorkspaceContext({
           cwd: context.cwd,
@@ -26,6 +27,17 @@ export function registerValidateCommand(registry: CommandRegistry): void {
 
       const report = inspectProject(project, { onlyFile: readStringOption(context.options, "file") });
       const issues = [...report.issues];
+
+      if (!readStringOption(context.options, "file")) {
+        const planner = createTemplatePlanner(project);
+        try {
+          const templateInspection = await planner.inspectDiscoveredTemplates({ allowMissingDefaultTemplate: true });
+          issues.push(...templateInspection.issues);
+        } finally {
+          planner.dispose();
+        }
+      }
+
       for (const line of formatIssues(issues)) {
         writeText(line);
       }

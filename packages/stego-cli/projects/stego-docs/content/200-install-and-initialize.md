@@ -50,7 +50,7 @@ After scaffolding, install the workspace dependencies used by local scripts, tem
 npm install
 ```
 
-That workspace install includes `@stego-labs/engine`, so every scaffolded project's `templates/book.template.tsx` is ready for IntelliSense and type-checking in VS Code.
+That workspace install includes `@stego-labs/engine`, so every scaffolded project's templates are ready for IntelliSense and type-checking in VS Code. New projects still start with `templates/book.template.tsx`.
 
 ## Open a project in the official UI
 
