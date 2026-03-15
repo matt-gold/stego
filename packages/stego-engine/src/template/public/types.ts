@@ -1,50 +1,61 @@
-import type { Collection } from "../../collections/index.ts";
 import type { StegoNode } from "../../ir/index.ts";
+import type { LeafFormat, LeafHeadingTarget } from "@stego-labs/shared/domain/content";
 
-export type ManuscriptRecord = {
-  kind: "manuscript";
+export type ProjectMetadata = Record<string, unknown>;
+export type LeafMetadata = Record<string, unknown>;
+export type BranchMetadata = {
+  label?: string;
+};
+
+export type LeafRecord<TMetadata extends LeafMetadata = LeafMetadata> = {
+  kind: "leaf";
+  id: string;
+  format: LeafFormat;
   path: string;
   relativePath: string;
-  slug: string;
   titleFromFilename: string;
-  metadata: Record<string, unknown>;
+  metadata: TMetadata;
   body: string;
   order: number | null;
+  headings: LeafHeadingTarget[];
 };
 
-export type SpineEntryRecord = {
-  kind: "spine-entry";
-  path: string;
-  relativePath: string;
-  category: string;
+export type BranchRecord<TMetadata extends BranchMetadata = BranchMetadata> = {
+  kind: "branch";
   key: string;
+  name: string;
   label: string;
-  metadata: Record<string, unknown>;
-  body: string;
+  parentKey?: string;
+  depth: number;
+  relativeDir: string;
+  path?: string;
+  relativePath?: string;
+  metadata: TMetadata;
+  body?: string;
 };
 
-export type SpineCategoryRecord = {
-  kind: "spine-category";
-  key: string;
-  label: string;
-  path: string;
-  metadata: Record<string, unknown>;
-};
-
-export type TemplateContext = {
+export type ProjectRecord<TMetadata extends ProjectMetadata = ProjectMetadata> = {
   project: {
     id: string;
     root: string;
-    metadata: Record<string, unknown>;
-  };
-  collections: {
-    manuscripts: Collection<ManuscriptRecord>;
-    spineEntries: Collection<SpineEntryRecord>;
-    spineCategories: Collection<SpineCategoryRecord>;
+    metadata: TMetadata;
   };
 };
 
-export type StegoTemplate = {
+export type TemplateContext<
+  TProjectMetadata extends ProjectMetadata = ProjectMetadata,
+  TLeafMetadata extends LeafMetadata = LeafMetadata,
+  TBranchMetadata extends BranchMetadata = BranchMetadata
+> = ProjectRecord<TProjectMetadata> & {
+  content: LeafRecord<TLeafMetadata>[];
+  branches: BranchRecord<TBranchMetadata>[];
+};
+
+export type StegoTemplate<
+  TProjectMetadata extends ProjectMetadata = ProjectMetadata,
+  TLeafMetadata extends LeafMetadata = LeafMetadata,
+  TBranchMetadata extends BranchMetadata = BranchMetadata
+> = {
   kind: "stego-template";
-  render: (context: TemplateContext) => StegoNode;
+  render: (context: TemplateContext<TProjectMetadata, TLeafMetadata, TBranchMetadata>) => StegoNode;
 };

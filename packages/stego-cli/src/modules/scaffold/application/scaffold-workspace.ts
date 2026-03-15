@@ -364,7 +364,7 @@ function writeInitRootPackageJson(targetRoot: string, packageRoot: string): void
       "list-projects": "stego list-projects",
       "new-project": "stego new-project",
       new: "stego new",
-      spine: "stego spine",
+      content: "stego content",
       metadata: "stego metadata",
       lint: "stego lint",
       validate: "stego validate",

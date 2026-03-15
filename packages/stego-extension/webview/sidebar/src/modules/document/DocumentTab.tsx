@@ -95,7 +95,7 @@ function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
                         <div class="item-title-row">
                           <code>{entry.key}</code>
                           <Show when={entry.isStructural}><span class="badge structural">Structural</span></Show>
-                          <Show when={entry.isSpineCategory}><span class="badge spine">Spine</span></Show>
+                          <Show when={entry.isBranch}><span class="badge branch">Branch</span></Show>
                           <span class="badge">{entry.arrayItems.length} items</span>
                         </div>
                         <Show
@@ -133,7 +133,7 @@ function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
                       <div class="item-title-row">
                         <code>{entry.key}</code>
                         <Show when={entry.isStructural}><span class="badge structural">Structural</span></Show>
-                        <Show when={entry.isSpineCategory}><span class="badge spine">Spine</span></Show>
+                        <Show when={entry.isBranch}><span class="badge branch">Branch</span></Show>
                       </div>
                       <div class="item-subtext metadata-value">{entry.valueText}</div>
                       <ReferenceCards references={entry.references} />
@@ -212,9 +212,9 @@ function TocPanel(props: { state: SidebarWebviewState }): JSX.Element {
     <Show when={props.state.showToc}>
       <section class="panel">
         <div class="panel-heading">
-          <h2>{props.state.isSpineCategoryFile ? 'Spine Entries' : 'Table Of Contents'}</h2>
+          <h2>{props.state.isBranchNotesFile ? 'Leaf Links' : 'Table Of Contents'}</h2>
         </div>
-        <Show when={props.state.isSpineCategoryFile}>
+        <Show when={props.state.isBranchNotesFile}>
           <div class="filter-row">
             <input
               class="filter-input"
@@ -230,7 +230,7 @@ function TocPanel(props: { state: SidebarWebviewState }): JSX.Element {
             <For each={props.state.tocEntries}>{(entry) => (
               <article class="toc-item">
                 <Show
-                  when={props.state.isSpineCategoryFile && entry.identifier}
+                  when={props.state.isBranchNotesFile && entry.identifier}
                   fallback={<button class={`toc-link lvl-${entry.level}`} onClick={() => dispatchSidebarAction(sidebarActions.openHeadingLine(entry.line))}>{entry.heading}</button>}
                 >
                   <button class={`toc-link lvl-${entry.level}`} onClick={() => entry.identifier && dispatchSidebarAction(sidebarActions.openIdentifier(entry.identifier.id))}>{entry.heading}</button>
@@ -352,9 +352,9 @@ function CommentsPanel(props: { state: SidebarWebviewState }): JSX.Element {
 
 export function DocumentTab(props: { state: SidebarWebviewState }): JSX.Element {
   const showDocumentTab = () => props.state.showDocumentTab ?? props.state.hasActiveMarkdown;
-  const isSpineDocument = () => props.state.mode === 'nonManuscript' && props.state.showMetadataPanel;
+  const isExploreDocument = () => props.state.mode === 'nonManuscript' && props.state.showMetadataPanel;
   const runLocalChecksLabel = () => `Run ${statusSummaryLabel(props.state)} check`;
-  const copyCleanLabel = () => (isSpineDocument() ? 'Copy spine text' : 'Copy manuscript text');
+  const copyCleanLabel = () => (isExploreDocument() ? 'Copy leaf text' : 'Copy manuscript text');
 
   return (
     <>
@@ -372,7 +372,7 @@ export function DocumentTab(props: { state: SidebarWebviewState }): JSX.Element 
           <div class="panel-heading">
             <div class="title-heading-block">
               <h2>{props.state.documentTitle}</h2>
-              <Show when={props.state.showSpineFilenameSubtitle && props.state.documentFileStem}>
+              <Show when={props.state.showReferenceFilenameSubtitle && props.state.documentFileStem}>
                 <div class="title-structure">{props.state.documentFileStem}</div>
               </Show>
             </div>
@@ -380,10 +380,10 @@ export function DocumentTab(props: { state: SidebarWebviewState }): JSX.Element 
               <RunMenu
                 summaryLabel="Actions"
                 items={[
-                  ...(!isSpineDocument() ? [{ label: 'Run Stage Check', title: runLocalChecksLabel(), icon: <CheckIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runValidateCurrentFile()) }] : []),
+                  ...(!isExploreDocument() ? [{ label: 'Run Stage Check', title: runLocalChecksLabel(), icon: <CheckIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runValidateCurrentFile()) }] : []),
                   { label: 'Open Markdown Preview', title: 'Open Markdown Preview', icon: <PreviewIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.openPreview()) },
                   { label: 'Insert Image', title: 'Insert Image', icon: <ImageIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.insertImage()) },
-                  ...(!isSpineDocument() ? [{ label: 'Fill required metadata', title: 'Fill required metadata', icon: <ListIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.fillRequiredMetadata()) }] : []),
+                  ...(!isExploreDocument() ? [{ label: 'Fill required metadata', title: 'Fill required metadata', icon: <ListIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.fillRequiredMetadata()) }] : []),
                   { label: copyCleanLabel(), title: copyCleanLabel(), icon: <CopyIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.copyCleanText()) }
                 ]}
               />

@@ -3,29 +3,30 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { parseCommentAppendix } from "@stego-labs/shared/domain/comments";
+import { inferLeafFormat, isBranchFile, isSupportedLeafContentFile } from "@stego-labs/shared/domain/content";
 import type { ProjectContext } from "../../project/index.ts";
 import type { Issue, LintResult, LintSelection } from "../types.ts";
 
 export function resolveLintSelection(options: Record<string, unknown>): LintSelection {
-  const manuscript = readBooleanOption(options, "manuscript");
-  const spine = readBooleanOption(options, "spine");
+  const content = readBooleanOption(options, "content");
+  const notes = readBooleanOption(options, "notes");
 
-  if (!manuscript && !spine) {
-    return { manuscript: true, spine: true };
+  if (!content && !notes) {
+    return { content: true, notes: true };
   }
 
-  return { manuscript, spine };
+  return { content, notes };
 }
 
 export function formatLintSelection(selection: LintSelection): string {
-  if (selection.manuscript && selection.spine) {
-    return "manuscript + spine";
+  if (selection.content && selection.notes) {
+    return "content + notes";
   }
-  if (selection.manuscript) {
-    return "manuscript";
+  if (selection.content) {
+    return "content";
   }
-  if (selection.spine) {
-    return "spine";
+  if (selection.notes) {
+    return "notes";
   }
   return "none";
 }
@@ -34,22 +35,22 @@ export function runProjectLint(project: ProjectContext, selection: LintSelection
   const issues: Issue[] = [];
   let fileCount = 0;
 
-  if (selection.manuscript) {
-    const manuscriptFiles = collectTopLevelMarkdownFiles(project.manuscriptDir);
-    if (manuscriptFiles.length === 0) {
-      issues.push(makeIssue("error", "lint", `No manuscript markdown files found in ${project.manuscriptDir}`));
+  if (selection.content) {
+    const contentFiles = collectContentLintFiles(project.contentDir);
+    if (contentFiles.length === 0) {
+      issues.push(makeIssue("error", "lint", `No content files found in ${project.contentDir}`));
     } else {
-      fileCount += manuscriptFiles.length;
-      issues.push(...runMarkdownlint(project, manuscriptFiles, true, "manuscript"));
+      fileCount += contentFiles.length;
+      issues.push(...runContentLint(project, contentFiles, true));
     }
   }
 
-  if (selection.spine) {
-    const spineLintState = collectSpineLintMarkdownFiles(project);
-    issues.push(...spineLintState.issues);
-    if (spineLintState.files.length > 0) {
-      fileCount += spineLintState.files.length;
-      issues.push(...runMarkdownlint(project, spineLintState.files, true, "default"));
+  if (selection.notes) {
+    const notesLintState = collectNotesLintMarkdownFiles(project);
+    issues.push(...notesLintState.issues);
+    if (notesLintState.files.length > 0) {
+      fileCount += notesLintState.files.length;
+      issues.push(...runMarkdownlint(project, notesLintState.files, true, "default"));
     }
   }
 
@@ -197,7 +198,7 @@ export function runCSpell(
       makeIssue(
         required ? "error" : "warning",
         "spell",
-        `cspell reported issues. ${details} Words from spine identifiers are auto-whitelisted. For additional terms, add them to '.cspell.json' under the 'words' array.`
+        `cspell reported issues. ${details} For additional terms, add them to '.cspell.json' under the 'words' array.`
       )
     ];
   } finally {
@@ -208,45 +209,9 @@ export function runCSpell(
   }
 }
 
-export function collectSpineWordsForSpellcheck(entriesByCategory: Map<string, Set<string>>): string[] {
-  const words = new Set<string>();
-
-  for (const [category, entries] of entriesByCategory) {
-    const categoryParts = category
-      .split(/[-_/]+/)
-      .map((part) => part.trim())
-      .filter(Boolean);
-    for (const part of categoryParts) {
-      if (/[A-Za-z]/.test(part)) {
-        words.add(part.toLowerCase());
-      }
-    }
-
-    for (const entry of entries) {
-      const entryParts = entry
-        .split(/[-_/]+/)
-        .map((part) => part.trim())
-        .filter(Boolean);
-      for (const part of entryParts) {
-        if (!/[A-Za-z]/.test(part)) {
-          continue;
-        }
-        words.add(part.toLowerCase());
-      }
-    }
-  }
-
-  return Array.from(words).sort();
-}
-
-function collectSpineLintMarkdownFiles(project: ProjectContext): { files: string[]; issues: Issue[] } {
+function collectNotesLintMarkdownFiles(project: ProjectContext): { files: string[]; issues: Issue[] } {
   const issues: Issue[] = [];
   const files = new Set<string>();
-
-  addMarkdownFilesFromDirectory(files, project.spineDir, true);
-  if (!fs.existsSync(project.spineDir)) {
-    issues.push(makeIssue("warning", "lint", `Missing spine directory: ${project.spineDir}`));
-  }
 
   addMarkdownFilesFromDirectory(files, project.notesDir, true);
   if (!fs.existsSync(project.notesDir)) {
@@ -263,12 +228,42 @@ function collectSpineLintMarkdownFiles(project: ProjectContext): { files: string
       makeIssue(
         "error",
         "lint",
-        `No spine/notes markdown files found in ${project.spineDir}, ${project.notesDir}, or project root.`
+        `No notes/project markdown files found in ${project.notesDir} or project root.`
       )
     );
   }
 
   return { files: sortedFiles, issues };
+}
+
+function collectContentLintFiles(directory: string): string[] {
+  if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) {
+    return [];
+  }
+
+  const files = new Set<string>();
+  const stack = [directory];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    const entries = fs.readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+
+      if (entry.isFile() && (isSupportedLeafContentFile(fullPath) || isBranchFile(fullPath))) {
+        files.add(fullPath);
+      }
+    }
+  }
+
+  return Array.from(files).sort();
 }
 
 function collectTopLevelMarkdownFiles(directory: string): string[] {
@@ -281,6 +276,15 @@ function collectTopLevelMarkdownFiles(directory: string): string[] {
     .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
     .map((entry) => path.join(directory, entry.name))
     .sort();
+}
+
+function runContentLint(project: ProjectContext, files: string[], required: boolean): Issue[] {
+  const markdownFiles = files.filter((file) => inferLeafFormat(file) === "markdown");
+  const plaintextFiles = files.filter((file) => inferLeafFormat(file) === "plaintext");
+  return [
+    ...runMarkdownlint(project, markdownFiles, required, "manuscript"),
+    ...runCSpell(project, plaintextFiles, required)
+  ];
 }
 
 function addMarkdownFilesFromDirectory(target: Set<string>, directory: string, recursive: boolean): void {

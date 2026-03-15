@@ -1,4 +1,4 @@
-import type { AlignValue, IndentValue, InsetValue, SpacingValue, StegoNode, StegoParagraphNode } from "../types.ts";
+import type { AlignValue, IndentValue, InsetValue, SpacingValue, StegoInlineNode, StegoParagraphNode } from "../types.ts";
 
 export function createParagraphNode(
   props: {
@@ -9,7 +9,7 @@ export function createParagraphNode(
     firstLineIndent?: IndentValue;
     align?: AlignValue;
   },
-  children: StegoNode[]
+  children: StegoInlineNode[]
 ): StegoParagraphNode {
   return {
     kind: "paragraph",

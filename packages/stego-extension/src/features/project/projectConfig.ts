@@ -1,11 +1,20 @@
 import * as path from 'path';
 import { promises as fs, type Dirent } from 'fs';
 import * as vscode from 'vscode';
+import {
+  BRANCH_FILENAME,
+  buildBranchKey,
+  buildBranchLabel,
+  buildBranchName,
+  buildBranchParentKey,
+  parseBranchDocument
+} from '@stego-labs/shared/domain/content';
+import { CONTENT_DIR } from '../../shared/constants';
 import { normalizeFsPath } from '../../shared/path';
 import { isValidMetadataKey } from '@stego-labs/shared/domain/frontmatter';
 import type {
   ImageStyle,
-  ProjectSpineCategory,
+  ProjectBranch,
   ProjectConfigIssue,
   ProjectScanContext
 } from '../../shared/types';
@@ -120,7 +129,7 @@ function validateProjectJsonSchema(parsed: unknown): { record?: Record<string, u
   }
 
   if (record.spineCategories !== undefined) {
-    issues.push(issue('$.spineCategories', 'Legacy spineCategories is unsupported in Spine V2. Use spine/<category>/ directories.'));
+    issues.push(issue('$.spineCategories', 'Legacy spineCategories is unsupported under the leaf model.'));
   }
 
   if (record.compileStructure !== undefined) {
@@ -248,7 +257,7 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
   const projectTitle = extractProjectTitle(source, issues);
   const requiredMetadata = extractProjectRequiredMetadata(source, issues);
   const imageDefaults = extractProjectImageDefaults(source);
-  const categories = await discoverProjectCategories(path.dirname(projectFilePath), requiredMetadata, issues);
+  const branches = await discoverProjectBranches(path.dirname(projectFilePath), issues);
   const dedupedIssues = dedupeIssues(issues);
 
   reportProjectConfigIssues(projectFilePath, dedupedIssues);
@@ -259,7 +268,7 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
     projectTitle,
     requiredMetadata,
     imageDefaults,
-    categories,
+    branches,
     issues: dedupedIssues
   };
 }
@@ -346,101 +355,80 @@ export function extractProjectRequiredMetadata(parsed: unknown, issues?: Project
   return result;
 }
 
-async function discoverProjectCategories(
+async function discoverProjectBranches(
   projectDir: string,
-  _requiredMetadata: string[],
   issues?: ProjectConfigIssue[]
-): Promise<ProjectSpineCategory[]> {
-  const spineDir = path.join(projectDir, 'spine');
-  let entries: Dirent[];
+): Promise<ProjectBranch[]> {
+  const contentDir = path.join(projectDir, CONTENT_DIR);
   try {
-    entries = await fs.readdir(spineDir, { withFileTypes: true });
+    const stat = await fs.stat(contentDir);
+    if (!stat.isDirectory()) {
+      return [];
+    }
   } catch {
     return [];
   }
 
-  const categories: ProjectSpineCategory[] = [];
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) {
-      continue;
-    }
-
-    const key = entry.name.trim().toLowerCase();
-    if (!isValidMetadataKey(key)) {
-      if (issues) {
-        issues.push(issue('spine', `Ignored invalid category directory '${entry.name}'.`));
-      }
-      continue;
-    }
-
-    const categoryDir = path.join(spineDir, entry.name);
-    const inferredPrefix = await inferIdentifierPrefixFromCategoryEntries(categoryDir);
-    const compact = key.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const fallbackPrefix = compact && /^[A-Z]/.test(compact) ? compact : `CAT${categories.length + 1}`;
-    const prefix = inferredPrefix ?? fallbackPrefix;
-    categories.push({
-      key,
-      prefix,
-      notesFile: `${key}/_category.md`
-    });
-  }
-
-  return categories;
-}
-
-async function inferIdentifierPrefixFromCategoryEntries(categoryDir: string): Promise<string | undefined> {
-  const counts = new Map<string, number>();
-  const stack = [categoryDir];
-
+  const branches: ProjectBranch[] = [];
+  const stack = [contentDir];
   while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current) {
+    const currentDir = stack.pop();
+    if (!currentDir) {
       continue;
     }
+
+    const key = buildBranchKey(contentDir, currentDir);
+    const name = key ? buildBranchName(currentDir) : 'content';
+    const notesFilePath = path.join(currentDir, BRANCH_FILENAME);
+    let label = key ? buildBranchLabel(name) : 'Content';
+    let body: string | undefined;
+    let notesFile: string | undefined;
+
+    try {
+      const raw = await fs.readFile(notesFilePath, 'utf8');
+      const parsed = parseBranchDocument(raw, path.relative(projectDir, notesFilePath));
+      label = buildBranchLabel(name, parsed.metadata.label);
+      body = parsed.body || undefined;
+      notesFile = path.relative(contentDir, notesFilePath).split(path.sep).join('/');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT' && issues) {
+        issues.push(issue(path.relative(projectDir, notesFilePath), message));
+      }
+    }
+
+    branches.push({
+      key,
+      name,
+      label,
+      parentKey: buildBranchParentKey(key),
+      relativeDir: path.relative(projectDir, currentDir).split(path.sep).join('/'),
+      notesFile,
+      body
+    });
 
     let entries: Dirent[];
     try {
-      entries = await fs.readdir(current, { withFileTypes: true });
+      entries = await fs.readdir(currentDir, { withFileTypes: true });
     } catch {
       continue;
     }
 
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) {
-        continue;
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        stack.push(path.join(currentDir, entry.name));
       }
-
-      const fullPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(fullPath);
-        continue;
-      }
-
-      if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.md') || entry.name.toLowerCase() === '_category.md') {
-        continue;
-      }
-
-      const stem = path.basename(entry.name, '.md').trim();
-      const match = stem.match(/^([A-Za-z][A-Za-z0-9]*)-[A-Za-z0-9][A-Za-z0-9-]*$/);
-      if (!match) {
-        continue;
-      }
-
-      const prefix = match[1].toUpperCase();
-      counts.set(prefix, (counts.get(prefix) ?? 0) + 1);
     }
   }
 
-  const ranked = [...counts.entries()].sort((a, b) => {
-    if (a[1] !== b[1]) {
-      return b[1] - a[1];
-    }
-    return a[0].localeCompare(b[0]);
+  return branches.sort((a, b) => {
+    const depthA = a.key ? a.key.split('/').length : 0;
+    const depthB = b.key ? b.key.split('/').length : 0;
+    return depthA - depthB || a.key.localeCompare(b.key);
   });
-  return ranked[0]?.[0];
 }
 
-export function getConfig(section: 'spine' | 'editor' | 'comments', scopeUri?: vscode.Uri): vscode.WorkspaceConfiguration {
+export function getConfig(section: 'links' | 'editor' | 'comments', scopeUri?: vscode.Uri): vscode.WorkspaceConfiguration {
   return vscode.workspace.getConfiguration(`stego.${section}`, scopeUri);
 }
 

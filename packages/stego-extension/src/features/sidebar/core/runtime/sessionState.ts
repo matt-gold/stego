@@ -1,5 +1,5 @@
 import type { ExplorerRoute, SidebarState, SidebarViewTab } from '../../../../shared/types';
-import type { PinnedSpineEntryState } from '../../tabs/spine';
+import type { PinnedExplorerEntryState } from '../../tabs/explore';
 
 export type SidebarSessionState = {
   activeTab: SidebarViewTab;
@@ -14,5 +14,5 @@ export type SidebarSessionState = {
   tabForwardStack: SidebarViewTab[];
   documentBackStack: SidebarState[];
   documentForwardStack: SidebarState[];
-  pinnedByProject: Map<string, PinnedSpineEntryState[]>;
+  pinnedByProject: Map<string, PinnedExplorerEntryState[]>;
 };

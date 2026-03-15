@@ -47,9 +47,9 @@ test("command-specific help exits successfully without unknown-command errors", 
   assert.match(single.stdout, /Usage:\s*\n\s*\$ stego new/);
   assert.doesNotMatch(single.stderr, /Unknown command/);
 
-  const multi = runCli(["spine", "read", "--help"]);
+  const multi = runCli(["content", "read", "--help"]);
   assert.equal(multi.status, 0, `${multi.stdout}\n${multi.stderr}`);
-  assert.match(multi.stdout, /Usage:\s*\n\s*\$ stego spine read/);
+  assert.match(multi.stdout, /Usage:\s*\n\s*\$ stego content read/);
   assert.doesNotMatch(multi.stderr, /Unknown command/);
 });
 

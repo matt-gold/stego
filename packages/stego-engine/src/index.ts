@@ -1,11 +1,13 @@
 export * from "./ir/index.ts";
-export { createCollection } from "./collections/index.ts";
-export type { Collection, Group, GroupSelector, SortSelector, SplitGroup } from "./collections/index.ts";
+export type { Group, GroupSelector, SplitGroup } from "./collections/index.ts";
 export { defineTemplate, Stego } from "./template/index.ts";
 export type {
-  ManuscriptRecord,
-  SpineEntryRecord,
-  SpineCategoryRecord,
+  ProjectMetadata,
+  LeafMetadata,
+  BranchMetadata,
+  ProjectRecord,
+  LeafRecord,
+  BranchRecord,
   TemplateContext,
   StegoTemplate
 } from "./template/index.ts";

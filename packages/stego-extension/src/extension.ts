@@ -14,7 +14,7 @@ import {
 } from './features/commands';
 import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments } from './features/diagnostics';
 import { createDocumentLinkProvider, createHoverProvider } from './features/identifiers';
-import { ReferenceUsageIndexService, SpineIndexService } from './features/indexing';
+import { ReferenceUsageIndexService, LeafIndexService } from './features/indexing';
 import { getActiveMarkdownDocument, getFrontmatterLineRange, getStegoCommentsLineRange } from './features/metadata';
 import { detectStegoOpenMode, getConfig, isProjectFile } from './features/project';
 import { MetadataSidebarProvider } from './features/sidebar';
@@ -28,8 +28,8 @@ import {
 } from './features/comments';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const diagnostics = vscode.languages.createDiagnosticCollection('stegoSpine');
-  const indexService = new SpineIndexService();
+  const diagnostics = vscode.languages.createDiagnosticCollection('stegoExplore');
+  const indexService = new LeafIndexService();
   const referenceUsageService = new ReferenceUsageIndexService();
   const sidebarProvider = new MetadataSidebarProvider(
     context.extensionUri,
@@ -44,28 +44,28 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const refreshOpenModeContext = async (): Promise<void> => {
     const mode = await detectStegoOpenMode();
-    await vscode.commands.executeCommand('setContext', 'stegoSpine.isStegoWorkspace', mode === 'workspace');
+    await vscode.commands.executeCommand('setContext', 'stegoExplore.isStegoWorkspace', mode === 'workspace');
   };
 
   context.subscriptions.push(
     diagnostics,
     commentDecorations,
     vscode.window.registerWebviewViewProvider(METADATA_VIEW_ID, sidebarProvider),
-    vscode.commands.registerCommand('stegoSpine.exploreIdentifier', async (rawId: unknown) => {
+    vscode.commands.registerCommand('stegoExplore.exploreIdentifier', async (rawId: unknown) => {
       if (typeof rawId !== 'string' || rawId.trim().length === 0) {
         return;
       }
 
       await sidebarProvider.focusIdentifier(rawId);
     }),
-    vscode.commands.registerCommand('stegoSpine.openCommentThread', async (rawId: unknown) => {
+    vscode.commands.registerCommand('stegoExplore.openCommentThread', async (rawId: unknown) => {
       if (typeof rawId !== 'string' || rawId.trim().length === 0) {
         return;
       }
 
       await sidebarProvider.focusComment(rawId);
     }),
-    vscode.commands.registerCommand('stegoSpine.addComment', async () => {
+    vscode.commands.registerCommand('stegoExplore.addComment', async () => {
       const document = getActiveMarkdownDocument(true);
       if (!document) {
         return;
@@ -116,48 +116,48 @@ export function activate(context: vscode.ExtensionContext): void {
         return ranges;
       }
     }),
-    vscode.commands.registerCommand('stegoSpine.reloadIndex', async () => {
+    vscode.commands.registerCommand('stegoExplore.reloadIndex', async () => {
       indexService.clear();
       referenceUsageService.clear();
       await refreshVisibleMarkdownDocuments(indexService, diagnostics);
       await sidebarProvider.refresh();
-      void vscode.window.showInformationMessage('Stego Spine index rebuilt.');
+      void vscode.window.showInformationMessage('Stego leaf index rebuilt.');
     }),
-    vscode.commands.registerCommand('stegoSpine.runBuild', async () => {
+    vscode.commands.registerCommand('stegoExplore.runBuild', async () => {
       const result = await runProjectBuildWorkflow();
       await sidebarProvider.recordGateWorkflowResult('build', result);
     }),
-    vscode.commands.registerCommand('stegoSpine.runGateStage', async () => {
+    vscode.commands.registerCommand('stegoExplore.runGateStage', async () => {
       const result = await runProjectGateStageWorkflow();
       await sidebarProvider.recordGateWorkflowResult('stageCheck', result);
     }),
-    vscode.commands.registerCommand('stegoSpine.runLocalValidate', async () => {
+    vscode.commands.registerCommand('stegoExplore.runLocalValidate', async () => {
       await runLocalValidateWorkflow();
     }),
-    vscode.commands.registerCommand('stegoSpine.newManuscript', async () => {
+    vscode.commands.registerCommand('stegoExplore.newManuscript', async () => {
       const result = await runNewManuscriptWorkflow();
       if (result.ok) {
         sidebarProvider.expandMetadataPanel();
         await sidebarProvider.refresh();
       }
     }),
-    vscode.commands.registerCommand('stegoSpine.insertImage', async () => {
+    vscode.commands.registerCommand('stegoExplore.insertImage', async () => {
       const result = await runInsertImageWorkflow();
       if (result.ok) {
         await sidebarProvider.refresh();
       }
     }),
-    vscode.commands.registerCommand('stegoSpine.newProject', async () => {
+    vscode.commands.registerCommand('stegoExplore.newProject', async () => {
       const result = await runNewProjectWorkflow();
       if (result.ok) {
         await sidebarProvider.refresh();
       }
       await refreshOpenModeContext();
     }),
-    vscode.commands.registerCommand('stegoSpine.openProject', async () => {
+    vscode.commands.registerCommand('stegoExplore.openProject', async () => {
       await runOpenProjectWorkflow();
     }),
-    vscode.commands.registerCommand('stegoSpine.toggleFrontmatter', async () => {
+    vscode.commands.registerCommand('stegoExplore.toggleFrontmatter', async () => {
       await toggleFrontmatterFold();
     }),
     vscode.workspace.onDidOpenTextDocument((document) => {

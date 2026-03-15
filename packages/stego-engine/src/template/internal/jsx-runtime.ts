@@ -3,11 +3,13 @@ import type {
   StegoFragmentNode,
   StegoHeadingNode,
   StegoImageNode,
+  StegoLinkNode,
   StegoMarkdownNode,
   StegoNode,
   StegoPageBreakNode,
   StegoPageNumberNode,
   StegoPageTemplateNode,
+  StegoPlainTextNode,
   StegoParagraphNode,
   StegoSectionNode,
   StegoTextNode
@@ -25,11 +27,13 @@ export namespace JSX {
     | StegoHeadingNode
     | StegoParagraphNode
     | StegoMarkdownNode
+    | StegoPlainTextNode
     | StegoImageNode
     | StegoPageBreakNode
     | StegoPageTemplateNode
     | StegoPageNumberNode
-    | StegoTextNode;
+    | StegoTextNode
+    | StegoLinkNode;
   export type ElementType = (props: any) => Element;
   export interface ElementChildrenAttribute {
     children: unknown;

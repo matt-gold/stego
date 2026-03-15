@@ -7,8 +7,8 @@ import { pickToastDetails, resolveProjectScriptContext, resolveWorkflowCommandIn
 import type { WorkflowRunResult } from './workflowUtils';
 import { suppressAutoFoldFrontmatterForDocument } from './frontmatterFold';
 
-const DEFAULT_MANUSCRIPT_DIR = 'manuscript';
-const DEFAULT_NEW_MANUSCRIPT_SLUG = 'new-document';
+const DEFAULT_MANUSCRIPT_DIR = 'content';
+const DEFAULT_NEW_MANUSCRIPT_SLUG = 'new-leaf';
 
 type ManuscriptOrderEntry = {
   order: number;
@@ -43,7 +43,7 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
     scriptName: 'new',
     scriptArgs,
     stegoArgs,
-    actionLabel: 'Create New Manuscript'
+    actionLabel: 'Create New Leaf'
   });
   if (!invocation) {
     return { ok: false, cancelled: true, projectDir: context.projectDir };
@@ -55,13 +55,13 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
     result = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: 'Create New Manuscript',
+        title: 'Create New Leaf',
         cancellable: false
       },
       async () => runCommand(invocation.command, invocation.args, context.projectDir)
     );
   } catch (error) {
-    void vscode.window.showErrorMessage(`Create New Manuscript failed: ${errorToMessage(error)}`);
+    void vscode.window.showErrorMessage(`Create New Leaf failed: ${errorToMessage(error)}`);
     return {
       ok: false,
       error: errorToMessage(error),
@@ -72,8 +72,8 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
   if (result.exitCode !== 0) {
     const details = pickToastDetails(result);
     void vscode.window.showErrorMessage(details
-      ? `Create New Manuscript failed: ${details}`
-      : `Create New Manuscript failed with exit code ${result.exitCode}.`);
+      ? `Create New Leaf failed: ${details}`
+      : `Create New Leaf failed with exit code ${result.exitCode}.`);
     return {
       ok: false,
       error: details || `Exit code ${result.exitCode}`,
@@ -94,7 +94,7 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(finalPath));
     suppressAutoFoldFrontmatterForDocument(document.uri);
     await vscode.window.showTextDocument(document, { preview: false });
-    void vscode.window.showInformationMessage(`Created manuscript: ${finalPath}`);
+    void vscode.window.showInformationMessage(`Created leaf: ${finalPath}`);
     return {
       ok: true,
       outputPath: finalPath,
@@ -103,8 +103,8 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
   }
 
   void vscode.window.showInformationMessage(createdPath
-    ? `Created manuscript: ${createdPath}`
-    : 'Created manuscript.');
+    ? `Created leaf: ${createdPath}`
+    : 'Created leaf.');
 
   return {
     ok: true,
@@ -122,7 +122,7 @@ function normalizeRequestedFilename(rawFilename: string): string {
 
 async function promptRequestedFilename(defaultFilename: string): Promise<string | undefined> {
   const rawValue = await vscode.window.showInputBox({
-    title: 'Create New Manuscript',
+    title: 'Create New Leaf',
     prompt: `Optional filename. Press Enter to use inferred default: ${defaultFilename}`,
     placeHolder: defaultFilename,
     value: '',
@@ -176,7 +176,7 @@ function extractCreatedManuscriptPath(result: ScriptRunResult): string | undefin
 
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index];
-    const match = line.match(/Created manuscript:\s*(.+)$/i);
+    const match = line.match(/Created (?:manuscript|leaf):\s*(.+)$/i);
     if (!match) {
       continue;
     }

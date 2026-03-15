@@ -1,14 +1,12 @@
 # Stego CLI
 
-`@stego-labs/cli` is an installable CLI for the Stego writing workflow.
+`@stego-labs/cli` is the installable CLI for the Stego writing workflow.
 
-It scaffolds a Stego workspace, validates manuscript structure and metadata, runs stage-aware quality gates, builds compiled markdown outputs, and exports release formats.
+It scaffolds a Stego workspace, validates leaf structure and metadata, runs stage-aware quality gates, builds compiled manuscripts, and exports delivery formats.
 
 Builds are template-driven through `templates/book.template.tsx`, powered by `@stego-labs/engine`.
 
-This repository is the source for the CLI and the example projects that `stego init` scaffolds.
-
-## Quick start (install + init)
+## Quick start
 
 ```bash
 npm install -g @stego-labs/cli
@@ -28,60 +26,35 @@ stego template build -p fiction-example
 `stego init` scaffolds two example projects:
 
 - `stego-docs` (the full documentation project)
-- `fiction-example` (a fiction-oriented demo with rich Spine usage)
+- `fiction-example` (a fiction-oriented demo using chapter and reference leaves)
 
-For day-to-day editing, open a project folder in VS Code (for example `projects/stego-docs`) and use the [Stego VS Code extension](https://github.com/matt-gold/stego/tree/main/packages/stego-extension), which is the official UI for Stego projects.
+## Core model
 
-## Full documentation
-
-The full user documentation lives in the `stego-docs` project.
-
-- In a scaffolded workspace: `projects/stego-docs`
-- In this source repo: `packages/stego-cli/projects/stego-docs`
-
-Start by reading the manuscript files in order, or build the docs project:
-
-```bash
-stego build --project stego-docs
-```
-
-## Architecture
-
-Internal architecture notes for the domain-first module layout live in:
-
-- `docs/architecture.md`
+- `content/` holds authored leaves
+- directories under `content/` are exposed as branches through `_branch.md`
+- templates read leaves through `ctx.content` and branches through `ctx.branches`
+- templates compile them into a manuscript
+- `dist/` contains generated outputs only
 
 ## Core commands
-
-Run commands from the workspace root and target a project with `--project`.
 
 ```bash
 stego list-projects
 stego new-project -p my-book --title "My Book"
-stego new -p fiction-example
+stego new -p fiction-example --id CH-INTRO
+stego content read -p fiction-example --format json
 stego validate -p fiction-example
 stego build -p fiction-example
 stego check-stage -p fiction-example --stage revise
 stego export -p fiction-example --format md
-stego spine read -p fiction-example
-stego spine new-category -p fiction-example --key characters
-stego spine new -p fiction-example --category characters --filename supporting/abigail
-stego metadata read projects/fiction-example/manuscript/100-the-commission.md --format json
+stego metadata read projects/fiction-example/content/100-the-commission.md --format json
 ```
 
-All project-scoped commands accept `-p` as shorthand for `--project`.
-
-`stego new` also supports `--i <prefix>` for numeric prefix override and `--filename <name>` for an explicit manuscript filename.
+`stego new` supports `--i <prefix>` for numeric prefix override, `--filename <name>` for an explicit filename, and `--id <leaf-id>` for an explicit leaf id.
 
 ## Template engine
 
-Stego builds and exports through TSX-based book templates.
-
-Templates live at:
-
-- `projects/<project-id>/templates/book.template.tsx`
-
-Template-specific inspection commands:
+Templates live at `projects/<project-id>/templates/book.template.tsx`.
 
 ```bash
 stego template build -p fiction-example
@@ -93,27 +66,23 @@ Current behavior:
 
 - templates are plain TSX using normal JavaScript control flow
 - templates import `defineTemplate` and `Stego` from `@stego-labs/engine`
-- the engine compiles project content into Stego IR and lowers it into a Pandoc-oriented render plan
+- the engine loads ordered leaves from `content/`
 - template export supports `md`, `docx`, `pdf`, and `epub`
+- `md` is the low-fidelity compiled/debug artifact: useful for inspection, diffing, and portable handoff, but not a full presentation-fidelity target for all Stego layout primitives
+- `docx`, `pdf`, and `epub` are the presentation targets when you need richer layout fidelity
 - `dist/<project-id>.template.md` and `dist/<project-id>.template.render-plan.json` are written for inspection during `template build`
 
-Spine V2 is directory-inferred:
+## Images
 
-- categories are directories in `spine/<category>/`
-- category metadata lives at `spine/<category>/_category.md`
-- entries are markdown files in each category directory tree
+Stego projects scaffold an `assets/` directory for local images.
 
-## Image assets and manuscript image settings
-
-Stego projects scaffold an `assets/` directory for manuscript images.
-
-Use standard Markdown image syntax in manuscript files:
+Use standard Markdown image syntax in leaf files:
 
 ```md
 ![Map](../assets/maps/city-plan.png)
 ```
 
-Set global image defaults in `stego-project.json`:
+Set project-level image defaults in `stego-project.json`:
 
 ```json
 {
@@ -126,85 +95,48 @@ Set global image defaults in `stego-project.json`:
 }
 ```
 
-Use manuscript frontmatter `images` only for per-path overrides:
+Leaf frontmatter `images` only supports per-path overrides.
 
-```yaml
-images:
-  assets/maps/city-plan.png:
-    layout: inline
-    align: left
-    width: 100%
-    classes: [diagram]
-```
+## Command reference
 
-Rules:
-
-- project-level global keys in `stego-project.json images`: `width`, `height`, `classes`, `id`, `attrs`, `layout`, `align`
-- manuscript frontmatter `images` keys are per-image overrides by project-relative asset path
-- manuscript frontmatter should not define global keys; put defaults in `stego-project.json`
-- `layout` (`block|inline`) and `align` (`left|center|right`) are emitted as image attrs (`data-layout`, `data-align`) in compiled markdown
-- EPUB export includes a default image layout stylesheet (`filters/image-layout.css`) for `data-layout`/`data-align` behavior
-- inline image attrs in markdown win over both project defaults and frontmatter overrides
-- local manuscript image targets outside `assets/` are reported as validate warnings
-
-Projects also include local npm scripts so you can work from inside a project directory.
-
-## Complete CLI command reference
-
-The full command surface is available via:
+Use:
 
 ```bash
 stego --help
 stego --version
 ```
 
-Current `stego --help` command index:
+Notable commands:
 
 ```text
 init [--force]
 list-projects [--root <path>]
 new-project --project|-p <project-id> [--title <title>] [--prose-font <yes|no|prompt>] [--format <text|json>] [--root <path>]
-new --project|-p <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--format <text|json>] [--root <path>]
-validate --project|-p <project-id> [--file <project-relative-manuscript-path>] [--root <path>]
+new --project|-p <project-id> [--i <prefix>|-i <prefix>] [--filename <name>] [--id <leaf-id>] [--format <text|json>] [--root <path>]
+content read --project|-p <project-id> [--format <text|json>] [--root <path>]
+validate --project|-p <project-id> [--file <project-relative-content-path>] [--root <path>]
 build --project|-p <project-id> [--root <path>]
-check-stage --project|-p <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-manuscript-path>] [--root <path>]
-lint --project|-p <project-id> [--manuscript|--spine] [--root <path>]
+check-stage --project|-p <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-content-path>] [--root <path>]
+lint --project|-p <project-id> [--manuscript|--notes] [--root <path>]
 export --project|-p <project-id> --format <md|docx|pdf|epub> [--output <path>] [--root <path>]
 template build --project|-p <project-id> [--template <path>] [--root <path>]
 template export --project|-p <project-id> --format <md|docx|pdf|epub> [--template <path>] [--output <path>] [--root <path>]
-spine read --project|-p <project-id> [--format <text|json>] [--root <path>]
-spine new-category --project|-p <project-id> --key <category> [--label <label>] [--require-metadata] [--format <text|json>] [--root <path>]
-spine new --project|-p <project-id> --category <category> [--filename <relative-path>] [--format <text|json>] [--root <path>]
 metadata read <markdown-path> [--format <text|json>]
 metadata apply <markdown-path> --input <path|-> [--format <text|json>]
-comments read <manuscript> [--format <text|json>]
-comments add <manuscript> [--message <text> | --input <path|->] [--author <name>] [--start-line <n> --start-col <n> --end-line <n> --end-col <n>] [--cursor-line <n>] [--format <text|json>]
-comments reply <manuscript> --comment-id <CMT-####> [--message <text> | --input <path|->] [--author <name>] [--format <text|json>]
-comments set-status <manuscript> --comment-id <CMT-####> --status <open|resolved> [--thread] [--format <text|json>]
-comments delete <manuscript> --comment-id <CMT-####> [--format <text|json>]
-comments clear-resolved <manuscript> [--format <text|json>]
-comments sync-anchors <manuscript> --input <path|-> [--format <text|json>]
-```
-
-## Advanced integration command
-
-`stego comments add` is a machine-facing command for editor/tool integrations.
-
-```bash
-stego comments add manuscript/100-scene.md --message "Could this transition be clearer?"
-stego comments add manuscript/100-scene.md --input payload.json --format json
-stego comments add manuscript/100-scene.md --input - --format json <<'JSON'
-{"message":"Could this transition be clearer?","range":{"start":{"line":10,"col":4},"end":{"line":10,"col":32}}}
-JSON
+comments read <markdown-path> [--format <text|json>]
+comments add <markdown-path> [--message <text> | --input <path|->] [--author <name>] [--start-line <n> --start-col <n> --end-line <n> --end-col <n>] [--cursor-line <n>] [--format <text|json>]
+comments reply <markdown-path> --comment-id <CMT-####> [--message <text> | --input <path|->] [--author <name>] [--format <text|json>]
+comments set-status <markdown-path> --comment-id <CMT-####> --status <open|resolved> [--thread] [--format <text|json>]
+comments delete <markdown-path> --comment-id <CMT-####> [--format <text|json>]
+comments clear-resolved <markdown-path> [--format <text|json>]
+comments sync-anchors <markdown-path> --input <path|-> [--format <text|json>]
 ```
 
 ## VS Code workflow
 
-When actively working on one project, open that project directory directly in VS Code (for example `projects/fiction-example`).
+Open one project directory at a time in VS Code. The Stego extension is the official UI for Stego projects and is built around the project-local `content/`, metadata, comments, and build flow.
 
-The Stego VS Code extension is the official UI for Stego projects, and opening a single project keeps its UI context and Spine Browser focused. Project folders also include extension recommendations.
-
-## Develop `@stego-labs/cli` (this repo)
+## Develop this repo
 
 ```bash
 npm install
@@ -214,23 +146,4 @@ npm run build -- --project fiction-example
 npm run test
 npm run build:cli
 npm run pack:dry-run
-```
-
-## Export requirements (`docx`, `pdf`, `epub`)
-
-These formats require `pandoc` on your `PATH`.
-
-```bash
-# macOS (Homebrew)
-brew install pandoc
-```
-
-```bash
-# Ubuntu/Debian
-sudo apt-get update && sudo apt-get install -y pandoc
-```
-
-```bash
-# Windows (winget)
-winget install --id JohnMacFarlane.Pandoc -e
 ```

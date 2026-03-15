@@ -1,7 +1,7 @@
 import { createEffect, createMemo, For, Match, onCleanup, onMount, Show, Switch, type JSX } from 'solid-js';
 import { getWebviewApi } from '../bridge/vscodeApi';
 import { DocumentTab } from '../modules/document/DocumentTab';
-import { SpineTab } from '../modules/spine/SpineTab';
+import { ExploreTab } from '../modules/explore/ExploreTab';
 import { OverviewTab } from '../modules/overview/OverviewTab';
 import { BackIcon, ForwardIcon } from '../components/icons';
 import { useSidebarState } from './store';
@@ -112,7 +112,7 @@ export function App(): JSX.Element {
     <div class="sidebar-root">
       <Show when={state()} keyed fallback={<div class="empty-panel">Loading Stego sidebar…</div>}>
         {(current) => {
-          const showSpineTabActions = current.activeTab === 'spine' && current.showExplorer && current.hasActiveMarkdown;
+          const showExploreTabActions = current.activeTab === 'explore' && current.showExplorer && current.hasActiveMarkdown;
 
           return (
             <>
@@ -123,7 +123,7 @@ export function App(): JSX.Element {
                       <button class={`sidebar-tab${current.activeTab === 'document' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('document'))}>Document</button>
                     </Show>
                     <Show when={current.showExplorer}>
-                      <button class={`sidebar-tab${current.activeTab === 'spine' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('spine'))}>Spine</button>
+                      <button class={`sidebar-tab${current.activeTab === 'explore' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('explore'))}>Explore</button>
                     </Show>
                     <Show when={current.canShowOverview}>
                       <button class={`sidebar-tab${current.activeTab === 'overview' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('overview'))}>Manuscript</button>
@@ -136,8 +136,8 @@ export function App(): JSX.Element {
                 </div>
               </Show>
 
-              <Show when={showSpineTabActions}>
-                <div class="spine-tab-actions-row">
+              <Show when={showExploreTabActions}>
+                <div class="explore-tab-actions-row">
                   <div class="sidebar-tabs-actions">
                     <button class="btn subtle" onClick={() => dispatchSidebarAction(sidebarActions.pinAllFromDocument())} disabled={!current.canPinAllFromFile}>Pin All From File</button>
                     <Show when={current.pinnedExplorers.length > 0}>
@@ -162,8 +162,8 @@ export function App(): JSX.Element {
                 <Match when={current.activeTab === 'overview' && !!current.overview}>
                   <OverviewTab state={current} />
                 </Match>
-                <Match when={current.activeTab === 'spine'}>
-                  <SpineTab state={current} />
+                <Match when={current.activeTab === 'explore'}>
+                  <ExploreTab state={current} />
                 </Match>
                 <Match when={current.documentTabDetached}>
                   <DocumentTab state={current} />

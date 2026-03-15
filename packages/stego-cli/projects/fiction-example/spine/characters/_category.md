@@ -1,6 +1,0 @@
----
-label: Characters
----
-
-# Characters
-

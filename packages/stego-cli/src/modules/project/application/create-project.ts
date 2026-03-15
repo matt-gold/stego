@@ -38,15 +38,13 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
     throw new CliError("INVALID_USAGE", `Project already exists: ${projectRoot}`);
   }
 
-  const manuscriptDir = path.join(projectRoot, input.workspace.config.chapterDir);
-  const spineDir = path.join(projectRoot, input.workspace.config.spineDir);
+  const contentDir = path.join(projectRoot, input.workspace.config.contentDir);
   const notesDir = path.join(projectRoot, input.workspace.config.notesDir);
   const assetsDir = path.join(projectRoot, "assets");
   const distDir = path.join(projectRoot, input.workspace.config.distDir);
   const templatesDir = path.join(projectRoot, "templates");
 
-  ensureDirectory(manuscriptDir);
-  ensureDirectory(spineDir);
+  ensureDirectory(contentDir);
   ensureDirectory(notesDir);
   ensureDirectory(assetsDir);
   ensureDirectory(distDir);
@@ -75,8 +73,6 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
         private: true,
         scripts: {
           new: "npx --no-install stego new",
-          "spine:new": "npx --no-install stego spine new",
-          "spine:new-category": "npx --no-install stego spine new-category",
           lint: "npx --no-install stego lint",
           validate: "npx --no-install stego validate",
           build: "npx --no-install stego build",
@@ -114,10 +110,11 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
     )}\n`
   );
 
-  const starterManuscriptPath = path.join(manuscriptDir, "100-hello-world.md");
+  const starterManuscriptPath = path.join(contentDir, "100-hello-world.md");
   writeTextFile(
     starterManuscriptPath,
     `---
+id: CH-HELLO-WORLD
 status: draft
 chapter: 1
 chapter_title: Hello World
@@ -136,7 +133,8 @@ Start writing here.
 
 export default defineTemplate((ctx) => {
   const generatedAt = new Date().toISOString();
-  const chapterGroups = ctx.collections.manuscripts.splitBy("chapter");
+  const chapterLeaves = ctx.content.filter((leaf) => leaf.metadata.kind !== "reference");
+  const chapterGroups = Stego.splitBy(chapterLeaves, (leaf) => asString(leaf.metadata.chapter));
   const tocEntries = chapterGroups
     .filter(hasTitledBoundary)
     .map((group) => {
@@ -177,12 +175,12 @@ export default defineTemplate((ctx) => {
               {formatChapterHeading(group.value, group.first.metadata.chapter_title)}
             </Stego.Heading>
           ) : null}
-          {group.items.map((doc) => (
+          {group.items.map((leaf) => (
             <>
               <Stego.Markdown
-                source={\`<!-- source: \${doc.relativePath} | order: \${doc.order} | status: \${String(doc.metadata.status ?? "")} -->\`}
+                source={\`<!-- source: \${leaf.relativePath} | order: \${leaf.order} | status: \${String(leaf.metadata.status ?? "")} -->\`}
               />
-              <Stego.Markdown source={doc.body} />
+              <Stego.Markdown leaf={leaf} />
             </>
           ))}
         </Stego.Section>
@@ -190,6 +188,16 @@ export default defineTemplate((ctx) => {
     </Stego.Document>
   );
 });
+
+function asString(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return undefined;
+}
 
 function formatChapterHeading(value: string, rawTitle: unknown): string {
   const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
@@ -210,38 +218,20 @@ function slugify(value: string): string {
 `
   );
 
-  const charactersDir = path.join(spineDir, "characters");
-  ensureDirectory(charactersDir);
-
-  const charactersCategoryPath = path.join(charactersDir, "_category.md");
-  writeTextFile(
-    charactersCategoryPath,
-    `---
-label: Characters
----
-
-# Characters
-
-`
-  );
-
-  const charactersEntryPath = path.join(charactersDir, "example-character.md");
-  writeTextFile(charactersEntryPath, "# Example Character\n\n");
-
   const assetsReadmePath = path.join(assetsDir, "README.md");
   writeTextFile(
     assetsReadmePath,
     `# Assets
 
-Store manuscript images in this directory (or subdirectories).
+Store content images in this directory (or subdirectories).
 
-Use standard Markdown image syntax in manuscript files, typically with paths like:
+Use standard Markdown image syntax in content files, typically with paths like:
 
 \`\`\`md
 ![Map](../assets/maps/city-plan.png)
 \`\`\`
 
-Optional manuscript frontmatter image settings:
+Optional leaf frontmatter image settings:
 
 \`\`\`json
 // stego-project.json
@@ -255,7 +245,7 @@ Optional manuscript frontmatter image settings:
 \`\`\`
 
 \`\`\`yaml
-# manuscript frontmatter overrides
+# leaf frontmatter overrides
 images:
   assets/maps/city-plan.png:
     layout: inline
@@ -263,7 +253,7 @@ images:
     width: 100%
 \`\`\`
 
-Manuscript frontmatter \`images\` is for per-path overrides.
+Leaf frontmatter \`images\` is for per-path overrides.
 Global defaults belong in \`stego-project.json\` under \`images\`.
 
 `
@@ -284,8 +274,6 @@ Global defaults belong in \`stego-project.json\` under \`images\`.
       path.relative(input.workspace.repoRoot, projectTsconfigPath),
       path.relative(input.workspace.repoRoot, starterManuscriptPath),
       path.relative(input.workspace.repoRoot, starterTemplatePath),
-      path.relative(input.workspace.repoRoot, charactersCategoryPath),
-      path.relative(input.workspace.repoRoot, charactersEntryPath),
       path.relative(input.workspace.repoRoot, assetsReadmePath),
       path.relative(input.workspace.repoRoot, projectExtensionsPath),
       ...(projectSettingsPath ? [path.relative(input.workspace.repoRoot, projectSettingsPath)] : [])

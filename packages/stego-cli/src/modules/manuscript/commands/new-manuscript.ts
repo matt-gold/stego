@@ -7,11 +7,12 @@ import { createNewManuscript, parseManuscriptOutputFormat } from "../application
 export function registerNewManuscriptCommand(registry: CommandRegistry): void {
   registry.register({
     name: "new",
-    description: "Create a new manuscript file",
+    description: "Create a new leaf file under content/",
     options: [
       { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "-i, --i <prefix>", description: "Numeric filename prefix override" },
-      { flags: "--filename <name>", description: "Explicit manuscript filename" },
+      { flags: "--filename <name>", description: "Explicit leaf filename" },
+      { flags: "--id <leaf-id>", description: "Explicit leaf id" },
       { flags: "--format <format>", description: "text|json" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],
@@ -29,7 +30,8 @@ export function registerNewManuscriptCommand(registry: CommandRegistry): void {
       const result = createNewManuscript({
         project,
         requestedPrefixRaw: readStringOption(context.options, "i"),
-        requestedFilenameRaw: readStringOption(context.options, "filename")
+        requestedFilenameRaw: readStringOption(context.options, "filename"),
+        requestedIdRaw: readStringOption(context.options, "id")
       });
       const outputFormat = parseManuscriptOutputFormat(readStringOption(context.options, "format"));
 
@@ -42,7 +44,7 @@ export function registerNewManuscriptCommand(registry: CommandRegistry): void {
         return;
       }
 
-      writeText(`Created manuscript: ${result.filePath}`);
+      writeText(`Created leaf: ${result.filePath}`);
     }
   });
 }

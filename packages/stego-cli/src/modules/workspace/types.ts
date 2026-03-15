@@ -4,8 +4,7 @@ export const ROOT_CONFIG_FILENAME = "stego.config.json";
 
 export type WorkspaceConfig = {
   projectsDir: string;
-  chapterDir: string;
-  spineDir: string;
+  contentDir: string;
   notesDir: string;
   distDir: string;
   requiredMetadata: string[];

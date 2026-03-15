@@ -1,9 +1,9 @@
 export {
   buildProjectScanPlan,
-  resolveCategoryNotesFile,
-  collectReferenceMarkdownFiles,
+  resolveBranchNotesFile,
+  collectProjectContentFiles,
   collectManuscriptMarkdownFiles,
-  resolveCurrentSpineCategoryFile
+  resolveCurrentBranchFile
 } from './fileScan';
 export { detectStegoOpenMode, resolveStegoWorkspaceRoot } from './openMode';
 export {

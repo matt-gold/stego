@@ -19,7 +19,7 @@ export function OverviewTab(props: { state: SidebarWebviewState }): JSX.Element 
             <RunMenu
               summaryLabel="Actions"
               items={[
-                { label: 'New Manuscript', title: 'New Manuscript', icon: <PlusIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runNewManuscript()) },
+                { label: 'New Leaf', title: 'New Leaf', icon: <PlusIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runNewManuscript()) },
                 { label: 'Compile Full Manuscript', title: 'Run Build', icon: <FileIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runCompile()) },
                 { label: 'Run Stage Check', title: 'Run Stage Check', icon: <CheckIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runStageCheck()) }
               ]}

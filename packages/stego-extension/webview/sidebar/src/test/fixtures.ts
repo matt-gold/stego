@@ -10,7 +10,7 @@ export function createSidebarState(overrides: Partial<SidebarWebviewState> = {})
     documentTitle: 'Test',
     documentFilename: '001-test.md',
     documentFileStem: '001-test',
-    showSpineFilenameSubtitle: false,
+    showReferenceFilenameSubtitle: false,
     projectDir: '/tmp/project',
     warnings: [],
     canShowOverview: true,
@@ -35,7 +35,7 @@ export function createSidebarState(overrides: Partial<SidebarWebviewState> = {})
     explorerLoadToken: 0,
     tocEntries: [],
     showToc: false,
-    isSpineCategoryFile: false,
+    isBranchNotesFile: false,
     backlinkFilter: '',
     comments: {
       items: [],

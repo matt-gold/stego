@@ -29,23 +29,23 @@ export type SidebarActionMessage =
   | { type: 'doc.toggleTocBacklinks'; id: string }
   | { type: 'doc.openBacklink'; filePath: string; line?: number }
   | { type: 'doc.openExternalLink'; url: string; basePath?: string }
-  | { type: 'spine.openIdentifier'; id: string }
-  | { type: 'spine.openCategory'; key: string; prefix: string }
-  | NoPayload<'spine.goHome'>
-  | NoPayload<'spine.goBack'>
-  | NoPayload<'spine.goForward'>
-  | NoPayload<'spine.toggleExplorerCollapse'>
-  | NoPayload<'spine.toggleBacklinks'>
-  | { type: 'spine.setBacklinkFilter'; value: string }
-  | NoPayload<'spine.createCategory'>
-  | NoPayload<'spine.pinActiveEntry'>
-  | NoPayload<'spine.pinAllFromDocument'>
-  | { type: 'spine.unpinEntry'; id: string }
-  | NoPayload<'spine.unpinAll'>
-  | { type: 'spine.togglePinnedBacklinks'; id: string }
-  | { type: 'spine.togglePinnedCollapse'; id: string }
-  | { type: 'spine.setPinnedBacklinkFilter'; id: string; value: string }
-  | NoPayload<'spine.rebuildIndex'>
+  | { type: 'explore.openIdentifier'; id: string }
+  | { type: 'explore.openBranch'; key: string }
+  | NoPayload<'explore.goHome'>
+  | NoPayload<'explore.goBack'>
+  | NoPayload<'explore.goForward'>
+  | NoPayload<'explore.toggleExplorerCollapse'>
+  | NoPayload<'explore.toggleBacklinks'>
+  | { type: 'explore.setBacklinkFilter'; value: string }
+  | NoPayload<'explore.createBranch'>
+  | NoPayload<'explore.pinActiveEntry'>
+  | NoPayload<'explore.pinAllFromDocument'>
+  | { type: 'explore.unpinEntry'; id: string }
+  | NoPayload<'explore.unpinAll'>
+  | { type: 'explore.togglePinnedBacklinks'; id: string }
+  | { type: 'explore.togglePinnedCollapse'; id: string }
+  | { type: 'explore.setPinnedBacklinkFilter'; id: string; value: string }
+  | NoPayload<'explore.rebuildIndex'>
   | NoPayload<'comments.add'>
   | { type: 'comments.selectThread'; id: string }
   | { type: 'comments.reply'; id: string }
@@ -86,23 +86,23 @@ export const SIDEBAR_ACTION_TYPES = [
   'doc.toggleTocBacklinks',
   'doc.openBacklink',
   'doc.openExternalLink',
-  'spine.openIdentifier',
-  'spine.openCategory',
-  'spine.goHome',
-  'spine.goBack',
-  'spine.goForward',
-  'spine.toggleExplorerCollapse',
-  'spine.toggleBacklinks',
-  'spine.setBacklinkFilter',
-  'spine.createCategory',
-  'spine.pinActiveEntry',
-  'spine.pinAllFromDocument',
-  'spine.unpinEntry',
-  'spine.unpinAll',
-  'spine.togglePinnedBacklinks',
-  'spine.togglePinnedCollapse',
-  'spine.setPinnedBacklinkFilter',
-  'spine.rebuildIndex',
+  'explore.openIdentifier',
+  'explore.openBranch',
+  'explore.goHome',
+  'explore.goBack',
+  'explore.goForward',
+  'explore.toggleExplorerCollapse',
+  'explore.toggleBacklinks',
+  'explore.setBacklinkFilter',
+  'explore.createBranch',
+  'explore.pinActiveEntry',
+  'explore.pinAllFromDocument',
+  'explore.unpinEntry',
+  'explore.unpinAll',
+  'explore.togglePinnedBacklinks',
+  'explore.togglePinnedCollapse',
+  'explore.setPinnedBacklinkFilter',
+  'explore.rebuildIndex',
   'comments.add',
   'comments.selectThread',
   'comments.reply',

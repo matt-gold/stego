@@ -8,8 +8,8 @@ test('parseSidebarInboundMessage accepts ready handshake', () => {
 });
 
 test('parseSidebarInboundMessage accepts known action payload', () => {
-  const parsed = parseSidebarInboundMessage({ type: 'spine.openIdentifier', id: 'CHAR-AGNES' });
-  assert.equal(parsed?.type, 'spine.openIdentifier');
+  const parsed = parseSidebarInboundMessage({ type: 'explore.openIdentifier', id: 'CHAR-AGNES' });
+  assert.equal(parsed?.type, 'explore.openIdentifier');
   assert.equal((parsed as Record<string, unknown>).id, 'CHAR-AGNES');
 });
 

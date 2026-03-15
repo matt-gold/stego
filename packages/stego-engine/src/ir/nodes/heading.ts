@@ -1,4 +1,4 @@
-import type { AlignValue, InsetValue, SpacingValue, StegoHeadingNode, StegoNode } from "../types.ts";
+import type { AlignValue, InsetValue, SpacingValue, StegoHeadingNode, StegoInlineNode } from "../types.ts";
 
 export function createHeadingNode(
   level: StegoHeadingNode["level"],
@@ -9,7 +9,7 @@ export function createHeadingNode(
     insetRight?: InsetValue;
     align?: AlignValue;
   },
-  children: StegoNode[]
+  children: StegoInlineNode[]
 ): StegoHeadingNode {
   return {
     kind: "heading",

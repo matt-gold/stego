@@ -2,14 +2,14 @@ import * as vscode from 'vscode';
 import { DEFAULT_IDENTIFIER_PATTERN } from '../../shared/constants';
 import { collectIdentifiers } from './collectIdentifiers';
 import { isCommentIdentifier, normalizeCommentIdentifier } from '../comments';
-import { SpineIndexService } from '../indexing';
+import { LeafIndexService } from '../indexing';
 import { createExploreIdentifierCommandUri } from '../navigation';
 import { getConfig } from '../project';
 
-export function createDocumentLinkProvider(indexService: SpineIndexService): vscode.DocumentLinkProvider {
+export function createDocumentLinkProvider(indexService: LeafIndexService): vscode.DocumentLinkProvider {
   return {
     async provideDocumentLinks(document): Promise<vscode.DocumentLink[]> {
-      const pattern = getConfig('spine', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+      const pattern = getConfig('links', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
       const includeFences = getConfig('editor', document.uri).get<boolean>('linkInCodeFences', false);
       const matches = collectIdentifiers(document, pattern, includeFences);
       if (matches.length === 0) {
@@ -23,7 +23,7 @@ export function createDocumentLinkProvider(indexService: SpineIndexService): vsc
         if (isCommentIdentifier(match.id)) {
           const commentId = normalizeCommentIdentifier(match.id);
           const encodedArgs = encodeURIComponent(JSON.stringify([commentId]));
-          const commandUri = vscode.Uri.parse(`command:stegoSpine.openCommentThread?${encodedArgs}`);
+          const commandUri = vscode.Uri.parse(`command:stegoExplore.openCommentThread?${encodedArgs}`);
           const link = new vscode.DocumentLink(match.range, commandUri);
           link.tooltip = `Open comment ${commentId}`;
           links.push(link);
@@ -33,7 +33,7 @@ export function createDocumentLinkProvider(indexService: SpineIndexService): vsc
           if (record?.title) {
             link.tooltip = `${match.id}: ${record.title}`;
           } else {
-            link.tooltip = `Explore ${match.id} in Spine sidebar`;
+            link.tooltip = `Open linked leaf ${match.id}`;
           }
           links.push(link);
         }

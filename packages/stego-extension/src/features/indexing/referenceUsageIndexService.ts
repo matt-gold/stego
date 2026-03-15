@@ -8,7 +8,7 @@ import type {
   SidebarBacklink
 } from '../../shared/types';
 import { compileGlobalRegex } from '../identifiers';
-import { collectReferenceMarkdownFiles } from '../project';
+import { collectProjectContentFiles } from '../project';
 
 export class ReferenceUsageIndexService {
   private readonly cache = new Map<string, ProjectReferenceIndex>();
@@ -79,7 +79,7 @@ export class ReferenceUsageIndexService {
   }
 
   private async buildProjectIndex(projectDir: string, pattern: string): Promise<ProjectReferenceIndex> {
-    const files = await collectReferenceMarkdownFiles(projectDir);
+    const files = await collectProjectContentFiles(projectDir);
     const index: ProjectReferenceIndex = {
       pattern,
       files: new Map(),
@@ -99,7 +99,7 @@ export class ReferenceUsageIndexService {
   }
 
   private async refreshProjectIndex(index: ProjectReferenceIndex, projectDir: string, pattern: string): Promise<void> {
-    const files = await collectReferenceMarkdownFiles(projectDir);
+    const files = await collectProjectContentFiles(projectDir);
     const currentSet = new Set(files.map((entry) => normalizeFsPath(entry)));
 
     for (const existingPath of [...index.files.keys()]) {

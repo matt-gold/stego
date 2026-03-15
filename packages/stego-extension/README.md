@@ -4,70 +4,59 @@
   <img src="assets/stego.png" alt="Stego logo" width="128" />
 </div>
 
-[`@stego-labs/cli`](https://github.com/matt-gold/stego/tree/main/packages/stego-cli) turns VS Code into a writing environment built for long-form projects. Stego takes a convention over configuration approach, where source of truth always lives directly in your markdown files and information is linked together automatically.
+[`@stego-labs/cli`](https://github.com/matt-gold/stego/tree/main/packages/stego-cli) turns VS Code into a writing environment for long-form projects. In the current Stego model, authored source lives in `content/` as leaves, and templates compile those leaves into a manuscript.
 
 This extension provides the native UX for Stego projects:
 
-- A project-aware sidebar with document, spine, and manuscript-level scope.
-- End-to-end UI workflows for Commenting and metadata maintenance.
-- Hyperlinks and hover previews automatically appear in the editor wherever identifers are found.
-- Project status displays and action buttons for running your project's most important scripts.
-
-## Who is this for?
-
-I created Stego with my own needs in mind. As a software developer by trade, I wanted the security of git-backed drafts, with the power and flexibility of CLI tooling workflows for build and validation that I am familiar with in my coding work. Stego, along with its companion extension [`saurus`](https://github.com/matt-gold/saurus), together give VSCode the lift it needs to be my primary word processor for both creative fiction and technical documentation.
+- A project-aware sidebar for working with leaves, metadata, comments, and project status.
+- Editor hyperlinks and hover previews for leaf identifiers.
+- UI workflows for comments, validation, build, export, and new-leaf creation.
+- Project browsing driven by the same content model the CLI and engine use.
 
 ## Core Concepts
 
-- **Spine**: Your project reference system (characters, locations, sources, etc.)
-  - This idea is sometimes called a "Story Bible" in fiction-oriented apps, but Stego Spine works equally well for glossaries, academic reference tracking, etc.   
-- **Manuscript**: Your manuscript is the ordered set of Markdown files in `manuscript/`. A manuscript file usually holds one scene or section. File-system order is derived from the numeric filename prefix, so names like `100-scene-name.md` and `1200-appendix.md` are both valid.
-- **Identifier**: A unique string used for inline references and comments where applicable (for example `CMT-0001`).
-- **Template**: Build structure lives in `templates/book.template.tsx`, powered by `@stego-labs/engine`. Templates decide how manuscript and spine records become compiled output.
-- **Project**: A directory with a `stego-project.json`, `manuscript/`, and usually `templates/`. VS Code should be opened at the project directory when using the Stego extension.
-- **Workspace**: The Stego workspace contains all stego projects and global configuration shared by projects. This provides a monorepo-like workflow to your stego projects when combined with git.
+- **Leaf**: An authored source unit stored under `content/`. A leaf has frontmatter metadata, body text, and a required explicit `id`.
+- **Content**: The full collection of leaves loaded from `content/`.
+- **Manuscript**: The compiled output document produced by templates.
+- **Identifier**: A leaf id such as `CFG-TEMPLATES` or `CH-INTRO`.
+- **Template**: Build structure lives in `templates/book.template.tsx`, powered by `@stego-labs/engine`. Templates decide how leaves become a manuscript.
+- **Project**: A directory with `stego-project.json`, `content/`, and usually `templates/`.
 
 ## Project Setup
 
-Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Use `@stego-labs/cli` to scaffold a new stego workspace in an empty directory with `npm i -g @stego-labs/cli`, then `stego init`.
+Stego looks for a `stego-project.json` file starting from the active file's directory and walking upward. Build structure is not configured in `stego-project.json`; it lives in `templates/book.template.tsx`.
 
-
-### Supported `stego-project.json` fields (current)
+Current project configuration fields:
 
 - `title` or `name`
-- `requiredMetadata` (array of frontmatter keys)
+- `requiredMetadata`
 - `images`
 
-Stego validates this file and reports non-fatal problems.
+Legacy `spineCategories` and `compileStructure` are no longer supported.
 
-Build structure is not configured in `stego-project.json`. It lives in `templates/book.template.tsx`.
+## Leaf Discovery and Links
 
-## Spine Entry Discovery
+The extension indexes leaves from `content/`:
 
-Stego discovers Spine entries from directory structure:
+- Markdown and plaintext leaves are scanned recursively.
+- Every leaf must define `id:` in frontmatter.
+- Inline identifier detection links known ids back to their leaf files.
+- Unknown ids can be reported as diagnostics via `stego.links.reportUnknownIdentifiers`.
 
-- categories are inferred from `spine/<category>/`
-- category metadata lives in `spine/<category>/_category.md`
-- entries are markdown files under each category directory (nested files are supported)
-
-Entry metadata uses the same frontmatter format as manuscript files.
+Templates can also render explicit internal links with `Stego.Link` and leaf-aware renderers like `Stego.Markdown leaf={leaf}`.
 
 ## Project Scripts the Extension Calls
 
-The VS Code extension UI delegates build/validate actions to scripts in the nearest project `package.json`.
+The VS Code extension UI delegates build and validation actions to scripts in the nearest project `package.json`.
 
-This is intentional: Stego keeps the sidebar UX and command wiring in the extension, while each project owns the exact workflow (for example custom Pandoc flags, pre/post processing, or other project-specific steps).
+Preferred scripts by action:
 
-In most projects, these scripts are thin wrappers around `@stego-labs/cli` commands.
-
-### Preferred scripts by action
-
-- **New Manuscript**: `new`
+- **New Leaf**: `new`
 - **Run Stage Check**: `check-stage`
 - **Compile Full Manuscript**: `build` and `export`
 - **Validate Current File**: `validate` and `check-stage`
 
-### Example project `package.json` scripts
+Example:
 
 ```json
 {
@@ -81,17 +70,7 @@ In most projects, these scripts are thin wrappers around `@stego-labs/cli` comma
 }
 ```
 
-The extension invokes these scripts with `npm run ...` and passes arguments where relevant.
-
-If a script is missing, the extension falls back to direct `stego` CLI commands when `@stego-labs/cli` is available in your PATH (or via `npx --no-install stego`):
-
-- `new` creates a manuscript file (same as `stego new`)
-- `check-stage` receives `--stage ...`
-- `export` receives `--format ...`
-- `validate` receives `--file ...`
-- `Validate Current File` also runs `check-stage -- --stage <status> --file <relative-path>` after `validate`
-
-If you need custom behavior, wrap `@stego-labs/cli` in your own scripts and keep these script names (`new`, `build`, `export`, `check-stage`, `validate`) so the extension can call them directly.
+If a script is missing, the extension falls back to direct `stego` CLI commands when `@stego-labs/cli` is available locally.
 
 ## Comments
 
@@ -100,35 +79,19 @@ If you need custom behavior, wrap `@stego-labs/cli` in your own scripts and keep
 - Comment anchors track edits so comments remain attached to the intended text
 - The sidebar supports resolving and clearing resolved threads
 
-## Architecture (Module Layout)
+## Architecture
 
-The extension is organized as feature modules under `src/features/*`. The sidebar now uses explicit tab modules:
+The extension is organized as feature modules under `src/features/*`.
 
-- `src/features/sidebar/core/`
-  - sidebar provider orchestration, refresh loop, command routing, and state integration
-- `src/features/sidebar/protocol/`
-  - typed host/webview message contracts and runtime payload guards
-- `src/features/sidebar/tabs/document/`
-  - document-tab TOC, metadata/reference projection, and document-tab state builders
-- `src/features/sidebar/tabs/spine/`
-  - spine explorer routing, category/item collection, pin state helpers
-- `src/features/sidebar/tabs/overview/`
-  - overview/manuscript metrics and stage-sorting helpers
-- `src/features/sidebar/webview/`
-  - host-side webview shell HTML, asset URI wiring, and `SidebarState -> SidebarWebviewState` adaptation
-- `webview/sidebar/src/`
-  - SolidJS sidebar app modules (`document`, `spine`, `overview`) and webview bridge logic
-
-Other first-class modules:
+Key modules:
 
 - `src/features/comments/` comment model/store/decorations + CLI client wiring
 - `src/features/metadata/` frontmatter parsing/editing + metadata/image helpers
-- `src/features/indexing/` spine/reference indexes
-- `src/features/commands/` command workflows that execute Stego CLI/project scripts
-- `src/features/project/` project discovery, config parsing, open-mode logic
+- `src/features/indexing/` leaf/reference indexes
+- `src/features/commands/` command workflows that execute Stego CLI or project scripts
+- `src/features/project/` project discovery, config parsing, and file scanning
+- `src/features/sidebar/` sidebar provider, runtime, state building, and webview integration
 
-For contributions, prefer extending an existing module boundary instead of adding cross-cutting logic directly in the provider.
-Each non-sidebar feature module now exposes a public API from `src/features/<module>/index.ts`; prefer importing from module entrypoints instead of deep file paths.
 Detailed architecture notes: [`docs/architecture.md`](docs/architecture.md).
 
 ## Development
@@ -153,19 +116,6 @@ To debug in VS Code:
 
 1. Open this repo (`stego`)
 2. Press `F5` to launch an Extension Development Host
-
-## Release Workflow (Changesets + GitHub Actions)
-
-- CI runs on pushes/PRs to `main`
-- Releases are driven by Changesets
-- Publishing to the VS Code Marketplace uses the `VSCE_PAT` GitHub Actions secret
-
-Typical contributor flow:
-
-1. Make changes
-2. Add a changeset: `npm run changeset`
-3. Merge to `main`
-4. Let CI + release workflows handle versioning and publish
 
 ## License
 

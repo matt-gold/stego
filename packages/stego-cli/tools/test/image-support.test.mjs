@@ -27,10 +27,9 @@ function writeFile(filePath, content) {
   fs.writeFileSync(filePath, content, "utf8");
 }
 
-function createTempProject(projectId, projectJson, manuscriptFiles = [], extraFiles = []) {
+function createTempProject(projectId, projectJson, contentFiles = [], extraFiles = []) {
   const projectRoot = path.join(projectsDir, projectId);
-  fs.mkdirSync(path.join(projectRoot, "manuscript"), { recursive: true });
-  fs.mkdirSync(path.join(projectRoot, "spine"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, "content"), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, "notes"), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, "assets"), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, "dist"), { recursive: true });
@@ -42,16 +41,16 @@ function createTempProject(projectId, projectJson, manuscriptFiles = [], extraFi
     `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document>
-    {ctx.collections.manuscripts.map((doc) => (
-      <Stego.Markdown source={doc.body} />
+    {ctx.content.map((leaf) => (
+      <Stego.Markdown leaf={leaf} />
     ))}
   </Stego.Document>
 ));
 `
   );
 
-  for (const [name, content] of manuscriptFiles) {
-    writeFile(path.join(projectRoot, "manuscript", name), content);
+  for (const [name, content] of contentFiles) {
+    writeFile(path.join(projectRoot, "content", name), content);
   }
 
   for (const [relativePath, content] of extraFiles) {
@@ -132,6 +131,7 @@ test("build applies global and per-path image settings and keeps inline override
       }
     },
     [["100-scene.md", `---
+id: CH-IMAGE-BUILD
 status: draft
 title: Scene
 images:
@@ -180,6 +180,7 @@ test("build treats align-only defaults as block layout", () => {
       }
     },
     [["100-scene.md", `---
+id: CH-IMAGE-ALIGN
 status: draft
 ---
 
@@ -201,7 +202,7 @@ status: draft
   }
 });
 
-test("validate warns when manuscript frontmatter uses reserved global image key", () => {
+test("validate warns when leaf frontmatter uses reserved global image key", () => {
   const projectId = `image-reserved-key-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(
     projectId,
@@ -211,6 +212,7 @@ test("validate warns when manuscript frontmatter uses reserved global image key"
       requiredMetadata: ["status"]
     },
     [["100-scene.md", `---
+id: CH-IMAGE-RESERVED
 status: draft
 images:
   width: 90%
@@ -224,7 +226,7 @@ Hello.
     const result = runCli(["validate", "--project", projectId]);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     const output = `${result.stdout}\n${result.stderr}`;
-    assert.match(output, /Manuscript frontmatter 'images\.width' is reserved for project defaults\./);
+    assert.match(output, /Leaf frontmatter 'images\.width' is reserved for project defaults\./);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }
@@ -247,6 +249,7 @@ test("validate warns when project image defaults are misconfigured", () => {
       }
     },
     [["100-scene.md", `---
+id: CH-IMAGE-PROJECT-DEFAULTS
 status: draft
 ---
 
@@ -276,6 +279,7 @@ test("validate warns for local image targets outside assets and does not warn fo
       requiredMetadata: ["status"]
     },
     [["100-scene.md", `---
+id: CH-IMAGE-ASSETS
 status: draft
 ---
 
@@ -310,6 +314,7 @@ test("export passes project-aware resource paths to pandoc", () => {
       requiredMetadata: ["status"]
     },
     [["100-scene.md", `---
+id: CH-IMAGE-EXPORT
 status: draft
 ---
 
@@ -373,7 +378,7 @@ fi
 
     const resourcePaths = resourceArg.replace("--resource-path=", "").split(path.delimiter);
     assert.ok(resourcePaths.includes(path.resolve(projectRoot)), "Expected project root in resource path");
-    assert.ok(resourcePaths.includes(path.resolve(projectRoot, "manuscript")), "Expected manuscript dir in resource path");
+    assert.ok(resourcePaths.includes(path.resolve(projectRoot, "content")), "Expected content dir in resource path");
     assert.ok(resourcePaths.includes(path.resolve(projectRoot, "assets")), "Expected assets dir in resource path");
 
     const recordedCwd = fs.readFileSync(cwdPath, "utf8").trim();
@@ -394,6 +399,7 @@ test("epub export passes bundled image-layout stylesheet to pandoc", () => {
       requiredMetadata: ["status"]
     },
     [["100-scene.md", `---
+id: CH-IMAGE-EPUB
 status: draft
 ---
 
@@ -461,19 +467,17 @@ test("new-project scaffolds assets README", () => {
 
   writeFile(path.join(tempWorkspace, "stego.config.json"), `${JSON.stringify({
     projectsDir: "projects",
-    chapterDir: "manuscript",
-    spineDir: "spine",
-    notesDir: "notes",
-    distDir: "dist",
-    requiredMetadata: ["status"],
-    allowedStatuses: ["draft", "revise", "line-edit", "proof", "final"],
-    stagePolicies: {
-      draft: {
-        minimumChapterStatus: "draft",
-        requireSpine: false,
-        enforceMarkdownlint: false,
-        enforceCSpell: false,
-        enforceLocalLinks: false
+        contentDir: "content",
+        notesDir: "notes",
+        distDir: "dist",
+        requiredMetadata: ["status"],
+        allowedStatuses: ["draft", "revise", "line-edit", "proof", "final"],
+        stagePolicies: {
+          draft: {
+            minimumChapterStatus: "draft",
+            enforceMarkdownlint: false,
+            enforceCSpell: false,
+            enforceLocalLinks: false
       }
     }
   }, null, 2)}\n`);

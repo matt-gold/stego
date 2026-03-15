@@ -1,7 +1,7 @@
 import type { ProjectContext } from "../../project/index.ts";
 import { getStageRank, isStageName } from "@stego-labs/shared/domain/stages";
 import { inspectProject } from "./inspect-project.ts";
-import { collectSpineWordsForSpellcheck, runCSpell, runMarkdownlint } from "./lint-runner.ts";
+import { runCSpell, runMarkdownlint } from "./lint-runner.ts";
 import type { Issue, StageCheckResult, StagePolicy } from "../types.ts";
 
 export function runStageCheck(project: ProjectContext, stage: string, onlyFile?: string): StageCheckResult {
@@ -49,23 +49,6 @@ export function runStageCheck(project: ProjectContext, stage: string, onlyFile?:
     }
   }
 
-  if (policy.requireSpine) {
-    if (report.spineState.categories.length === 0) {
-      issues.push(
-        makeIssue(
-          "error",
-          "continuity",
-          "No spine categories found. Add at least one category under spine/<category>/ before this stage."
-        )
-      );
-    }
-    for (const spineIssue of report.issues.filter((issue) => issue.category === "continuity")) {
-      if (spineIssue.message.startsWith("Missing spine directory")) {
-        issues.push({ ...spineIssue, level: "error" });
-      }
-    }
-  }
-
   if (policy.enforceLocalLinks) {
     for (const linkIssue of issues.filter((issue) => issue.category === "links" && issue.level !== "error")) {
       linkIssue.level = "error";
@@ -74,8 +57,6 @@ export function runStageCheck(project: ProjectContext, stage: string, onlyFile?:
   }
 
   const chapterPaths = report.chapters.map((chapter) => chapter.path);
-  const spineWords = collectSpineWordsForSpellcheck(report.spineState.entriesByCategory);
-
   if (policy.enforceMarkdownlint) {
     issues.push(...runMarkdownlint(project, chapterPaths, true, "manuscript"));
   } else {
@@ -83,9 +64,9 @@ export function runStageCheck(project: ProjectContext, stage: string, onlyFile?:
   }
 
   if (policy.enforceCSpell) {
-    issues.push(...runCSpell(project, chapterPaths, true, spineWords));
+    issues.push(...runCSpell(project, chapterPaths, true));
   } else {
-    issues.push(...runCSpell(project, chapterPaths, false, spineWords));
+    issues.push(...runCSpell(project, chapterPaths, false));
   }
 
   return { chapters: report.chapters, issues };
@@ -111,7 +92,6 @@ function isStagePolicy(value: unknown): value is StagePolicy {
   }
 
   return isStageName(String(value.minimumChapterStatus))
-    && typeof value.requireSpine === "boolean"
     && typeof value.enforceMarkdownlint === "boolean"
     && typeof value.enforceCSpell === "boolean"
     && typeof value.enforceLocalLinks === "boolean"

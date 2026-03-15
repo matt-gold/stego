@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { WorkflowRunResult } from '../../commands';
-import { ReferenceUsageIndexService, SpineIndexService } from '../../indexing';
+import { ReferenceUsageIndexService, LeafIndexService } from '../../indexing';
 import { SidebarRuntime } from './runtime/sidebarRuntime';
 import type { RefreshMode } from './sidebarProvider.types';
 
@@ -9,7 +9,7 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
   constructor(
     extensionUri: vscode.Uri,
-    indexService: SpineIndexService,
+    indexService: LeafIndexService,
     referenceUsageService: ReferenceUsageIndexService,
     diagnostics: vscode.DiagnosticCollection
   ) {

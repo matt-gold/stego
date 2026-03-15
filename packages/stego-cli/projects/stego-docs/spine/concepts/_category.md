@@ -1,6 +1,0 @@
----
-label: Concepts
----
-
-# Concepts
-

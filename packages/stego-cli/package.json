@@ -58,10 +58,10 @@
     "test:cli-core": "node --test tools/test/cli-core.test.mjs",
     "test:docx-layout": "node --test tools/test/docx-layout.test.mjs",
     "test:image-support": "node --test tools/test/image-support.test.mjs",
-    "test:spine-v2": "node --test tools/test/spine-v2.test.mjs",
+    "test:content-model": "node --test tools/test/content-model.test.mjs",
     "test:template-engine": "node --test tools/test/template-engine.test.mjs",
     "test:workspace-project": "node --test tools/test/workspace-project.test.mjs",
-    "test": "npm run -w @stego-labs/shared compile && npm run -w @stego-labs/engine compile && npm run test:build-command && npm run test:comments && npm run test:cli-core && npm run test:docx-layout && npm run test:image-support && npm run test:spine-v2 && npm run test:template-engine && npm run test:workspace-project && npm run check:module-apis && npm run check:boundaries",
+    "test": "npm run -w @stego-labs/shared compile && npm run -w @stego-labs/engine compile && npm run test:build-command && npm run test:comments && npm run test:cli-core && npm run test:content-model && npm run test:docx-layout && npm run test:image-support && npm run test:template-engine && npm run test:workspace-project && npm run check:module-apis && npm run check:boundaries",
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
     "check:module-apis": "node scripts/check-module-apis.mjs"
   },

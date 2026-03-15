@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { promises as fs } from 'fs';
-import { DEFAULT_IDENTIFIER_PATTERN, SPINE_DIR } from '../../../../shared/constants';
+import { CONTENT_DIR, DEFAULT_IDENTIFIER_PATTERN } from '../../../../shared/constants';
 import { errorToMessage } from '../../../../shared/errors';
 import { asNumber } from '../../../../shared/value';
 import type {
   ExplorerRoute,
   ProjectScanContext,
-  ProjectSpineCategory,
+  ProjectBranch,
   ProjectConfigIssue,
-  SpineRecord,
+  LeafTargetRecord,
   SidebarCommentsState,
   SidebarPinnedExplorerPanel,
   SidebarOverviewGateSnapshot,
@@ -31,7 +31,7 @@ import {
   type WorkflowRunResult
 } from '../../../commands';
 import { refreshVisibleMarkdownDocuments } from '../../../diagnostics';
-import { ReferenceUsageIndexService, SpineIndexService } from '../../../indexing';
+import { ReferenceUsageIndexService, LeafIndexService } from '../../../indexing';
 import {
   buildSidebarImageEntries,
   buildStatusControl,
@@ -49,7 +49,6 @@ import {
   setMetadataStatus,
   promptAndFillRequiredMetadata
 } from '../../../metadata';
-import { isValidMetadataKey as isSharedMetadataKey } from '@stego-labs/shared/domain/frontmatter';
 import { collectIdentifierOccurrencesFromLines, extractIdentifierTokensFromValue } from '../../../identifiers';
 import { openBacklinkFile, openExternalLink, openLineInActiveDocument } from '../../../navigation';
 import {
@@ -58,10 +57,10 @@ import {
   getConfig,
   logProjectHealthIssue,
   collectManuscriptMarkdownFiles,
-  resolveCurrentSpineCategoryFile
+  resolveCurrentBranchFile
 } from '../../../project';
 import { buildExplorerState, buildMetadataEntry, buildTocWithBacklinks, collectTocEntries, isManuscriptPath } from '../../tabs/document';
-import { normalizeExplorerRoute, isSameExplorerRoute } from '../../tabs/spine';
+import { normalizeExplorerRoute, isSameExplorerRoute } from '../../tabs/explore';
 import { compareOverviewStatus, countOverviewWords } from '../../tabs/overview';
 import { renderSidebarShellHtml } from '../../webview';
 import {
@@ -82,16 +81,16 @@ import type {
   RefreshMode
 } from '../sidebarProvider.types';
 import {
-  SPINE_PIN_LIMIT,
+  EXPLORER_PIN_LIMIT,
   type ActiveExplorerState,
-  type PinnedSpineEntryState,
-  pinSpineEntry,
+  type PinnedExplorerEntryState,
+  pinExplorerEntry,
   resetActiveExplorerForNewInstance,
-  setPinnedSpineBacklinkFilter,
-  togglePinnedSpineCollapse,
-  togglePinnedSpineBacklinks,
-  unpinSpineEntry
-} from '../../tabs/spine';
+  setPinnedExplorerBacklinkFilter,
+  togglePinnedExplorerCollapse,
+  togglePinnedExplorerBacklinks,
+  unpinExplorerEntry
+} from '../../tabs/explore';
 import {
   addCommentAtSelection,
   buildSidebarCommentsState,
@@ -107,7 +106,7 @@ import {
 } from '../../../comments';
 
 export class SidebarRuntime implements vscode.WebviewViewProvider {
-  private static readonly PIN_LIMIT = SPINE_PIN_LIMIT;
+  private static readonly PIN_LIMIT = EXPLORER_PIN_LIMIT;
 
   private view?: vscode.WebviewView;
   private webviewReady = false;
@@ -128,7 +127,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   private readonly explorerForwardStack: ExplorerRoute[] = [];
   private explorerBacklinksExpanded = false;
   private explorerLoadToken = 0;
-  private readonly pinnedByProject = new Map<string, PinnedSpineEntryState[]>();
+  private readonly pinnedByProject = new Map<string, PinnedExplorerEntryState[]>();
   private readonly expandedTocBacklinks = new Set<string>();
   private readonly overviewFileCache = new Map<string, OverviewFileCache>();
   private readonly gateSnapshotByProject: GateSnapshotByProject = new Map();
@@ -145,7 +144,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly indexService: SpineIndexService,
+    private readonly indexService: LeafIndexService,
     private readonly referenceUsageService: ReferenceUsageIndexService,
     private readonly diagnostics: vscode.DiagnosticCollection
   ) {}
@@ -163,7 +162,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       return;
     }
 
-    this.setActiveTab('spine');
+    this.setActiveTab('explore');
     this.navigateExplorerToRoute({ kind: 'identifier', id: normalized }, { trackHistory: true });
     await this.refresh();
   }
@@ -205,7 +204,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   }
 
   private canGlobalGoBack(): boolean {
-    if (this.activeTab === 'spine' && this.canExplorerGoBack()) {
+    if (this.activeTab === 'explore' && this.canExplorerGoBack()) {
       return true;
     }
 
@@ -217,7 +216,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   }
 
   private canGlobalGoForward(): boolean {
-    if (this.activeTab === 'spine' && this.canExplorerGoForward()) {
+    if (this.activeTab === 'explore' && this.canExplorerGoForward()) {
       return true;
     }
 
@@ -229,7 +228,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   }
 
   private goGlobalBack(): void {
-    if (this.activeTab === 'spine' && this.canExplorerGoBack()) {
+    if (this.activeTab === 'explore' && this.canExplorerGoBack()) {
       this.goExplorerBack();
       return;
     }
@@ -249,7 +248,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   }
 
   private goGlobalForward(): void {
-    if (this.activeTab === 'spine' && this.canExplorerGoForward()) {
+    if (this.activeTab === 'explore' && this.canExplorerGoForward()) {
       this.goExplorerForward();
       return;
     }
@@ -462,7 +461,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     stack.push(snapshot);
   }
 
-  private getProjectPinnedEntries(projectDir: string): PinnedSpineEntryState[] {
+  private getProjectPinnedEntries(projectDir: string): PinnedExplorerEntryState[] {
     const entries = this.pinnedByProject.get(projectDir) ?? [];
     return entries.map((entry) => ({
       ...entry,
@@ -470,7 +469,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }));
   }
 
-  private setProjectPinnedEntries(projectDir: string, entries: PinnedSpineEntryState[]): void {
+  private setProjectPinnedEntries(projectDir: string, entries: PinnedExplorerEntryState[]): void {
     if (entries.length === 0) {
       this.pinnedByProject.delete(projectDir);
       return;
@@ -812,7 +811,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         return {
           key,
           isStructural: previous?.isStructural ?? false,
-          isSpineCategory: previous?.isSpineCategory ?? false,
+          isBranch: previous?.isBranch ?? false,
           isArray: true,
           valueText: '',
           references: [],
@@ -827,7 +826,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       return {
         key,
         isStructural: previous?.isStructural ?? false,
-        isSpineCategory: previous?.isSpineCategory ?? false,
+        isBranch: previous?.isBranch ?? false,
         isArray: false,
         valueText: formatMetadataValue(value),
         references: [],
@@ -838,56 +837,39 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
 
   private buildMetadataEntriesFromFrontmatter(
     frontmatter: Record<string, unknown>,
-    categoryByKey: Map<string, ProjectSpineCategory>,
-    categoryOrderByKey: Map<string, number>,
-    index: Map<string, SpineRecord>,
+    _branchByKey: Map<string, ProjectBranch>,
+    _branchOrderByKey: Map<string, number>,
+    index: Map<string, LeafTargetRecord>,
     document: vscode.TextDocument,
     pattern: string
   ): SidebarState['metadataEntries'] {
     return Object.entries(frontmatter)
       .filter(([key]) => key !== 'status')
-      .sort(([a], [b]) => {
-        const aIsSpineCategory = categoryByKey.has(a);
-        const bIsSpineCategory = categoryByKey.has(b);
-
-        if (aIsSpineCategory !== bIsSpineCategory) {
-          return aIsSpineCategory ? -1 : 1;
-        }
-
-        if (aIsSpineCategory && bIsSpineCategory) {
-          const aOrder = categoryOrderByKey.get(a) ?? Number.MAX_SAFE_INTEGER;
-          const bOrder = categoryOrderByKey.get(b) ?? Number.MAX_SAFE_INTEGER;
-          if (aOrder !== bOrder) {
-            return aOrder - bOrder;
-          }
-        }
-
-        return a.localeCompare(b);
-      })
+      .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, value]) => buildMetadataEntry(
         key,
         value,
         false,
-        categoryByKey.get(key),
+        undefined,
         index,
         document,
         pattern
       ));
   }
 
-  private isSpineEntryDocument(projectContext: ProjectScanContext | undefined, documentPath: string): boolean {
+  private isReferenceLeafDocument(projectContext: ProjectScanContext | undefined, documentPath: string): boolean {
     if (!projectContext) {
       return false;
     }
 
     const resolved = path.resolve(documentPath);
-    if (path.basename(resolved).toLowerCase() === '_category.md' || path.extname(resolved).toLowerCase() !== '.md') {
+    if (path.basename(resolved).toLowerCase() === '_branch.md' || path.extname(resolved).toLowerCase() !== '.md') {
       return false;
     }
 
-    const spineRoot = path.resolve(projectContext.projectDir, SPINE_DIR);
-    const relativeToSpine = path.relative(spineRoot, resolved);
-    return relativeToSpine.length > 0 && !relativeToSpine.startsWith('..') && !path.isAbsolute(relativeToSpine);
+    const contentRoot = path.resolve(projectContext.projectDir, CONTENT_DIR);
+    const relativeToContent = path.relative(contentRoot, resolved);
+    return relativeToContent.length > 0 && !relativeToContent.startsWith('..') && !path.isAbsolute(relativeToContent);
   }
 
   private async getSidebarStateFull(): Promise<SidebarState> {
@@ -908,7 +890,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         ? await findNearestProjectConfig(activeDocument.uri.fsPath, workspaceFolder.uri.fsPath)
         : undefined;
       const canShowOverview = !!projectContext;
-      const showExplorer = (projectContext?.categories.length ?? 0) > 0;
+      const showExplorer = (projectContext?.branches.length ?? 0) > 0;
       let overview: SidebarOverviewState | undefined;
       let overviewSkippedFiles = 0;
       if (projectContext) {
@@ -919,15 +901,15 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       const warnings = this.collectSidebarWarnings(projectContext, overviewSkippedFiles);
       let activeTab = this.resolveEffectiveTab(this.activeTab, canShowOverview, showExplorer);
       if (activeTab === 'document') {
-        activeTab = canShowOverview ? 'overview' : (showExplorer ? 'spine' : 'document');
+        activeTab = canShowOverview ? 'overview' : (showExplorer ? 'explore' : 'document');
       }
       this.activeTab = activeTab;
 
       let explorer = undefined;
       let pinnedExplorers: SidebarPinnedExplorerPanel[] = [];
-      if (activeDocument && projectContext && showExplorer && activeTab === 'spine') {
+      if (activeDocument && projectContext && showExplorer && activeTab === 'explore') {
         const index = await this.indexService.loadForDocument(activeDocument);
-        const pattern = getConfig('spine', activeDocument.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+        const pattern = getConfig('links', activeDocument.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
         explorer = await buildExplorerState(
           activeDocument,
           index,
@@ -979,7 +961,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: [],
         showToc: false,
-        isSpineCategoryFile: false,
+        isBranchNotesFile: false,
         backlinkFilter: this.backlinkFilter,
         comments: {
           selectedId: undefined,
@@ -1023,7 +1005,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       ? await findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath)
       : undefined;
     const canShowOverview = !!projectContext;
-    const showExplorer = (projectContext?.categories.length ?? 0) > 0;
+    const showExplorer = (projectContext?.branches.length ?? 0) > 0;
     const effectiveTab = this.resolveEffectiveTab(this.activeTab, canShowOverview, showExplorer);
     this.activeTab = effectiveTab;
     let overview: SidebarOverviewState | undefined;
@@ -1035,25 +1017,25 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }
     const warnings = this.collectSidebarWarnings(projectContext, overviewSkippedFiles);
 
-    const categoryByKey = new Map<string, ProjectSpineCategory>();
-    const categoryOrderByKey = new Map<string, number>();
-    let categoryOrder = 0;
-    for (const category of projectContext?.categories ?? []) {
-      categoryByKey.set(category.key, category);
-      categoryOrderByKey.set(category.key, categoryOrder);
-      categoryOrder += 1;
+    const branchByKey = new Map<string, ProjectBranch>();
+    const branchOrderByKey = new Map<string, number>();
+    let branchOrder = 0;
+    for (const branch of projectContext?.branches ?? []) {
+      branchByKey.set(branch.key, branch);
+      branchOrderByKey.set(branch.key, branchOrder);
+      branchOrder += 1;
     }
 
-    let spineCategoryForFile: ProjectSpineCategory | undefined;
+    let branchForFile: ProjectBranch | undefined;
     if (!manuscriptMode && projectContext) {
-      spineCategoryForFile = await resolveCurrentSpineCategoryFile(projectContext.projectDir, projectContext.categories, document.uri.fsPath);
+      branchForFile = await resolveCurrentBranchFile(projectContext.projectDir, projectContext.branches, document.uri.fsPath);
     }
-    const spineEntryMode = this.isSpineEntryDocument(projectContext, document.uri.fsPath);
-    const showTocPanel = !manuscriptMode && !spineEntryMode;
+    const leafEntryMode = this.isReferenceLeafDocument(projectContext, document.uri.fsPath);
+    const showTocPanel = !manuscriptMode && !leafEntryMode;
 
     const index = await this.indexService.loadForDocument(document);
-    const pattern = getConfig('spine', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
-    const explorer = showExplorer && effectiveTab === 'spine'
+    const pattern = getConfig('links', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+    const explorer = showExplorer && effectiveTab === 'explore'
       ? await buildExplorerState(
         document,
         index,
@@ -1065,16 +1047,16 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         this.referenceUsageService
       )
       : undefined;
-    const pinnedExplorers = showExplorer && effectiveTab === 'spine' && projectContext
+    const pinnedExplorers = showExplorer && effectiveTab === 'explore' && projectContext
       ? await this.buildPinnedExplorerPanels(projectContext.projectDir, document, index, projectContext, pattern)
       : [];
     const canPinAllFromFile = !!projectContext
       && showExplorer
-      && this.collectReferencedSpineIdsInDocument(document, projectContext, pattern, index).length > 0;
+      && this.collectReferencedLeafIdsInDocument(document, projectContext, pattern, index).length > 0;
     const tocWithBacklinks = showTocPanel
       ? await buildTocWithBacklinks(
         collectTocEntries(document),
-        spineCategoryForFile,
+        branchForFile,
         projectContext,
         document,
         index,
@@ -1088,13 +1070,13 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (!manuscriptMode) {
       let metadataEntries: SidebarState['metadataEntries'] = [];
       let parseError: string | undefined;
-      if (spineEntryMode) {
+      if (leafEntryMode) {
         try {
           const parsed = parseMarkdownDocument(document.getText());
           metadataEntries = this.buildMetadataEntriesFromFrontmatter(
             parsed.frontmatter,
-            categoryByKey,
-            categoryOrderByKey,
+            branchByKey,
+            branchOrderByKey,
             index,
             document,
             pattern
@@ -1118,14 +1100,14 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         mode: 'nonManuscript',
         parseError,
         showExplorer,
-        metadataCollapsed: spineEntryMode ? this.metadataCollapsed : false,
-        metadataEditing: spineEntryMode ? this.metadataEditing : false,
+        metadataCollapsed: leafEntryMode ? this.metadataCollapsed : false,
+        metadataEditing: leafEntryMode ? this.metadataEditing : false,
         enableComments,
         statusControl: undefined,
         metadataEntries,
         imageEntries: [],
         projectImageDefaults: projectContext?.imageDefaults ?? {},
-        showMetadataPanel: spineEntryMode,
+        showMetadataPanel: leafEntryMode,
         explorer,
         pinnedExplorers,
         canPinAllFromFile,
@@ -1138,7 +1120,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: tocWithBacklinks,
         showToc: showTocPanel,
-        isSpineCategoryFile: !!spineCategoryForFile,
+        isBranchNotesFile: !!branchForFile,
         backlinkFilter: this.backlinkFilter,
         comments
       };
@@ -1151,8 +1133,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       const statusControl = await buildStatusControl(parsed.frontmatter, document);
       const metadataEntries = this.buildMetadataEntriesFromFrontmatter(
         parsed.frontmatter,
-        categoryByKey,
-        categoryOrderByKey,
+        branchByKey,
+        branchOrderByKey,
         index,
         document,
         pattern
@@ -1198,7 +1180,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: [],
         showToc: false,
-        isSpineCategoryFile: false,
+        isBranchNotesFile: false,
         backlinkFilter: this.backlinkFilter,
         comments
       };
@@ -1237,7 +1219,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: [],
         showToc: false,
-        isSpineCategoryFile: false,
+        isBranchNotesFile: false,
         backlinkFilter: this.backlinkFilter,
         comments
       };
@@ -1265,11 +1247,11 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     return aPath.localeCompare(bPath);
   }
 
-  private collectReferencedSpineIdsInDocument(
+  private collectReferencedLeafIdsInDocument(
     document: vscode.TextDocument,
     projectContext: ProjectScanContext,
     pattern: string,
-    index: Map<string, SpineRecord>
+    index: Map<string, LeafTargetRecord>
   ): string[] {
     if (index.size === 0) {
       return [];
@@ -1286,7 +1268,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         byId.set(normalizedId, id);
       }
 
-      for (const alias of this.collectSpineRecordAliases(record)) {
+      for (const alias of this.collectLeafTargetRecordAliases(record)) {
         const normalizedAlias = alias.trim().toLowerCase();
         if (!normalizedAlias || byAlias.has(normalizedAlias)) {
           continue;
@@ -1339,7 +1321,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       return result;
     }
 
-    for (const category of projectContext.categories) {
+    for (const category of projectContext.branches) {
       const value = parsed.frontmatter[category.key];
       if (typeof value === 'string') {
         pushIfKnown(value);
@@ -1367,7 +1349,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     return result;
   }
 
-  private collectSpineRecordAliases(record: SpineRecord): string[] {
+  private collectLeafTargetRecordAliases(record: LeafTargetRecord): string[] {
     const aliases: string[] = [];
     const recordPath = record.path?.trim().replace(/\\/g, '/');
     if (!recordPath) {
@@ -1375,21 +1357,21 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }
 
     aliases.push(recordPath);
-    const spinePath = recordPath.toLowerCase().startsWith('spine/')
+    const contentPath = recordPath.toLowerCase().startsWith('content/')
       ? recordPath
       : (() => {
-        const markerIndex = recordPath.toLowerCase().lastIndexOf('/spine/');
+        const markerIndex = recordPath.toLowerCase().lastIndexOf('/content/');
         if (markerIndex >= 0) {
           return recordPath.slice(markerIndex + 1);
         }
         return undefined;
       })();
-    if (!spinePath) {
+    if (!contentPath) {
       return aliases;
     }
 
-    aliases.push(spinePath);
-    const match = spinePath.match(/^spine\/([^/]+)\/(.+)\.md$/i);
+    aliases.push(contentPath);
+    const match = contentPath.match(/^content\/reference\/([^/]+)\/(.+)\.(md|markdown|txt|text)$/i);
     if (!match) {
       return aliases;
     }
@@ -1409,7 +1391,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   private async buildPinnedExplorerPanels(
     projectDir: string,
     document: vscode.TextDocument,
-    index: Map<string, SpineRecord>,
+    index: Map<string, LeafTargetRecord>,
     projectContext: ProjectScanContext,
     pattern: string
   ): Promise<SidebarPinnedExplorerPanel[]> {
@@ -1497,8 +1479,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     return true;
   }
 
-  public async handleSpineAction(payload: SidebarActionMessage): Promise<boolean> {
-    if (!payload.type.startsWith('spine.')) {
+  public async handleExploreAction(payload: SidebarActionMessage): Promise<boolean> {
+    if (!payload.type.startsWith('explore.')) {
       return false;
     }
     await this.handleActionByType(payload);
@@ -1536,8 +1518,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       case 'ui.setTab': {
         shouldRefreshDiagnostics = false;
         const value = typeof payload.value === 'string' ? payload.value.trim().toLowerCase() : '';
-        if (value === 'document' || value === 'spine' || value === 'overview') {
-          if (value === 'overview' || value === 'spine') {
+        if (value === 'document' || value === 'explore' || value === 'overview') {
+          if (value === 'overview' || value === 'explore') {
             const activeEditorDoc = vscode.window.activeTextEditor?.document;
             const folder = activeEditorDoc ? vscode.workspace.getWorkspaceFolder(activeEditorDoc.uri) : undefined;
             const context = activeEditorDoc && folder
@@ -1546,7 +1528,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
             if (value === 'overview' && !context) {
               break;
             }
-            if (value === 'spine' && (!context || context.categories.length === 0)) {
+            if (value === 'explore' && (!context || context.branches.length === 0)) {
               break;
             }
           }
@@ -1754,62 +1736,60 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         shouldRefreshDiagnostics = false;
         break;
       }
-      case 'spine.openIdentifier': {
+      case 'explore.openIdentifier': {
         shouldRefreshDiagnostics = false;
         if (typeof payload.id === 'string' && payload.id.trim().length > 0) {
-          this.setActiveTab('spine');
+          this.setActiveTab('explore');
           this.navigateExplorerToRoute({ kind: 'identifier', id: payload.id.trim() }, { trackHistory: true });
         }
         break;
       }
-      case 'spine.openCategory': {
+      case 'explore.openBranch': {
         shouldRefreshDiagnostics = false;
         if (
           typeof payload.key === 'string'
           && payload.key.trim().length > 0
-          && typeof payload.prefix === 'string'
-          && payload.prefix.trim().length > 0
         ) {
           this.navigateExplorerToRoute(
-            { kind: 'category', key: payload.key.trim(), prefix: payload.prefix.trim() },
+            { kind: 'branch', key: payload.key.trim() },
             { trackHistory: true }
           );
         }
         break;
       }
-      case 'spine.goHome': {
+      case 'explore.goHome': {
         shouldRefreshDiagnostics = false;
         this.navigateExplorerToRoute({ kind: 'home' }, { trackHistory: true });
         break;
       }
-      case 'spine.goBack': {
+      case 'explore.goBack': {
         shouldRefreshDiagnostics = false;
         this.goExplorerBack();
         break;
       }
-      case 'spine.goForward': {
+      case 'explore.goForward': {
         shouldRefreshDiagnostics = false;
         this.goExplorerForward();
         break;
       }
-      case 'spine.createCategory': {
+      case 'explore.createBranch': {
         shouldRefreshDiagnostics = false;
-        await this.promptAndAddSpineCategory();
+        await this.promptAndAddBranch();
         break;
       }
-      case 'spine.pinActiveEntry': {
+      case 'explore.pinActiveEntry': {
         shouldRefreshDiagnostics = false;
         if (this.explorerRoute.kind !== 'identifier') {
           break;
         }
 
         const projectContext = await this.getCurrentProjectConfigContext();
-        if (!projectContext || projectContext.categories.length === 0) {
+        if (!projectContext || projectContext.branches.length === 0) {
           break;
         }
 
         const currentPins = this.getProjectPinnedEntries(projectContext.projectDir);
-        const pinResult = pinSpineEntry(currentPins, this.explorerRoute, SidebarRuntime.PIN_LIMIT);
+        const pinResult = pinExplorerEntry(currentPins, this.explorerRoute, SidebarRuntime.PIN_LIMIT);
         if (pinResult.kind === 'limit') {
           void vscode.window.showWarningMessage(`Pin limit reached (${SidebarRuntime.PIN_LIMIT}). Unpin an entry before pinning another.`);
           break;
@@ -1822,7 +1802,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         this.resetActiveExplorerInstance();
         break;
       }
-      case 'spine.pinAllFromDocument': {
+      case 'explore.pinAllFromDocument': {
         shouldRefreshDiagnostics = false;
         const document = getActiveMarkdownDocument(false);
         if (!document) {
@@ -1830,16 +1810,16 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         }
 
         const projectContext = await this.getCurrentProjectConfigContext();
-        if (!projectContext || projectContext.categories.length === 0) {
+        if (!projectContext || projectContext.branches.length === 0) {
           break;
         }
 
-        const pattern = getConfig('spine', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+        const pattern = getConfig('links', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
         const index = await this.indexService.loadForDocument(document);
-        const candidateIds = this.collectReferencedSpineIdsInDocument(document, projectContext, pattern, index);
+        const candidateIds = this.collectReferencedLeafIdsInDocument(document, projectContext, pattern, index);
 
         if (candidateIds.length === 0) {
-          void vscode.window.showInformationMessage('No spine entries referenced in the current file.');
+          void vscode.window.showInformationMessage('No leaf references found in the current file.');
           break;
         }
 
@@ -1847,7 +1827,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         let addedCount = 0;
         let hitLimit = false;
         for (const id of candidateIds) {
-          const pinResult = pinSpineEntry(nextPins, { kind: 'identifier', id }, SidebarRuntime.PIN_LIMIT);
+          const pinResult = pinExplorerEntry(nextPins, { kind: 'identifier', id }, SidebarRuntime.PIN_LIMIT);
           if (pinResult.kind === 'pinned') {
             nextPins = pinResult.entries;
             addedCount += 1;
@@ -1863,7 +1843,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           if (hitLimit) {
             void vscode.window.showWarningMessage(`Pin limit reached (${SidebarRuntime.PIN_LIMIT}). Unpin an entry before pinning another.`);
           } else {
-            void vscode.window.showInformationMessage('No new spine entries to pin from the current file.');
+            void vscode.window.showInformationMessage('No new leaf references to pin from the current file.');
           }
           break;
         }
@@ -1872,28 +1852,28 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         this.resetActiveExplorerInstance();
         if (hitLimit) {
           void vscode.window.showWarningMessage(
-            `Pinned ${addedCount} spine entr${addedCount === 1 ? 'y' : 'ies'} from the current file. Pin limit reached (${SidebarRuntime.PIN_LIMIT}).`
+            `Pinned ${addedCount} leaf reference${addedCount === 1 ? '' : 's'} from the current file. Pin limit reached (${SidebarRuntime.PIN_LIMIT}).`
           );
         } else {
           void vscode.window.showInformationMessage(
-            `Pinned ${addedCount} spine entr${addedCount === 1 ? 'y' : 'ies'} from the current file.`
+            `Pinned ${addedCount} leaf reference${addedCount === 1 ? '' : 's'} from the current file.`
           );
         }
         break;
       }
-      case 'spine.unpinEntry': {
+      case 'explore.unpinEntry': {
         shouldRefreshDiagnostics = false;
         if (typeof payload.id !== 'string') {
           break;
         }
 
         const projectContext = await this.getCurrentProjectConfigContext();
-        if (!projectContext || projectContext.categories.length === 0) {
+        if (!projectContext || projectContext.branches.length === 0) {
           break;
         }
 
         const currentPins = this.getProjectPinnedEntries(projectContext.projectDir);
-        const unpinResult = unpinSpineEntry(currentPins, payload.id);
+        const unpinResult = unpinExplorerEntry(currentPins, payload.id);
         if (!unpinResult.removed) {
           break;
         }
@@ -1901,10 +1881,10 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         this.setProjectPinnedEntries(projectContext.projectDir, unpinResult.entries);
         break;
       }
-      case 'spine.unpinAll': {
+      case 'explore.unpinAll': {
         shouldRefreshDiagnostics = false;
         const projectContext = await this.getCurrentProjectConfigContext();
-        if (!projectContext || projectContext.categories.length === 0) {
+        if (!projectContext || projectContext.branches.length === 0) {
           break;
         }
 
@@ -1916,24 +1896,24 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         this.setProjectPinnedEntries(projectContext.projectDir, []);
         break;
       }
-      case 'spine.toggleBacklinks': {
+      case 'explore.toggleBacklinks': {
         shouldRefreshDiagnostics = false;
         this.explorerBacklinksExpanded = !this.explorerBacklinksExpanded;
         break;
       }
-      case 'spine.togglePinnedBacklinks': {
+      case 'explore.togglePinnedBacklinks': {
         shouldRefreshDiagnostics = false;
         if (typeof payload.id !== 'string') {
           break;
         }
 
         const projectContext = await this.getCurrentProjectConfigContext();
-        if (!projectContext || projectContext.categories.length === 0) {
+        if (!projectContext || projectContext.branches.length === 0) {
           break;
         }
 
         const currentPins = this.getProjectPinnedEntries(projectContext.projectDir);
-        const toggleResult = togglePinnedSpineBacklinks(currentPins, payload.id);
+        const toggleResult = togglePinnedExplorerBacklinks(currentPins, payload.id);
         if (!toggleResult.toggled) {
           break;
         }
@@ -1941,19 +1921,19 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         this.setProjectPinnedEntries(projectContext.projectDir, toggleResult.entries);
         break;
       }
-      case 'spine.togglePinnedCollapse': {
+      case 'explore.togglePinnedCollapse': {
         shouldRefreshDiagnostics = false;
         if (typeof payload.id !== 'string') {
           break;
         }
 
         const projectContext = await this.getCurrentProjectConfigContext();
-        if (!projectContext || projectContext.categories.length === 0) {
+        if (!projectContext || projectContext.branches.length === 0) {
           break;
         }
 
         const currentPins = this.getProjectPinnedEntries(projectContext.projectDir);
-        const toggleResult = togglePinnedSpineCollapse(currentPins, payload.id);
+        const toggleResult = togglePinnedExplorerCollapse(currentPins, payload.id);
         if (!toggleResult.toggled) {
           break;
         }
@@ -1961,17 +1941,17 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         this.setProjectPinnedEntries(projectContext.projectDir, toggleResult.entries);
         break;
       }
-      case 'spine.toggleExplorerCollapse': {
+      case 'explore.toggleExplorerCollapse': {
         shouldRefreshDiagnostics = false;
         this.explorerCollapsed = !this.explorerCollapsed;
         break;
       }
-      case 'spine.rebuildIndex': {
+      case 'explore.rebuildIndex': {
         shouldRefreshDiagnostics = false;
         this.indexService.clear();
         this.referenceUsageService.clear();
         await refreshVisibleMarkdownDocuments(this.indexService, this.diagnostics);
-        void vscode.window.showInformationMessage('Stego Spine index rebuilt.');
+        void vscode.window.showInformationMessage('Stego leaf index rebuilt.');
         break;
       }
       case 'doc.openHeadingLine': {
@@ -1994,26 +1974,26 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         }
         break;
       }
-      case 'spine.setBacklinkFilter': {
+      case 'explore.setBacklinkFilter': {
         shouldRefreshDiagnostics = false;
         const next = typeof payload.value === 'string' ? payload.value : '';
         this.backlinkFilter = next;
         break;
       }
-      case 'spine.setPinnedBacklinkFilter': {
+      case 'explore.setPinnedBacklinkFilter': {
         shouldRefreshDiagnostics = false;
         if (typeof payload.id !== 'string') {
           break;
         }
 
         const projectContext = await this.getCurrentProjectConfigContext();
-        if (!projectContext || projectContext.categories.length === 0) {
+        if (!projectContext || projectContext.branches.length === 0) {
           break;
         }
 
         const nextValue = typeof payload.value === 'string' ? payload.value : '';
         const currentPins = this.getProjectPinnedEntries(projectContext.projectDir);
-        const setResult = setPinnedSpineBacklinkFilter(currentPins, payload.id, nextValue);
+        const setResult = setPinnedExplorerBacklinkFilter(currentPins, payload.id, nextValue);
         if (!setResult.updated) {
           break;
         }
@@ -2201,13 +2181,13 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   private resolveEffectiveTab(
     requestedTab: SidebarViewTab,
     canShowOverview: boolean,
-    canShowSpine: boolean
+    canShowExplore: boolean
   ): SidebarViewTab {
     if (requestedTab === 'overview' && !canShowOverview) {
       return 'document';
     }
 
-    if (requestedTab === 'spine' && !canShowSpine) {
+    if (requestedTab === 'explore' && !canShowExplore) {
       return 'document';
     }
 
@@ -2558,146 +2538,119 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     return findNearestProjectConfig(fallbackDocumentPath, fallbackWorkspaceFolder.uri.fsPath);
   }
 
-  private async promptAndAddSpineCategory(): Promise<void> {
+  private async promptAndAddBranch(): Promise<void> {
     const projectContext = await this.getCurrentProjectConfigContext();
     if (!projectContext) {
-      void vscode.window.showWarningMessage('Open a project file first to add a spine category.');
+      void vscode.window.showWarningMessage('Open a project file first to add a branch.');
       return;
     }
 
-    const existingCategoryKeys = new Set(
-      projectContext.categories.map((category) => category.key.trim().toLowerCase()).filter((value) => value.length > 0)
+    const existingBranchKeys = new Set(
+      projectContext.branches.map((branch) => branch.key.trim().toLowerCase()).filter((value) => value.length > 0)
     );
+    const parentKey = this.getCurrentExplorerBranchKey();
+    const parentLabel = parentKey || 'content';
 
-    const categoryName = await vscode.window.showInputBox({
-      title: 'New Category',
-      prompt: 'Category name',
-      placeHolder: 'Characters',
+    const branchName = await vscode.window.showInputBox({
+      title: 'New Branch',
+      prompt: `Branch path relative to ${parentLabel}`,
+      placeHolder: 'characters or characters/minor',
       ignoreFocusOut: true,
       validateInput: (value) => {
-        const key = this.toSpineCategoryKey(value);
+        const key = this.toBranchKey(value, parentKey);
         if (!key) {
-          return 'Enter a category name (letters/numbers) so Stego can derive a metadata key.';
+          return 'Enter a branch name using letters, numbers, dashes, or slashes.';
         }
-        if (!this.isValidMetadataKey(key)) {
-          return `Derived metadata key '${key}' is invalid.`;
-        }
-        if (existingCategoryKeys.has(key.toLowerCase())) {
-          return `Category '${key}' already exists.`;
+        if (existingBranchKeys.has(key.toLowerCase())) {
+          return `Branch '${key}' already exists.`;
         }
         return undefined;
       }
     });
-    if (categoryName === undefined) {
+    if (branchName === undefined) {
       return;
     }
 
-    const key = this.toSpineCategoryKey(categoryName);
-    if (!key || !this.isValidMetadataKey(key)) {
-      void vscode.window.showErrorMessage('Could not derive a valid metadata key from the category name.');
+    const key = this.toBranchKey(branchName, parentKey);
+    if (!key) {
+      void vscode.window.showErrorMessage('Could not derive a valid branch path from the provided name.');
       return;
     }
-    if (existingCategoryKeys.has(key.toLowerCase())) {
-      void vscode.window.showWarningMessage(`Spine category '${key}' already exists.`);
+    if (existingBranchKeys.has(key.toLowerCase())) {
+      void vscode.window.showWarningMessage(`Branch '${key}' already exists.`);
       return;
     }
 
-    const requiredChoice = await vscode.window.showQuickPick(
-      [
-        { label: 'No', description: 'Optional metadata field (recommended default)', value: false },
-        { label: 'Yes', description: `Add '${key}' to requiredMetadata`, value: true }
-      ],
-      {
-        title: 'New Category',
-        placeHolder: `Require '${key}' metadata on manuscript files?`,
-        ignoreFocusOut: true
+    const label = this.toCategoryHeadingFromKey(path.basename(key));
+    const metadataPath = path.join(projectContext.projectDir, CONTENT_DIR, ...key.split('/'), '_branch.md');
+    const referenceDir = path.dirname(metadataPath);
+    const categoryDoc = [
+      '---',
+      `label: ${label}`,
+      '---',
+      '',
+      `# ${label}`,
+      ''
+    ].join('\n');
+
+    try {
+      await fs.mkdir(referenceDir, { recursive: true });
+      try {
+        await fs.stat(metadataPath);
+      } catch {
+        await fs.writeFile(metadataPath, categoryDoc, 'utf8');
       }
-    );
-    if (!requiredChoice) {
+    } catch (error) {
+      void vscode.window.showErrorMessage(`Could not add branch: ${errorToMessage(error)}`);
       return;
     }
-
-    const projectId = path.basename(projectContext.projectDir);
-    const label = this.toCategoryHeadingFromKey(key);
-    const stegoArgs = [
-      'spine',
-      'new-category',
-      '--project',
-      projectId,
-      '--key',
-      key,
-      '--label',
-      label,
-      '--format',
-      'json'
-    ];
-    if (requiredChoice.value) {
-      stegoArgs.push('--require-metadata');
-    }
-
-    const invocation = await resolveStegoCommandInvocation(
-      projectContext.projectDir,
-      stegoArgs,
-      'run stego spine new-category'
-    );
-    if (!invocation) {
-      return;
-    }
-
-    const commandResult = await runCommand(invocation.command, invocation.args, projectContext.projectDir);
-    if (commandResult.exitCode !== 0) {
-      const details = `${commandResult.stderr}\n${commandResult.stdout}`.trim();
-      void vscode.window.showErrorMessage(
-        details
-          ? `Could not add spine category: ${details.split(/\r?\n/).slice(-1)[0]}`
-          : `Could not add spine category (exit code ${commandResult.exitCode}).`
-      );
-      return;
-    }
-
-    const payload = this.parseJson<{
-      ok: boolean;
-      operation: string;
-      result?: { metadataPath?: string };
-    }>(commandResult.stdout);
-    const metadataPath = payload?.result?.metadataPath
-      ? path.resolve(projectContext.projectDir, payload.result.metadataPath)
-      : path.join(projectContext.projectDir, SPINE_DIR, key, '_category.md');
 
     this.indexService.clear();
     this.referenceUsageService.clear();
 
-    this.setActiveTab('spine');
-    this.navigateExplorerToRoute({ kind: 'category', key, prefix: key.toUpperCase() }, { trackHistory: true });
+    this.setActiveTab('explore');
+    this.navigateExplorerToRoute({ kind: 'branch', key }, { trackHistory: true });
     try {
       await openBacklinkFile(metadataPath, 1);
     } catch (error) {
-      void vscode.window.showWarningMessage(`Added category, but could not open spine file: ${errorToMessage(error)}`);
+      void vscode.window.showWarningMessage(`Added branch, but could not open its notes file: ${errorToMessage(error)}`);
     }
-    void vscode.window.showInformationMessage(
-      `Added spine category '${key}'${requiredChoice.value ? ' and marked it as required metadata.' : '.'}`
-    );
+    void vscode.window.showInformationMessage(`Added branch '${key}'.`);
   }
 
-  private isValidMetadataKey(value: string): boolean {
-    return isSharedMetadataKey(value);
-  }
-
-  private toSpineCategoryKey(name: string): string {
-    return name
+  private toBranchKey(name: string, parentKey = ''): string {
+    const normalized = name
       .trim()
-      .toLowerCase()
-      .replace(/['’]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .replace(/-{2,}/g, '-');
+      .split('/')
+      .map((segment) => segment
+        .trim()
+        .toLowerCase()
+        .replace(/['’]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .replace(/-{2,}/g, '-'))
+      .filter((segment) => segment.length > 0);
+    if (normalized.length === 0) {
+      return '';
+    }
+    return parentKey ? `${parentKey}/${normalized.join('/')}` : normalized.join('/');
   }
 
+  private getCurrentExplorerBranchKey(): string {
+    if (this.explorerRoute.kind === 'branch') {
+      return this.explorerRoute.key;
+    }
+    const page = this.lastRenderedState?.explorer;
+    if (page?.kind === 'identifier' && page.branch?.key) {
+      return page.branch.key;
+    }
+    return '';
+  }
 
   private toCategoryHeadingFromKey(key: string): string {
     const normalized = key.replace(/[_-]+/g, ' ').trim();
     if (!normalized) {
-      return 'Spine Category';
+      return 'Explore Category';
     }
     return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
   }

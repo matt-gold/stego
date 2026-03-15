@@ -19,7 +19,7 @@ This directory is a Stego writing workspace (a monorepo for one or more writing 
 
 - \`stego.config.json\` workspace configuration
 - \`projects/\` demo projects (\`stego-docs\` and \`fiction-example\`)
-- per-project \`assets/\` directories for manuscript images
+- per-project \`assets/\` directories for leaf images
 - root \`package.json\` scripts for Stego commands
 - root \`.vscode/tasks.json\` tasks for common workflows
 
@@ -64,7 +64,7 @@ This keeps your editor context focused and applies the project's recommended ext
 stego new-project -p my-book --title "My Book"
 \`\`\`
 
-## Add a new manuscript file
+## Add a new leaf
 
 \`\`\`bash
 stego new -p fiction-example
@@ -102,8 +102,7 @@ When asked to edit Stego project content, use documented Stego CLI commands firs
 
 Typical targets:
 
-- manuscript files
-- spine categories and entries
+- leaf files under \`content/\`
 - frontmatter metadata
 - comments
 - stage/build/export workflows
@@ -111,9 +110,7 @@ Typical targets:
 Preferred commands include:
 
 - \`stego new\`
-- \`stego spine read\`
-- \`stego spine new-category\`
-- \`stego spine new\`
+- \`stego content read\`
 - \`stego metadata read\`
 - \`stego metadata apply\`
 - \`stego comments ...\`
@@ -125,7 +122,7 @@ Preferred commands include:
 
 ## Mutation Protocol
 
-1. Read current state first (\`metadata read\`, \`spine read\`, \`comments read\`).
+1. Read current state first (\`metadata read\`, \`content read\`, \`comments read\`).
 2. Mutate via CLI commands.
 3. Verify after writes (\`stego validate --project/-p <id>\` and relevant read commands).
 
@@ -159,10 +156,8 @@ After mutations, run relevant checks when feasible (for example \`stego validate
 
 ## Task To Command Quick Map
 
-- New manuscript: \`stego new --project/-p <id> [--filename <name>]\`
-- Read spine: \`stego spine read --project/-p <id> --format json\`
-- New spine category: \`stego spine new-category --project/-p <id> --key <category>\`
-- New spine entry: \`stego spine new --project/-p <id> --category <category> [--filename <path>]\`
+- New leaf: \`stego new --project/-p <id> [--filename <name>] [--id <leaf-id>]\`
+- Read content: \`stego content read --project/-p <id> --format json\`
 - Read metadata: \`stego metadata read <markdown-path> --format json\`
 - Apply metadata: \`stego metadata apply <markdown-path> --input <path|-> --format json\`
 - Read comments: \`stego comments read <manuscript> --format json\`

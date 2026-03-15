@@ -2,17 +2,9 @@ import { defineTemplate, Stego } from "@stego-labs/engine";
 
 export default defineTemplate((ctx) => {
   const generatedAt = new Date().toISOString();
-  const chapterGroups = ctx.collections.manuscripts.splitBy("chapter");
-  const spineSections = ctx.collections.spineCategories
-    .sortBy("label")
-    .map((category) => ({
-      category,
-      entries: ctx.collections.spineEntries
-        .where((entry) => entry.category === category.key)
-        .sortBy((entry) => entry.label.toLowerCase())
-        .all()
-    }))
-    .filter((section) => section.entries.length > 0);
+  const chapterLeaves = ctx.content.filter((leaf) => leaf.metadata.kind !== "reference");
+  const chapterGroups = Stego.splitBy(chapterLeaves, (leaf) => asString(leaf.metadata.chapter));
+  const referenceSections = groupReferenceLeaves(ctx.content.filter((leaf) => leaf.metadata.kind === "reference"));
 
   const tocEntries = [
     ...chapterGroups
@@ -21,10 +13,10 @@ export default defineTemplate((ctx) => {
         const heading = formatChapterHeading(group.value, group.first.metadata.chapter_title);
         return `- [${heading}](#${slugify(heading)})`;
       }),
-    ...(spineSections.length > 0
+    ...(referenceSections.length > 0
       ? [
-          "- [Reference Spine](#reference-spine)",
-          ...spineSections.map((section) => `  - [${section.category.label}](#${slugify(section.category.label)})`)
+          "- [Reference Leaves](#reference-leaves)",
+          ...referenceSections.map((section) => `  - [${section.label}](#${slugify(section.label)})`)
         ]
       : [])
   ];
@@ -56,38 +48,32 @@ export default defineTemplate((ctx) => {
               {formatChapterHeading(group.value, group.first.metadata.chapter_title)}
             </Stego.Heading>
           ) : null}
-          {group.items.map((doc) => (
+          {group.items.map((leaf) => (
             <>
               <Stego.Markdown
-                source={`<!-- source: ${doc.relativePath} | order: ${doc.order} | status: ${String(doc.metadata.status ?? "")} -->`}
+                source={`<!-- source: ${leaf.relativePath} | id: ${leaf.id} | order: ${leaf.order} | status: ${String(leaf.metadata.status ?? "")} -->`}
               />
-              <Stego.Markdown source={doc.body} />
+              <Stego.Markdown leaf={leaf} />
             </>
           ))}
         </Stego.Section>
       ))}
 
-      {spineSections.length > 0 ? (
-        <Stego.Section role="appendix" id="reference-spine">
+      {referenceSections.length > 0 ? (
+        <Stego.Section role="appendix" id="reference-leaves">
           <Stego.PageBreak />
-          <Stego.Heading level={2} spaceBefore={48} spaceAfter={24}>
-            Reference Spine
-          </Stego.Heading>
+          <Stego.Heading level={2} spaceBefore={48} spaceAfter={24}>Reference Leaves</Stego.Heading>
           <Stego.Paragraph spaceAfter={24}>
-            This appendix is rendered directly from the project spine so the built manual carries the same reference graph used by the editor and sidebar.
+            This appendix is rendered from reference leaves under <Stego.Link leaf="CON-WORKSPACE">content/reference</Stego.Link>, proving the same leaf model can drive both narrative chapters and technical backmatter.
           </Stego.Paragraph>
-          {spineSections.map((section) => (
-            <Stego.Section id={slugify(section.category.label)}>
-              <Stego.Heading level={3} spaceBefore={32} spaceAfter={16}>
-                {section.category.label}
-              </Stego.Heading>
-              {section.entries.map((entry) => (
-                <Stego.Section id={slugify(entry.key)}>
-                  <Stego.Markdown source={`<!-- spine source: ${entry.relativePath} -->`} />
-                  <Stego.Heading level={4} spaceBefore={20} spaceAfter={10}>
-                    {entry.label}
-                  </Stego.Heading>
-                  {renderSpineEntryBody(entry.body)}
+          {referenceSections.map((section) => (
+            <Stego.Section id={slugify(section.label)}>
+              <Stego.Heading level={3} spaceBefore={32} spaceAfter={16}>{section.label}</Stego.Heading>
+              {section.items.map((leaf) => (
+                <Stego.Section id={leaf.id}>
+                  <Stego.Markdown source={`<!-- reference source: ${leaf.relativePath} -->`} />
+                  <Stego.Heading level={4} spaceBefore={20} spaceAfter={10}>{String(leaf.metadata.label ?? leaf.id)}</Stego.Heading>
+                  <Stego.Markdown leaf={leaf} />
                 </Stego.Section>
               ))}
             </Stego.Section>
@@ -98,6 +84,34 @@ export default defineTemplate((ctx) => {
   );
 });
 
+function asString(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return undefined;
+}
+
+function groupReferenceLeaves(leaves: Array<{ relativePath: string; metadata: Record<string, unknown> }>) {
+  const groups = new Map<string, typeof leaves>();
+  for (const leaf of leaves) {
+    const relative = leaf.relativePath.replace(/^content\/reference\//, "");
+    const sectionKey = relative.includes("/") ? relative.split("/")[0] : "reference";
+    const existing = groups.get(sectionKey) || [];
+    existing.push(leaf);
+    groups.set(sectionKey, existing);
+  }
+  return Array.from(groups.entries())
+    .map(([key, items]) => ({
+      key,
+      label: toDisplayLabel(key),
+      items: items.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 function formatChapterHeading(value: string, rawTitle: unknown): string {
   const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
   return title ? `Chapter ${value}: ${title}` : `Chapter ${value}`;
@@ -107,10 +121,8 @@ function hasTitledBoundary<T extends { value?: string }>(group: T): group is T &
   return typeof group.value === "string" && group.value.trim().length > 0;
 }
 
-function renderSpineEntryBody(source: string) {
-  const withoutFrontmatter = source.replace(/^---\n[\s\S]*?\n---\n+/, "");
-  const body = withoutFrontmatter.replace(/^#\s+.*\n+/, "").trim();
-  return body ? <Stego.Markdown source={body} /> : <Stego.Paragraph>Entry body not provided.</Stego.Paragraph>;
+function toDisplayLabel(value: string): string {
+  return value.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()).trim();
 }
 
 function slugify(value: string): string {

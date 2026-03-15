@@ -3,7 +3,7 @@ import type { ImageStyle } from '@stego-labs/shared/domain/images';
 
 export type { ImageStyle };
 
-export type SpineRecord = {
+export type LeafTargetRecord = {
   label?: string;
   title?: string;
   description?: string;
@@ -71,12 +71,12 @@ export type SidebarState = {
   explorerLoadToken: number;
   tocEntries: SidebarTocEntry[];
   showToc: boolean;
-  isSpineCategoryFile: boolean;
+  isBranchNotesFile: boolean;
   backlinkFilter: string;
   comments: SidebarCommentsState;
 };
 
-export type SidebarViewTab = 'document' | 'spine' | 'overview';
+export type SidebarViewTab = 'document' | 'explore' | 'overview';
 
 export type SidebarOverviewStageCount = {
   status: string;
@@ -136,7 +136,7 @@ export type FrontmatterLineRange = {
 export type SidebarMetadataEntry = {
   key: string;
   isStructural: boolean;
-  isSpineCategory: boolean;
+  isBranch: boolean;
   isArray: boolean;
   valueText: string;
   references: SidebarIdentifierLink[];
@@ -223,14 +223,15 @@ export type SidebarExplorerEntry = {
   backlinksExpanded: boolean;
 };
 
-export type SidebarExplorerCategorySummary = {
+export type SidebarExplorerBranchSummary = {
   key: string;
-  prefix: string;
+  name: string;
   label: string;
-  count: number;
+  parentKey?: string;
+  directLeafCount: number;
 };
 
-export type SidebarExplorerCategoryItem = {
+export type SidebarExplorerLeafItem = {
   id: string;
   label: string;
   title: string;
@@ -240,22 +241,27 @@ export type SidebarExplorerCategoryItem = {
 
 export type SidebarExplorerHomePage = {
   kind: 'home';
-  categories: SidebarExplorerCategorySummary[];
+  branch: SidebarExplorerBranchSummary;
+  childBranches: SidebarExplorerBranchSummary[];
+  leafItems: SidebarExplorerLeafItem[];
+  body?: string;
 };
 
-export type SidebarExplorerCategoryPage = {
-  kind: 'category';
-  category: SidebarExplorerCategorySummary;
-  items: SidebarExplorerCategoryItem[];
+export type SidebarExplorerBranchPage = {
+  kind: 'branch';
+  branch: SidebarExplorerBranchSummary;
+  childBranches: SidebarExplorerBranchSummary[];
+  leafItems: SidebarExplorerLeafItem[];
+  body?: string;
 };
 
 export type SidebarExplorerIdentifierPage = {
   kind: 'identifier';
-  category?: SidebarExplorerCategorySummary;
+  branch?: SidebarExplorerBranchSummary;
   entry: SidebarExplorerEntry;
 };
 
-export type SidebarExplorerPage = SidebarExplorerHomePage | SidebarExplorerCategoryPage | SidebarExplorerIdentifierPage;
+export type SidebarExplorerPage = SidebarExplorerHomePage | SidebarExplorerBranchPage | SidebarExplorerIdentifierPage;
 
 export type SidebarPinnedExplorerPanel = {
   id: string;
@@ -267,10 +273,10 @@ export type SidebarPinnedExplorerPanel = {
 
 export type ExplorerRoute =
   | { kind: 'home' }
-  | { kind: 'category'; key: string; prefix: string }
+  | { kind: 'branch'; key: string }
   | { kind: 'identifier'; id: string };
 
-export type SpineSectionPreview = {
+export type LeafSectionPreview = {
   heading: string;
   label?: string;
   body: string;
@@ -279,10 +285,14 @@ export type SpineSectionPreview = {
   line: number;
 };
 
-export type ProjectSpineCategory = {
+export type ProjectBranch = {
   key: string;
-  prefix: string;
+  name: string;
+  label: string;
+  parentKey?: string;
+  relativeDir: string;
   notesFile?: string;
+  body?: string;
 };
 
 export type ProjectConfigIssue = {
@@ -296,7 +306,7 @@ export type ProjectScanContext = {
   projectTitle?: string;
   requiredMetadata: string[];
   imageDefaults: ImageStyle;
-  categories: ProjectSpineCategory[];
+  branches: ProjectBranch[];
   issues: ProjectConfigIssue[];
 };
 
@@ -335,7 +345,7 @@ export type ProjectScriptContext = {
 export type CommandContext = {
   indexService: {
     clear(): void;
-    loadForDocument(document: vscode.TextDocument): Promise<Map<string, SpineRecord>>;
+    loadForDocument(document: vscode.TextDocument): Promise<Map<string, LeafTargetRecord>>;
   };
   diagnostics: vscode.DiagnosticCollection;
 };

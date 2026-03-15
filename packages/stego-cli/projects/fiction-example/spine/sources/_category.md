@@ -1,6 +1,0 @@
----
-label: Sources
----
-
-# Sources
-

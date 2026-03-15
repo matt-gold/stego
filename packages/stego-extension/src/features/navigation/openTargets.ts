@@ -1,11 +1,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { errorToMessage } from '../../shared/errors';
-import type { SpineRecord } from '../../shared/types';
+import type { LeafTargetRecord } from '../../shared/types';
 import { getConfig } from '../project';
 
-export function resolveTarget(id: string, record: SpineRecord | undefined, document: vscode.TextDocument): vscode.Uri | undefined {
-  const config = getConfig('spine', document.uri);
+export function resolveTarget(id: string, record: LeafTargetRecord | undefined, document: vscode.TextDocument): vscode.Uri | undefined {
+  const config = getConfig('links', document.uri);
 
   if (record?.url) {
     const urlUri = vscode.Uri.parse(record.url);
@@ -35,7 +35,7 @@ export function resolveTarget(id: string, record: SpineRecord | undefined, docum
 
 export function createExploreIdentifierCommandUri(id: string): vscode.Uri {
   const args = encodeURIComponent(JSON.stringify([id.toUpperCase()]));
-  return vscode.Uri.parse(`command:stegoSpine.exploreIdentifier?${args}`);
+  return vscode.Uri.parse(`command:stegoExplore.exploreIdentifier?${args}`);
 }
 
 export async function openLineInActiveDocument(line: number): Promise<void> {

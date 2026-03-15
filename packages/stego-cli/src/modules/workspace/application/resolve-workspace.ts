@@ -95,8 +95,7 @@ function isWorkspaceConfig(value: unknown): value is WorkspaceConfig {
   }
 
   return typeof value.projectsDir === "string"
-    && typeof value.chapterDir === "string"
-    && typeof value.spineDir === "string"
+    && typeof value.contentDir === "string"
     && typeof value.notesDir === "string"
     && typeof value.distDir === "string"
     && Array.isArray(value.requiredMetadata)

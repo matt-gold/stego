@@ -254,7 +254,7 @@ function buildHoverMarkdown(
 ): vscode.MarkdownString {
   const markdown = new vscode.MarkdownString();
   markdown.isTrusted = {
-    enabledCommands: ['stegoSpine.openCommentThread']
+    enabledCommands: ['stegoExplore.openCommentThread']
   };
 
   if (comments.length > 1) {
@@ -265,7 +265,7 @@ function buildHoverMarkdown(
 
   comments.forEach((comment, index) => {
     const encoded = encodeURIComponent(JSON.stringify([comment.id]));
-    const commandUri = vscode.Uri.parse(`command:stegoSpine.openCommentThread?${encoded}`);
+    const commandUri = vscode.Uri.parse(`command:stegoExplore.openCommentThread?${encoded}`);
     const latest = parseThreadEntry(comment.thread[comment.thread.length - 1] ?? '');
     const status = comment.status === 'open' ? 'Unresolved' : 'Resolved';
     const timestampSource = comment.createdAt || latest.timestamp;

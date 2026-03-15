@@ -14,8 +14,7 @@ export type ProjectMeta = {
 export type ProjectContext = {
   id: string;
   root: string;
-  manuscriptDir: string;
-  spineDir: string;
+  contentDir: string;
   notesDir: string;
   distDir: string;
   meta: ProjectMeta;

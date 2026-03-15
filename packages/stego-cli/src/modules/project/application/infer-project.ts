@@ -29,8 +29,7 @@ export function resolveProjectContext(input: ResolveProjectInput): ProjectContex
   return {
     id: projectId,
     root: projectRoot,
-    manuscriptDir: path.join(projectRoot, input.workspace.config.chapterDir),
-    spineDir: path.join(projectRoot, input.workspace.config.spineDir),
+    contentDir: path.join(projectRoot, input.workspace.config.contentDir),
     notesDir: path.join(projectRoot, input.workspace.config.notesDir),
     distDir: path.join(projectRoot, input.workspace.config.distDir),
     meta,

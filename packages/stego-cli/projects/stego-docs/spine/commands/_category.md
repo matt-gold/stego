@@ -1,6 +1,0 @@
----
-label: Commands
----
-
-# Commands
-

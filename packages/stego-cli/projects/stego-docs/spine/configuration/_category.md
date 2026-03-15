@@ -1,6 +1,0 @@
----
-label: Configuration
----
-
-# Configuration
-
