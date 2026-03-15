@@ -30,10 +30,19 @@ jobs:
         with:
           node-version: "lts/*"
           cache: npm
+          scope: "@stego-labs"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install deps
         run: npm ci
+
+      - name: Prebuild publishable packages
+        run: npm run -w @stego-labs/shared compile && npm run -w @stego-labs/engine compile && npm run -w @stego-labs/cli compile
+
+      - name: Validate npm auth
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create Release Pull Request or Publish
         id: changesets
@@ -44,6 +53,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-extension:
     name: publish extension

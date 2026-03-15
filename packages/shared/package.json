@@ -11,6 +11,10 @@
     "directory": "packages/shared"
   },
   "homepage": "https://github.com/matt-gold/stego/tree/main/packages/shared#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "files": [
     "dist/**",
     "README.md"

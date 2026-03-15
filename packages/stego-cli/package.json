@@ -13,6 +13,10 @@
     "url": "https://github.com/matt-gold/stego/issues"
   },
   "homepage": "https://github.com/matt-gold/stego/tree/main/packages/stego-cli#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "bin": {
     "stego": "dist/stego-cli/src/main.js"
   },

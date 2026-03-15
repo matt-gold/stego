@@ -10,6 +10,10 @@
     "directory": "packages/stego-engine"
   },
   "homepage": "https://github.com/matt-gold/stego/tree/main/packages/stego-engine#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "types": "./dist/stego-engine/src/index.d.ts",
   "files": [
     "dist/**",
