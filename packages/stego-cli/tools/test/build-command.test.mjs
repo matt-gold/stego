@@ -186,11 +186,11 @@ test('new infers next leaf prefix from the last two leaves', () => {
     const result = runCli(['new', '--project', projectId]);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 
-    const nextPath = path.join(projectRoot, 'content', '105-new-document.md');
+    const nextPath = path.join(projectRoot, 'content', '105-new-leaf.md');
     assert.equal(fs.existsSync(nextPath), true, `Expected leaf file at ${nextPath}`);
 
     const created = fs.readFileSync(nextPath, 'utf8');
-    assert.match(created, /^---\nid: NEW-DOCUMENT\nstatus: draft\nchapter:\nchapter_title:\n---\n\n$/m);
+    assert.match(created, /^---\nid: NEW-LEAF\nstatus: draft\nchapter:\nchapter_title:\n---\n\n$/m);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }
@@ -215,7 +215,7 @@ test('new supports explicit prefix via -i and --i', () => {
     const shortFlag = runCli(['new', '--project', projectId, '-i', '350']);
     assert.equal(shortFlag.status, 0, `${shortFlag.stdout}\n${shortFlag.stderr}`);
     assert.equal(
-      fs.existsSync(path.join(projectRoot, 'content', '350-new-document.md')),
+      fs.existsSync(path.join(projectRoot, 'content', '350-new-leaf.md')),
       true,
       'Expected leaf created with -i'
     );
@@ -223,13 +223,13 @@ test('new supports explicit prefix via -i and --i', () => {
     const longFlag = runCli(['new', '--project', projectId, '--i', '500']);
     assert.equal(longFlag.status, 0, `${longFlag.stdout}\n${longFlag.stderr}`);
     assert.equal(
-      fs.existsSync(path.join(projectRoot, 'content', '500-new-document.md')),
+      fs.existsSync(path.join(projectRoot, 'content', '500-new-leaf.md')),
       true,
       'Expected leaf created with --i'
     );
     assert.match(
-      fs.readFileSync(path.join(projectRoot, 'content', '500-new-document.md'), 'utf8'),
-      /^---\nid: NEW-DOCUMENT-500\nstatus: draft\n---\n\n$/m
+      fs.readFileSync(path.join(projectRoot, 'content', '500-new-leaf.md'), 'utf8'),
+      /^---\nid: NEW-LEAF-500\nstatus: draft\n---\n\n$/m
     );
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
