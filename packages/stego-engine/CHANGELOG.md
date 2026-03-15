@@ -1,5 +1,13 @@
 # @stego-labs/engine
 
+## 1.0.4
+
+### Patch Changes
+
+- bd81f9e: Improve the leaf and branch template model with root-aware branch lists, stricter template target discovery, and a new `TemplateTypes` helper for target-aware template typing.
+- Updated dependencies [bd81f9e]
+  - @stego-labs/shared@1.0.4
+
 ## 1.0.3
 
 ### Patch Changes
