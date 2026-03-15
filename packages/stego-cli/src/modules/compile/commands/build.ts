@@ -66,7 +66,7 @@ export function registerBuildCommand(registry: CommandRegistry): void {
           return;
         }
 
-        const results = await planner.buildDiscoveredTemplates();
+        const results = await planner.buildDiscoveredTemplates(inspection);
         for (const result of results) {
           writeText(`Build output (${formatTemplateTargets(result.templateName, result.declaredTargets)}): ${result.markdownPath}`);
           writeText(`Build render plan (${result.templateName}): ${result.renderPlanPath}`);

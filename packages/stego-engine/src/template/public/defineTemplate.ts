@@ -1,5 +1,5 @@
 import type { StegoNode } from "../../ir/index.ts";
-import type { PresentationTarget } from "@stego-labs/shared/domain/templates";
+import { isPresentationTarget, type PresentationTarget } from "@stego-labs/shared/domain/templates";
 import type { StegoApi } from "./components.ts";
 import { Stego } from "./components.ts";
 import type {
@@ -58,7 +58,21 @@ export function defineTemplate<
     throw new Error("Target-aware templates must call defineTemplate({ targets }, render).");
   }
 
-  const targets = [...optionsOrRender.targets] as readonly TTargets[];
+  const rawTargets = [...optionsOrRender.targets];
+  if (rawTargets.length === 0) {
+    throw new Error("Target-aware templates must declare one or more presentation targets.");
+  }
+
+  const invalidTargets = rawTargets.filter((target) => !isPresentationTarget(target));
+  if (invalidTargets.length > 0) {
+    throw new Error("Target-aware templates may only declare docx, pdf, or epub.");
+  }
+
+  if (new Set(rawTargets).size !== rawTargets.length) {
+    throw new Error("Target-aware templates may not declare duplicate presentation targets.");
+  }
+
+  const targets = rawTargets as readonly TTargets[];
   return {
     kind: "stego-template",
     targets,

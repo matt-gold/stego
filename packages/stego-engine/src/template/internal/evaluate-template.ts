@@ -100,8 +100,15 @@ function validateDocumentTargets(
   declaredTargets: readonly PresentationTarget[] | null,
   document: StegoDocumentNode
 ): void {
-  if (!declaredTargets || declaredTargets.length === 0) {
+  if (!declaredTargets) {
     return;
+  }
+  if (declaredTargets.length === 0) {
+    throw new TemplateContractError(
+      "invalid-targets",
+      "Target-aware templates must declare one or more presentation targets.",
+      { targets: declaredTargets }
+    );
   }
 
   const capabilities = resolveSupportedCapabilities(declaredTargets);

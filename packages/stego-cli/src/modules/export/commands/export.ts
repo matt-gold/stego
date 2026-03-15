@@ -68,7 +68,8 @@ export function registerExportCommand(registry: CommandRegistry): void {
 
         const exported = await planner.exportDiscoveredTemplate(
           format,
-          readStringOption(context.options, "output")
+          readStringOption(context.options, "output"),
+          inspection
         );
         writeText(`Export build markdown: ${exported.markdownPath}`);
         writeText(`Export render plan: ${exported.renderPlanPath}`);

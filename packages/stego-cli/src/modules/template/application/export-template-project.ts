@@ -3,7 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import * as yaml from "js-yaml";
 import { CliError } from "@stego-labs/shared/contracts/cli";
-import { isPresentationTarget, type ExportTarget, type PresentationTarget } from "@stego-labs/shared/domain/templates";
+import {
+  isExportTarget,
+  isPresentationTarget,
+  type ExportTarget,
+  type PresentationTarget
+} from "@stego-labs/shared/domain/templates";
 import type { ProjectContext } from "../../project/index.ts";
 import { runExport } from "../../export/index.ts";
 import { buildTemplateProject } from "./build-template-project.ts";
@@ -24,7 +29,7 @@ export type ExportTemplateProjectResult = {
 };
 
 export async function exportTemplateProject(input: ExportTemplateProjectInput): Promise<ExportTemplateProjectResult> {
-  const format = input.format.toLowerCase() as ExportTarget;
+  const format = normalizeExportTarget(input.format);
   const built = await buildTemplateProject(input.project, input.templatePath, input.artifactPaths);
   assertDeclaredTargetsSupportFormat(input.templatePath, built.declaredTargets, format);
   const metadataFilePath = Object.keys(built.renderPlan.metadata).length > 0
@@ -65,6 +70,14 @@ function writeTempMetadataFile(metadata: Record<string, unknown>): string {
   const metadataFilePath = path.join(tempDir, "metadata.yaml");
   fs.writeFileSync(metadataFilePath, yaml.dump(metadata), "utf8");
   return metadataFilePath;
+}
+
+function normalizeExportTarget(value: string): ExportTarget {
+  const normalized = value.trim().toLowerCase();
+  if (!isExportTarget(normalized)) {
+    throw new CliError("INVALID_USAGE", `Unsupported export format '${value}'. Use md, docx, pdf, or epub.`);
+  }
+  return normalized;
 }
 
 function assertDeclaredTargetsSupportFormat(

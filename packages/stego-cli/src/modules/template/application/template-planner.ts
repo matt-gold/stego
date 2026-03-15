@@ -61,8 +61,12 @@ export type PlannedTemplateExport = PlannedTemplateArtifact & {
 export type TemplatePlanner = {
   dispose: () => void;
   inspectDiscoveredTemplates: (options?: { allowMissingDefaultTemplate?: boolean }) => Promise<TemplateInspection>;
-  buildDiscoveredTemplates: () => Promise<PlannedTemplateArtifact[]>;
-  exportDiscoveredTemplate: (format: string, explicitOutputPath?: string) => Promise<PlannedTemplateExport>;
+  buildDiscoveredTemplates: (inspection?: TemplateInspection) => Promise<PlannedTemplateArtifact[]>;
+  exportDiscoveredTemplate: (
+    format: string,
+    explicitOutputPath?: string,
+    inspection?: TemplateInspection
+  ) => Promise<PlannedTemplateExport>;
 };
 
 export function createTemplatePlanner(project: ProjectContext): TemplatePlanner {
@@ -179,9 +183,9 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
     };
   }
 
-  async function buildDiscoveredTemplates(): Promise<PlannedTemplateArtifact[]> {
-    const inspection = await inspectDiscoveredTemplates();
-    const blockingIssues = inspection.issues.filter((issue) => issue.level === "error" && issue.category !== "template-export-ambiguity");
+  async function buildDiscoveredTemplates(inspection?: TemplateInspection): Promise<PlannedTemplateArtifact[]> {
+    const resolvedInspection = inspection || await inspectDiscoveredTemplates();
+    const blockingIssues = resolvedInspection.issues.filter((issue) => issue.level === "error" && issue.category !== "template-export-ambiguity");
     if (blockingIssues.length > 0) {
       throw new CliError(
         "INVALID_CONFIGURATION",
@@ -192,7 +196,7 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
     const results: PlannedTemplateArtifact[] = [];
     const failures: string[] = [];
 
-    for (const template of inspection.templates) {
+    for (const template of resolvedInspection.templates) {
       try {
         const compiled = await compileTemplate(template);
         results.push(writePlannedTemplateArtifacts(project, compiled));
@@ -211,14 +215,18 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
     return results;
   }
 
-  async function exportDiscoveredTemplate(format: string, explicitOutputPath?: string): Promise<PlannedTemplateExport> {
+  async function exportDiscoveredTemplate(
+    format: string,
+    explicitOutputPath?: string,
+    inspection?: TemplateInspection
+  ): Promise<PlannedTemplateExport> {
     const normalizedFormat = normalizeExportTarget(format);
     if (normalizedFormat === "md") {
       throw new CliError("INVALID_USAGE", "Discovered template export only resolves presentation targets. Use the default markdown export path instead.");
     }
 
-    const inspection = await inspectDiscoveredTemplates();
-    const blockingIssues = inspection.issues.filter((issue) => issue.level === "error");
+    const resolvedInspection = inspection || await inspectDiscoveredTemplates();
+    const blockingIssues = resolvedInspection.issues.filter((issue) => issue.level === "error");
     if (blockingIssues.length > 0) {
       throw new CliError(
         "INVALID_CONFIGURATION",
@@ -226,8 +234,8 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
       );
     }
 
-    const matches = inspection.templates.filter((template) =>
-      supportsDiscoveredPresentationTarget(template, normalizedFormat, inspection.templates.length)
+    const matches = resolvedInspection.templates.filter((template) =>
+      supportsDiscoveredPresentationTarget(template, normalizedFormat, resolvedInspection.templates.length)
     );
     if (matches.length === 0) {
       throw new CliError(
@@ -442,11 +450,14 @@ function makeTemplateIssue(
   message: string,
   file?: string | null
 ): Issue {
+  const normalizedFile = file
+    ? path.relative(project.workspace.repoRoot, path.resolve(project.root, file))
+    : path.relative(project.workspace.repoRoot, project.templatesDir);
   return {
     level,
     category,
     message,
-    file: file ?? path.relative(project.workspace.repoRoot, project.templatesDir),
+    file: normalizedFile,
     line: null
   };
 }

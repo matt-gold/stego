@@ -84,6 +84,32 @@ test("target-aware templates reject unsupported runtime capabilities", () => {
   }), /declared targets \(epub\) do not all support/i);
 });
 
+test("defineTemplate rejects empty and duplicate target declarations", () => {
+  assert.throws(() => engine.defineTemplate(
+    { targets: [] },
+    () => engine.Stego.Document({ children: [] })
+  ), /one or more presentation targets/i);
+
+  assert.throws(() => engine.defineTemplate(
+    { targets: ["pdf", "pdf"] },
+    () => engine.Stego.Document({ children: [] })
+  ), /may not declare duplicate presentation targets/i);
+});
+
+test("evaluateTemplate rejects empty in-memory target declarations", () => {
+  const template = {
+    kind: "stego-template",
+    targets: [],
+    render: () => engine.Stego.Document({ children: [] })
+  };
+
+  assert.throws(() => engine.evaluateTemplate(template, {
+    project: { id: "demo", root: "/tmp/demo", metadata: {} },
+    content: [],
+    branches: []
+  }), /one or more presentation targets/i);
+});
+
 test("compileProject loads leaves, excludes _branch.md from content, and builds branches", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-engine-"));
   try {
