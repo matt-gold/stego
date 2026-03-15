@@ -80,6 +80,7 @@ export class ReferenceUsageIndexService {
 
   private async buildProjectIndex(projectDir: string, pattern: string): Promise<ProjectReferenceIndex> {
     const files = await collectProjectContentFiles(projectDir);
+    const index: ProjectReferenceIndex = {
       pattern,
       files: new Map(),
       byIdentifier: new Map()
@@ -99,6 +100,7 @@ export class ReferenceUsageIndexService {
 
   private async refreshProjectIndex(index: ProjectReferenceIndex, projectDir: string, pattern: string): Promise<void> {
     const files = await collectProjectContentFiles(projectDir);
+    const currentSet = new Set(files.map((entry) => normalizeFsPath(entry)));
 
     for (const existingPath of [...index.files.keys()]) {
       if (currentSet.has(normalizeFsPath(existingPath))) {
