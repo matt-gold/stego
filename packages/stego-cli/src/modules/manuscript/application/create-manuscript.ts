@@ -17,7 +17,7 @@ import {
   parseRequestedManuscriptFilename
 } from "./order-inference.ts";
 
-const DEFAULT_NEW_MANUSCRIPT_SLUG = "new-document";
+const DEFAULT_NEW_MANUSCRIPT_SLUG = "new-leaf";
 
 export function createNewManuscript(input: NewManuscriptInput): NewManuscriptResult {
   const project = input.project;
