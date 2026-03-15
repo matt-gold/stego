@@ -110,7 +110,7 @@ test("new-project creates scaffold and returns JSON envelope", () => {
 
     const templateSource = fs.readFileSync(path.join(projectRoot, "templates", "book.template.tsx"), "utf8");
     assert.doesNotMatch(templateSource, /kind:\s*"reference"/);
-    assert.match(templateSource, /const chapterLeaves = ctx\.content\.filter\(\(leaf\) => leaf\.metadata\.kind !== "reference"\);/);
+    assert.match(templateSource, /const chapterLeaves = ctx\.allLeaves\.filter\(\(leaf\) => leaf\.metadata\.kind !== "reference"\);/);
 
     const projectJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "stego-project.json"), "utf8"));
     assert.equal("compileStructure" in projectJson, false);
