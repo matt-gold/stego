@@ -95,7 +95,7 @@ function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
                         <div class="item-title-row">
                           <code>{entry.key}</code>
                           <Show when={entry.isStructural}><span class="badge structural">Structural</span></Show>
-                          <Show when={entry.isBranch}><span class="badge reference">Branch</span></Show>
+                          <Show when={entry.isBranch}><span class="badge branch">Branch</span></Show>
                           <span class="badge">{entry.arrayItems.length} items</span>
                         </div>
                         <Show
@@ -133,7 +133,7 @@ function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
                       <div class="item-title-row">
                         <code>{entry.key}</code>
                         <Show when={entry.isStructural}><span class="badge structural">Structural</span></Show>
-                        <Show when={entry.isBranch}><span class="badge reference">Branch</span></Show>
+                        <Show when={entry.isBranch}><span class="badge branch">Branch</span></Show>
                       </div>
                       <div class="item-subtext metadata-value">{entry.valueText}</div>
                       <ReferenceCards references={entry.references} />

@@ -746,7 +746,7 @@ code {
   letter-spacing: 0.02em;
   border: 1px solid var(--vscode-panel-border);
 }
-.badge.reference {
+.badge.branch {
   background: var(--vscode-button-background);
   border-color: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
