@@ -13,3 +13,4 @@ export const templateModule: ModuleApi = {
 export * from "./types.ts";
 export * from "./application/build-template-project.ts";
 export * from "./application/export-template-project.ts";
+export * from "./application/template-planner.ts";

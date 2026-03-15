@@ -159,7 +159,10 @@ function loadLeaf(projectRoot: string, filePath: string, projectMeta: Record<str
     path: filePath,
     relativePath,
     titleFromFilename: toTitleFromFilename(basename),
-    metadata: parsed.frontmatter,
+    metadata: {
+      ...parsed.frontmatter,
+      id
+    },
     body,
     order: parseOrder(path.basename(filePath)),
     headings: format === "markdown" ? collectLeafHeadingTargets(body, id) : []

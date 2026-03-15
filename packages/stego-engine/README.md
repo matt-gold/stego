@@ -28,6 +28,37 @@ export default defineTemplate((ctx) => (
 ));
 ```
 
+That default form keeps the full low-friction Stego API and works well for single-template projects.
+
+## Target-aware templates
+
+Advanced template mode narrows the Stego API to the strict intersection of the presentation targets you declare:
+
+```tsx
+import { defineTemplate, type TemplateContext } from "@stego-labs/engine";
+
+type ProjectMeta = { title: string };
+type LeafMeta = { id: string; chapter?: string };
+type BranchMeta = { label?: string };
+
+export default defineTemplate(
+  { targets: ["docx", "pdf"] as const },
+  (ctx: TemplateContext<ProjectMeta, LeafMeta, BranchMeta>, Stego) => (
+    <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
+      <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
+      <Stego.Heading level={1}>{ctx.project.metadata.title}</Stego.Heading>
+      {ctx.content.map((leaf) => (
+        <Stego.Markdown leaf={leaf} />
+      ))}
+    </Stego.Document>
+  )
+);
+```
+
+Target-aware templates are meant for advanced template mode and multiple templates per project. They are opt-in. The global `Stego` import stays broad for the default lane.
+
+Markdown is a special-case export artifact. It is still useful for debug, diff, and interchange output, but it does not participate in the strict target-aware type contract the way `docx`, `pdf`, and `epub` do.
+
 `ctx.content` is the full ordered array of leaves loaded from `content/`.
 
 `ctx.branches` exposes the discovered branch tree for directories under `content/`. Every directory is a branch, and `_branch.md` enriches it with `label` and branch notes.

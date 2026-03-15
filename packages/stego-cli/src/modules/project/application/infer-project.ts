@@ -31,6 +31,7 @@ export function resolveProjectContext(input: ResolveProjectInput): ProjectContex
     root: projectRoot,
     contentDir: path.join(projectRoot, input.workspace.config.contentDir),
     notesDir: path.join(projectRoot, input.workspace.config.notesDir),
+    templatesDir: path.join(projectRoot, "templates"),
     distDir: path.join(projectRoot, input.workspace.config.distDir),
     meta,
     workspace: input.workspace

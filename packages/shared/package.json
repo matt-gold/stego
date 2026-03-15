@@ -48,6 +48,10 @@
       "types": "./dist/domain/project/index.d.ts",
       "default": "./dist/domain/project/index.js"
     },
+    "./domain/templates": {
+      "types": "./dist/domain/templates/index.d.ts",
+      "default": "./dist/domain/templates/index.js"
+    },
     "./domain/stages": {
       "types": "./dist/domain/stages/index.d.ts",
       "default": "./dist/domain/stages/index.js"
@@ -79,6 +83,9 @@
       ],
       "domain/project": [
         "dist/domain/project/index.d.ts"
+      ],
+      "domain/templates": [
+        "dist/domain/templates/index.d.ts"
       ],
       "domain/stages": [
         "dist/domain/stages/index.d.ts"

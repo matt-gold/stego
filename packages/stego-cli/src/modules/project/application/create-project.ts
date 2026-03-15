@@ -131,6 +131,17 @@ Start writing here.
     starterTemplatePath,
     `import { defineTemplate, Stego } from "@stego-labs/engine";
 
+// Optional advanced template mode:
+// export default defineTemplate(
+//   { targets: ["docx", "pdf"] as const },
+//   (ctx, Stego) => (
+//     <Stego.Document>
+//       <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
+//     </Stego.Document>
+//   )
+// );
+// See the Stego docs for "target-aware templates" and "multiple templates per project".
+
 export default defineTemplate((ctx) => {
   const generatedAt = new Date().toISOString();
   const chapterLeaves = ctx.content.filter((leaf) => leaf.metadata.kind !== "reference");

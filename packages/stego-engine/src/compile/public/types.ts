@@ -1,5 +1,6 @@
 import type { StegoDocumentNode } from "../../ir/index.ts";
 import type { TemplateContext } from "../../template/index.ts";
+import type { PresentationTarget } from "@stego-labs/shared/domain/templates";
 
 export type CompileProjectInput = {
   projectRoot: string;
@@ -10,6 +11,7 @@ export type CompileProjectInput = {
 export type CompileProjectResult = {
   projectRoot: string;
   templatePath: string;
+  declaredTargets: readonly PresentationTarget[] | null;
   document: StegoDocumentNode;
   context: TemplateContext;
 };

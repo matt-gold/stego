@@ -56,13 +56,18 @@ Leaf files can define per-path overrides with `images` frontmatter. Global keys 
 
 ## Templates
 
-Build structure lives in `templates/book.template.tsx`.
+Build structure lives in `templates/`.
 
 Templates are plain TSX modules powered by `@stego-labs/engine`. They receive project metadata plus `ctx.content`, the full ordered array of leaves loaded from `content/`, and `ctx.branches`, the discovered branch tree for directories under `content/`.
 
 Use template code to group leaves, insert headings, control page breaks, and render frontmatter or backmatter. Ordered grouping is typically done with `Stego.splitBy(ctx.content, ...)`, which preserves file order and lets boundary-only metadata flow across subsequent leaves.
 
 Use `Stego.groupBy(...)` when you want bucketed summaries that ignore file-order boundaries.
+
+Stego supports two lanes:
+
+- default lane: one simple `templates/book.template.tsx` using the broad `Stego` API
+- advanced template mode: multiple templates per project, auto-discovered from `templates/*.template.tsx`, with target declarations such as `defineTemplate({ targets: ["docx", "pdf"] as const }, ...)`
 
 ## Reference material
 

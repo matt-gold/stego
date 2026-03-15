@@ -65,6 +65,25 @@ test("TSX helpers create document IR through defineTemplate", () => {
   assert.equal(document.children[0].kind, "heading");
 });
 
+test("target-aware templates reject unsupported runtime capabilities", () => {
+  const template = engine.defineTemplate(
+    { targets: ["epub"] },
+    (_ctx, NarrowStego) => NarrowStego.Document({
+      children: [
+        engine.Stego.PageTemplate({
+          footer: { right: engine.Stego.PageNumber() }
+        })
+      ]
+    })
+  );
+
+  assert.throws(() => engine.evaluateTemplate(template, {
+    project: { id: "demo", root: "/tmp/demo", metadata: {} },
+    content: [],
+    branches: []
+  }), /declared targets \(epub\) do not all support/i);
+});
+
 test("compileProject loads leaves, excludes _branch.md from content, and builds branches", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-engine-"));
   try {

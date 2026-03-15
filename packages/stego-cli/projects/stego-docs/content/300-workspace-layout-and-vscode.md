@@ -58,4 +58,4 @@ That keeps editor context focused and ensures project recommendations, metadata 
 
 Scaffolded projects include a `tsconfig.json` that points TSX files at `@stego-labs/engine`.
 
-Open `templates/book.template.tsx` and VS Code will understand the template context, `Stego.*` components, and collection helpers such as `groupBy(...)` and `splitBy(...)`.
+Open `templates/book.template.tsx` and VS Code will understand the template context, `Stego.*` components, and collection helpers such as `groupBy(...)` and `splitBy(...)`. Advanced template mode uses the same editor support for any auto-discovered `templates/*.template.tsx`.

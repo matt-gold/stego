@@ -1,5 +1,6 @@
 import type { ExportFormat } from "../types.ts";
 import type { DocxExportPostprocess } from "../types.ts";
+import { isExportTarget } from "@stego-labs/shared/domain/templates";
 
 export interface ExportRunArgs {
   inputPath: string;
@@ -31,7 +32,7 @@ export interface Exporter {
 }
 
 export function parseExportFormat(value: string): ExportFormat {
-  if (value === "md" || value === "docx" || value === "pdf" || value === "epub") {
+  if (isExportTarget(value)) {
     return value;
   }
   throw new Error(`Unsupported export format '${value}'. Use md, docx, pdf, or epub.`);
