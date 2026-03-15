@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3
+
+### Patch Changes
+
+- 08bff8d: Cut Stego over from the legacy manuscript/spine model to the new content/leaf + branch model, including new `content read` CLI support, branch-aware validation and indexing, updated example projects and docs, the Explore sidebar replacing Spine UI flows, and template/runtime support for leaf-based rendering and linking. This also tightens leaf creation and starter template behavior, improves typed template metadata ergonomics, and documents markdown export as a lower-fidelity compiled artifact rather than a presentation-fidelity target.
+- Updated dependencies [b66c607]
+- Updated dependencies [08bff8d]
+  - @stego-labs/shared@1.0.3
+
 ## 1.0.2
 
 ### Patch Changes
