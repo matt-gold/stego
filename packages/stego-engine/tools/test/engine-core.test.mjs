@@ -9,30 +9,28 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(scriptDir, "..", "..");
 const engine = await import(pathToFileURL(path.join(packageRoot, "src", "index.ts")).href);
 
-test("createCollection groups metadata-backed values", () => {
-  const collection = engine.createCollection([
+test("Stego.groupBy buckets selector-based values", () => {
+  const groups = engine.Stego.groupBy([
     { metadata: { chapter: "1" }, title: "A" },
     { metadata: { chapter: "1" }, title: "B" },
     { metadata: { chapter: "2" }, title: "C" }
-  ]);
+  ], (item) => typeof item.metadata.chapter === "string" ? item.metadata.chapter : undefined);
 
-  const groups = collection.groupBy("chapter");
   assert.equal(groups.length, 2);
   assert.equal(groups[0].value, "1");
   assert.equal(groups[0].items.length, 2);
 });
 
-test("createCollection splitBy preserves a leading ungrouped segment, inherits missing values, and splits contiguous runs", () => {
-  const collection = engine.createCollection([
+test("Stego.splitBy preserves a leading ungrouped segment, inherits missing values, and splits contiguous runs", () => {
+  const groups = engine.Stego.splitBy([
     { metadata: {}, title: "Prelude" },
     { metadata: { chapter: "1", chapter_title: "One" }, title: "A" },
     { metadata: {}, title: "B" },
     { metadata: { chapter: "2", chapter_title: "Two" }, title: "C" },
     { metadata: {}, title: "D" },
     { metadata: { chapter: "1", chapter_title: "One returns" }, title: "E" }
-  ]);
+  ], (item) => typeof item.metadata.chapter === "string" ? item.metadata.chapter : undefined);
 
-  const groups = collection.splitBy("chapter");
   assert.equal(groups.length, 4);
   assert.equal(groups[0].value, undefined);
   assert.equal(groups[0].items.length, 1);
@@ -59,37 +57,43 @@ test("TSX helpers create document IR through defineTemplate", () => {
 
   const document = template.render({
     project: { id: "demo", root: "/tmp/demo", metadata: { title: "Demo" } },
-    collections: {
-      manuscripts: engine.createCollection([]),
-      spineEntries: engine.createCollection([]),
-      spineCategories: engine.createCollection([])
-    }
+    content: [],
+    branches: []
   });
 
   assert.equal(document.kind, "document");
   assert.equal(document.children[0].kind, "heading");
 });
 
-test("compileProject loads template and strips comments from manuscript body", async () => {
+test("compileProject loads leaves, excludes _branch.md from content, and builds branches", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-engine-"));
   try {
-    fs.mkdirSync(path.join(tempDir, "manuscript"), { recursive: true });
-    fs.mkdirSync(path.join(tempDir, "spine", "sources"), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, "content", "reference", "characters"), { recursive: true });
     fs.mkdirSync(path.join(tempDir, "templates"), { recursive: true });
     fs.writeFileSync(path.join(tempDir, "stego-project.json"), `${JSON.stringify({ id: "demo", title: "Demo" }, null, 2)}\n`);
-    fs.writeFileSync(path.join(tempDir, "spine", "sources", "_category.md"), "---\nlabel: Sources\n---\n");
-    fs.writeFileSync(path.join(tempDir, "spine", "sources", "SRC-ONE.md"), "# Source One\n\nFact.\n");
     fs.writeFileSync(
-      path.join(tempDir, "manuscript", "100-scene.md"),
-      `---\nstatus: revise\nchapter: 1\nchapter_title: One\n---\n\nBody.\n\n<!-- stego-comments:start -->\n\n<!-- comment: CMT-0001 -->\n<!-- meta64: eyJzdGF0dXMiOiJvcGVuIn0= -->\n> _Mar 1, 2026, 6:31 AM - matt_\n>\n> Note\n\n<!-- stego-comments:end -->\n`
+      path.join(tempDir, "content", "_branch.md"),
+      `---\nlabel: Book Content\n---\n\nRoot branch notes.\n`
+    );
+    fs.writeFileSync(
+      path.join(tempDir, "content", "reference", "characters", "_branch.md"),
+      `---\nlabel: Characters\n---\n\nCharacter notes.\n`
+    );
+    fs.writeFileSync(
+      path.join(tempDir, "content", "100-scene.md"),
+      `---\nid: CH-ONE\nstatus: revise\nchapter: 1\nchapter_title: One\n---\n\n## Opening\n\nBody.\n\n<!-- stego-comments:start -->\n\n<!-- comment: CMT-0001 -->\n<!-- meta64: eyJzdGF0dXMiOiJvcGVuIn0= -->\n> _Mar 1, 2026, 6:31 AM - matt_\n>\n> Note\n\n<!-- stego-comments:end -->\n`
+    );
+    fs.writeFileSync(
+      path.join(tempDir, "content", "reference", "characters", "CHAR-ONE.md"),
+      `---\nid: CHAR-ONE\nkind: reference\n---\n\n# Character\n\nA note.\n`
     );
     fs.writeFileSync(
       path.join(tempDir, "templates", "book.template.tsx"),
       `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document>
-    {ctx.collections.manuscripts.map((doc) => (
-      <Stego.Markdown source={doc.body} />
+    {ctx.content.map((leaf) => (
+      <Stego.Markdown leaf={leaf} />
     ))}
   </Stego.Document>
 ));
@@ -97,10 +101,19 @@ export default defineTemplate((ctx) => (
     );
 
     const compiled = await engine.compileProject({ projectRoot: tempDir });
-    const rendered = engine.renderDocument({ document: compiled.document, projectRoot: tempDir });
+    const rendered = engine.renderDocument({ document: compiled.document, projectRoot: tempDir, context: compiled.context });
+
+    assert.equal(Array.isArray(compiled.context.content), true);
+    assert.equal(Array.isArray(compiled.context.branches), true);
+    assert.equal(compiled.context.content.length, 2);
+    assert.equal(compiled.context.content.some((leaf) => leaf.relativePath.endsWith("_branch.md")), false);
+    assert.equal(compiled.context.branches.some((branch) => branch.key === "" && branch.label === "Book Content"), true);
+    assert.equal(compiled.context.branches.some((branch) => branch.key === "reference/characters" && branch.label === "Characters"), true);
 
     assert.match(rendered.markdown, /Body\./);
     assert.doesNotMatch(rendered.markdown, /CMT-0001/);
+    assert.match(rendered.markdown, /#CH-ONE/);
+    assert.match(rendered.markdown, /CH-ONE--opening/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -139,7 +152,15 @@ test("renderDocument emits keep-together, layout, footer page-number metadata, a
     ]
   });
 
-  const rendered = engine.renderDocument({ document, projectRoot: "/tmp/demo" });
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: [],
+      branches: []
+    }
+  });
   assert.equal(rendered.backend, "pandoc");
   assert.equal(rendered.inputFormat, "markdown-implicit_figures");
   assert.match(rendered.markdown, /data-page-break=true/);

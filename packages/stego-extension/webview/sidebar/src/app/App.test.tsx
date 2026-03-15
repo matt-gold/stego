@@ -88,11 +88,11 @@ describe('App', () => {
     const dispose = render(() => <App />, root);
     expect(root.querySelector('.sidebar-tab.active')?.textContent).toContain('Document');
 
-    sharedState.activeTab = 'spine';
+    sharedState.activeTab = 'explore';
     updateSidebarState(sharedState);
     await Promise.resolve();
 
-    expect(root.querySelector('.sidebar-tab.active')?.textContent).toContain('Spine');
+    expect(root.querySelector('.sidebar-tab.active')?.textContent).toContain('Explore');
 
     dispose();
     root.remove();

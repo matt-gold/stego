@@ -33,7 +33,16 @@ export function collectTocEntries(document: vscode.TextDocument): SidebarTocEntr
 
 export function isManuscriptPath(filePath: string): boolean {
   const normalized = normalizeFsPath(path.resolve(filePath));
+  if (path.basename(normalized).toLowerCase() === '_branch.md') {
+    return false;
+  }
+
   const parts = normalized.split(/[\\/]/).filter(Boolean);
+  const contentIndex = parts.lastIndexOf('content');
+  if (contentIndex >= 0) {
+    return parts[contentIndex + 1] !== 'reference';
+  }
+
   return parts.includes('manuscript') || parts.includes('manuscripts');
 }
 

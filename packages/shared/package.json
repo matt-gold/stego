@@ -28,6 +28,10 @@
       "types": "./dist/domain/comments/index.d.ts",
       "default": "./dist/domain/comments/index.js"
     },
+    "./domain/content": {
+      "types": "./dist/domain/content/index.d.ts",
+      "default": "./dist/domain/content/index.js"
+    },
     "./domain/frontmatter": {
       "types": "./dist/domain/frontmatter/index.d.ts",
       "default": "./dist/domain/frontmatter/index.js"
@@ -57,6 +61,9 @@
     "*": {
       "contracts/cli": [
         "dist/contracts/cli/index.d.ts"
+      ],
+      "domain/content": [
+        "dist/domain/content/index.d.ts"
       ],
       "domain/comments": [
         "dist/domain/comments/index.d.ts"

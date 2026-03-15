@@ -24,8 +24,7 @@ function writeWorkspaceConfig(workspaceRoot) {
     `${JSON.stringify(
       {
         projectsDir: "projects",
-        chapterDir: "manuscript",
-        spineDir: "spine",
+        contentDir: "content",
         notesDir: "notes",
         distDir: "dist",
         requiredMetadata: ["status"],
@@ -33,7 +32,6 @@ function writeWorkspaceConfig(workspaceRoot) {
         stagePolicies: {
           draft: {
             minimumChapterStatus: "draft",
-            requireSpine: false,
             enforceMarkdownlint: false,
             enforceCSpell: false,
             enforceLocalLinks: false
@@ -104,11 +102,15 @@ test("new-project creates scaffold and returns JSON envelope", () => {
     assert.equal(fs.existsSync(path.join(projectRoot, "stego-project.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "package.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "tsconfig.json")), true);
-    assert.equal(fs.existsSync(path.join(projectRoot, "manuscript", "100-hello-world.md")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "content", "100-hello-world.md")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "templates", "book.template.tsx")), true);
-    assert.equal(fs.existsSync(path.join(projectRoot, "spine", "characters", "_category.md")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "content", "reference")), false);
     assert.equal(fs.existsSync(path.join(projectRoot, ".vscode", "extensions.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, ".vscode", "settings.json")), false);
+
+    const templateSource = fs.readFileSync(path.join(projectRoot, "templates", "book.template.tsx"), "utf8");
+    assert.doesNotMatch(templateSource, /kind:\s*"reference"/);
+    assert.match(templateSource, /const chapterLeaves = ctx\.content\.filter\(\(leaf\) => leaf\.metadata\.kind !== "reference"\);/);
 
     const projectJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "stego-project.json"), "utf8"));
     assert.equal("compileStructure" in projectJson, false);

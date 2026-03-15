@@ -1,28 +1,35 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
-import { normalizeSpineEntryLabel } from '../../../../shared/spineEntryMetadata';
+import { buildBranchKey } from '@stego-labs/shared/domain/content';
+import { CONTENT_DIR } from '../../../../shared/constants';
+import { normalizeLeafLabel } from '../../../../shared/leafLabel';
 import type {
-  SpineRecord,
-  ProjectSpineCategory,
+  LeafTargetRecord,
+  ProjectBranch,
   ProjectScanContext,
   SidebarIdentifierLink,
   SidebarExplorerPage,
   SidebarBacklink,
   SidebarMetadataEntry
 } from '../../../../shared/types';
-import { extractIdentifierTokensFromValue, getIdentifierPrefix, tryParseIdentifierFromHeading } from '../../../identifiers';
-import { ReferenceUsageIndexService } from '../../../indexing';
+import { extractIdentifierTokensFromValue, tryParseIdentifierFromHeading } from '../../../identifiers';
+import { ReferenceUsageIndexService, resolveRecordPathToFile } from '../../../indexing';
 import { formatMetadataValue } from '../../../metadata';
 import { resolveTarget } from '../../../navigation';
 import { applyBacklinkFilter } from './sidebarToc';
-import { collectExplorerCategoryItems, collectExplorerCategorySummaries, resolveSpineSectionPreview } from '../spine/sidebarExplorer';
+import {
+  collectExplorerBranchSummaries,
+  collectExplorerLeafItems,
+  resolveLeafSectionPreview
+} from '../explore/sidebarExplorer';
 import type { SidebarTocEntry } from '../../../../shared/types';
 
 export function buildMetadataEntry(
   key: string,
   value: unknown,
   isStructural: boolean,
-  category: ProjectSpineCategory | undefined,
-  index: Map<string, SpineRecord>,
+  branch: ProjectBranch | undefined,
+  index: Map<string, LeafTargetRecord>,
   document: vscode.TextDocument,
   pattern: string
 ): SidebarMetadataEntry {
@@ -30,13 +37,13 @@ export function buildMetadataEntry(
     const arrayItems = value.map((item, itemIndex) => ({
       index: itemIndex,
       valueText: formatMetadataValue(item),
-      references: buildIdentifierLinksForValue(item, category, index, document, pattern)
+      references: buildIdentifierLinksForValue(item, branch, index, document, pattern)
     }));
 
     return {
       key,
       isStructural,
-      isSpineCategory: !!category,
+      isBranch: !!branch,
       isArray: true,
       valueText: '',
       references: [],
@@ -47,31 +54,23 @@ export function buildMetadataEntry(
   return {
     key,
     isStructural,
-    isSpineCategory: !!category,
+    isBranch: !!branch,
     isArray: false,
     valueText: formatMetadataValue(value),
-    references: buildIdentifierLinksForValue(value, category, index, document, pattern),
+    references: buildIdentifierLinksForValue(value, branch, index, document, pattern),
     arrayItems: []
   };
 }
 
 export function buildIdentifierLinksForValue(
   value: unknown,
-  category: ProjectSpineCategory | undefined,
-  index: Map<string, SpineRecord>,
+  _branch: ProjectBranch | undefined,
+  index: Map<string, LeafTargetRecord>,
   document: vscode.TextDocument,
   pattern: string
 ): SidebarIdentifierLink[] {
-  if (!category) {
-    return [];
-  }
-
   const references: SidebarIdentifierLink[] = [];
   for (const id of extractIdentifierTokensFromValue(value, pattern)) {
-    if (!id.startsWith(`${category.prefix}-`)) {
-      continue;
-    }
-
     const record = index.get(id);
     references.push({
       id,
@@ -87,61 +86,68 @@ export function buildIdentifierLinksForValue(
 
 export async function buildExplorerState(
   document: vscode.TextDocument,
-  index: Map<string, SpineRecord>,
+  index: Map<string, LeafTargetRecord>,
   projectContext: ProjectScanContext | undefined,
   pattern: string,
-  route: { kind: 'home' } | { kind: 'category'; key: string; prefix: string } | { kind: 'identifier'; id: string },
+  route: { kind: 'home' } | { kind: 'branch'; key: string } | { kind: 'identifier'; id: string },
   backlinkFilter: string,
   backlinksExpanded: boolean,
   referenceUsageService: ReferenceUsageIndexService
 ): Promise<SidebarExplorerPage | undefined> {
-  const categories = collectExplorerCategorySummaries(projectContext?.categories ?? [], index);
+  const branches = projectContext?.branches ?? [];
+  const projectDir = projectContext?.projectDir;
+  const rootBranch = branches.find((branch) => branch.key === '');
 
   if (route.kind === 'home') {
+    if (!rootBranch || !projectDir) {
+      return undefined;
+    }
     return {
       kind: 'home',
-      categories
+      branch: toBranchSummary(rootBranch, index, projectDir),
+      childBranches: collectExplorerBranchSummaries(branches, index, projectDir, ''),
+      leafItems: collectExplorerLeafItems('', index, projectDir),
+      body: rootBranch.body
     };
   }
 
-  if (route.kind === 'category') {
-    const category = categories.find((entry) => (
-      entry.key === route.key
-      && entry.prefix.toUpperCase() === route.prefix.toUpperCase()
-    ));
-
-    if (!category) {
-      return {
-        kind: 'home',
-        categories
-      };
+  if (route.kind === 'branch') {
+    if (!projectDir) {
+      return undefined;
+    }
+    const branch = branches.find((entry) => entry.key === route.key);
+    if (!branch) {
+      return rootBranch
+        ? {
+          kind: 'home',
+          branch: toBranchSummary(rootBranch, index, projectDir),
+          childBranches: collectExplorerBranchSummaries(branches, index, projectDir, ''),
+          leafItems: collectExplorerLeafItems('', index, projectDir),
+          body: rootBranch.body
+        }
+        : undefined;
     }
 
-    const items = collectExplorerCategoryItems(route.prefix, index);
     return {
-      kind: 'category',
-      category,
-      items
+      kind: 'branch',
+      branch: toBranchSummary(branch, index, projectDir),
+      childBranches: collectExplorerBranchSummaries(branches, index, projectDir, branch.key),
+      leafItems: collectExplorerLeafItems(branch.key, index, projectDir),
+      body: branch.body
     };
   }
 
   const id = route.id.trim().toUpperCase();
   if (!id) {
-    return {
-      kind: 'home',
-      categories
-    };
+    return undefined;
   }
 
   const record = index.get(id);
-  const section = await resolveSpineSectionPreview(id, record, document, projectContext);
+  const section = await resolveLeafSectionPreview(id, record, document, projectContext);
   const title = (record?.title?.trim() || section?.heading?.trim() || id);
-  const label = normalizeSpineEntryLabel(record?.label) || normalizeSpineEntryLabel(section?.label) || title || id;
+  const label = normalizeLeafLabel(record?.label) || normalizeLeafLabel(section?.label) || title || id;
   const description = (record?.description?.trim() || section?.body?.trim() || '');
-  const prefix = getIdentifierPrefix(id);
-  const category = prefix
-    ? categories.find((entry) => entry.prefix.toUpperCase() === prefix)
-    : undefined;
+  const branch = projectContext && projectDir ? findBranchForRecord(projectContext.branches, record, projectDir) : undefined;
 
   let backlinks: SidebarBacklink[] = [];
   if (projectContext) {
@@ -155,7 +161,7 @@ export async function buildExplorerState(
 
   return {
     kind: 'identifier',
-    category,
+    branch: branch && projectDir ? toBranchSummary(branch, index, projectDir) : undefined,
     entry: {
       id,
       label,
@@ -175,23 +181,23 @@ export async function buildExplorerState(
 
 export async function buildTocWithBacklinks(
   tocEntries: SidebarTocEntry[],
-  spineCategoryForFile: ProjectSpineCategory | undefined,
+  _branchForFile: ProjectBranch | undefined,
   projectContext: ProjectScanContext | undefined,
   document: vscode.TextDocument,
-  index: Map<string, SpineRecord>,
+  index: Map<string, LeafTargetRecord>,
   pattern: string,
   backlinkFilter: string,
   expandedTocBacklinks: Set<string>,
   referenceUsageService: ReferenceUsageIndexService
 ): Promise<SidebarTocEntry[]> {
-  if (!spineCategoryForFile || !projectContext) {
+  if (!projectContext) {
     return tocEntries;
   }
 
   const filteredEntries: SidebarTocEntry[] = [];
   const tocIdentifiers = tocEntries
     .map((entry) => tryParseIdentifierFromHeading(entry.heading))
-    .filter((identifier): identifier is string => !!identifier && identifier.startsWith(`${spineCategoryForFile.prefix}-`));
+    .filter((identifier): identifier is string => !!identifier);
   const backlinksByIdentifier = await referenceUsageService.getReferencesForIdentifiers(
     projectContext.projectDir,
     [...new Set(tocIdentifiers)],
@@ -201,7 +207,7 @@ export async function buildTocWithBacklinks(
 
   for (const entry of tocEntries) {
     const identifier = tryParseIdentifierFromHeading(entry.heading);
-    if (!identifier || !identifier.startsWith(`${spineCategoryForFile.prefix}-`)) {
+    if (!identifier) {
       filteredEntries.push(entry);
       continue;
     }
@@ -226,4 +232,28 @@ export async function buildTocWithBacklinks(
   }
 
   return filteredEntries;
+}
+
+function findBranchForRecord(
+  branches: ProjectBranch[],
+  record: LeafTargetRecord | undefined,
+  projectDir: string
+): ProjectBranch | undefined {
+  const filePath = resolveRecordPathToFile(record?.path, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
+  if (!filePath) {
+    return undefined;
+  }
+  const contentRoot = path.join(projectDir, CONTENT_DIR);
+  const key = buildBranchKey(contentRoot, path.dirname(filePath));
+  return branches.find((branch) => branch.key === key);
+}
+
+function toBranchSummary(branch: ProjectBranch, index: Map<string, LeafTargetRecord>, projectDir: string) {
+  return {
+    key: branch.key,
+    name: branch.name,
+    label: branch.label,
+    parentKey: branch.parentKey,
+    directLeafCount: collectExplorerLeafItems(branch.key, index, projectDir).length
+  };
 }

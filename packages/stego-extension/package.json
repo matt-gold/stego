@@ -1,7 +1,7 @@
 {
   "name": "stego-extension",
   "displayName": "Stego",
-  "description": "The official UI companion to Stego CLI, providing a user-friendly sidebar for managing manuscripts, comments, project browsing, validation and export in VS Code.",
+  "description": "The official UI companion to Stego CLI, providing a user-friendly sidebar for managing leaves, comments, project browsing, validation and export in VS Code.",
   "version": "1.0.1",
   "private": true,
   "publisher": "matt-gold",
@@ -20,32 +20,32 @@
   ],
   "activationEvents": [
     "onLanguage:markdown",
-    "onCommand:stegoSpine.reloadIndex",
-    "onCommand:stegoSpine.runBuild",
-    "onCommand:stegoSpine.runGateStage",
-    "onCommand:stegoSpine.newManuscript",
-    "onCommand:stegoSpine.insertImage",
-    "onCommand:stegoSpine.newProject",
-    "onCommand:stegoSpine.openProject",
-    "onCommand:stegoSpine.addComment",
-    "onCommand:stegoSpine.toggleFrontmatter",
-    "onView:stegoSpine.metadataView"
+    "onCommand:stegoExplore.reloadIndex",
+    "onCommand:stegoExplore.runBuild",
+    "onCommand:stegoExplore.runGateStage",
+    "onCommand:stegoExplore.newManuscript",
+    "onCommand:stegoExplore.insertImage",
+    "onCommand:stegoExplore.newProject",
+    "onCommand:stegoExplore.openProject",
+    "onCommand:stegoExplore.addComment",
+    "onCommand:stegoExplore.toggleFrontmatter",
+    "onView:stegoExplore.metadataView"
   ],
   "main": "./out/stego-extension/src/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "stegoSpine",
+          "id": "stegoExplore",
           "title": "Stego",
           "icon": "assets/stego.svg"
         }
       ]
     },
     "views": {
-      "stegoSpine": [
+      "stegoExplore": [
         {
-          "id": "stegoSpine.metadataView",
+          "id": "stegoExplore.metadataView",
           "name": "Stego",
           "type": "webview",
           "icon": "assets/stego.svg"
@@ -54,55 +54,55 @@
     },
     "commands": [
       {
-        "command": "stegoSpine.reloadIndex",
-        "title": "Stego: Rebuild Index"
+        "command": "stegoExplore.reloadIndex",
+        "title": "Stego: Rebuild Leaf Index"
       },
       {
-        "command": "stegoSpine.runBuild",
+        "command": "stegoExplore.runBuild",
         "title": "Stego: Compile Full Manuscript",
         "icon": "$(file)"
       },
       {
-        "command": "stegoSpine.newManuscript",
-        "title": "Stego: New Manuscript",
+        "command": "stegoExplore.newManuscript",
+        "title": "Stego: New Leaf",
         "icon": "$(add)"
       },
       {
-        "command": "stegoSpine.insertImage",
+        "command": "stegoExplore.insertImage",
         "title": "Stego: Insert Image (Copy to Project Assets)",
         "icon": "$(file-media)"
       },
       {
-        "command": "stegoSpine.newProject",
+        "command": "stegoExplore.newProject",
         "title": "Stego: New Stego Project"
       },
       {
-        "command": "stegoSpine.openProject",
+        "command": "stegoExplore.openProject",
         "title": "Stego: Open Project",
         "icon": "$(folder-opened)"
       },
       {
-        "command": "stegoSpine.runGateStage",
+        "command": "stegoExplore.runGateStage",
         "title": "Stego: Run Stage Checks",
         "icon": "$(check)"
       },
       {
-        "command": "stegoSpine.runLocalValidate",
+        "command": "stegoExplore.runLocalValidate",
         "title": "Stego: Validate Current File",
         "icon": "$(verified)"
       },
       {
-        "command": "stegoSpine.toggleFrontmatter",
+        "command": "stegoExplore.toggleFrontmatter",
         "title": "Stego: Toggle Frontmatter Fold"
       },
       {
-        "command": "stegoSpine.addComment",
+        "command": "stegoExplore.addComment",
         "title": "Stego: Add Comment"
       }
     ],
     "keybindings": [
       {
-        "command": "stegoSpine.addComment",
+        "command": "stegoExplore.addComment",
         "key": "ctrl+shift+c",
         "mac": "cmd+shift+c",
         "when": "editorTextFocus"
@@ -111,28 +111,28 @@
     "menus": {
       "view/title": [
         {
-          "command": "stegoSpine.newManuscript",
-          "when": "view == stegoSpine.metadataView && !stegoSpine.isStegoWorkspace",
+          "command": "stegoExplore.newManuscript",
+          "when": "view == stegoExplore.metadataView && !stegoExplore.isStegoWorkspace",
           "group": "navigation@0"
         },
         {
-          "command": "stegoSpine.openProject",
-          "when": "view == stegoSpine.metadataView && stegoSpine.isStegoWorkspace",
+          "command": "stegoExplore.openProject",
+          "when": "view == stegoExplore.metadataView && stegoExplore.isStegoWorkspace",
           "group": "navigation@0"
         },
         {
-          "command": "stegoSpine.newProject",
-          "when": "view == stegoSpine.metadataView && stegoSpine.isStegoWorkspace",
+          "command": "stegoExplore.newProject",
+          "when": "view == stegoExplore.metadataView && stegoExplore.isStegoWorkspace",
           "group": "navigation@1"
         },
         {
-          "command": "stegoSpine.runBuild",
-          "when": "view == stegoSpine.metadataView && !stegoSpine.isStegoWorkspace",
+          "command": "stegoExplore.runBuild",
+          "when": "view == stegoExplore.metadataView && !stegoExplore.isStegoWorkspace",
           "group": "navigation@1"
         },
         {
-          "command": "stegoSpine.runGateStage",
-          "when": "view == stegoSpine.metadataView && !stegoSpine.isStegoWorkspace",
+          "command": "stegoExplore.runGateStage",
+          "when": "view == stegoExplore.metadataView && !stegoExplore.isStegoWorkspace",
           "group": "navigation@2"
         }
       ]
@@ -140,21 +140,6 @@
     "configuration": {
       "title": "Stego",
       "properties": {
-        "stego.spine.identifierPattern": {
-          "type": "string",
-          "default": "\\b[A-Z][A-Z0-9]*-[A-Z0-9]+(?:-[A-Z0-9]+)*\\b",
-          "description": "Regex used to find Spine identifiers in Markdown text (for example LOC-ASDF or CHAR-JANE)."
-        },
-        "stego.spine.definitionBaseUrl": {
-          "type": "string",
-          "default": "",
-          "description": "Optional fallback base URL used when a Spine identifier has no local file target."
-        },
-        "stego.spine.reportUnknownIdentifiers": {
-          "type": "boolean",
-          "default": true,
-          "description": "Warn when identifiers are found in text but missing from the configured Spine categories."
-        },
         "stego.editor.enableHover": {
           "type": "boolean",
           "default": true,
@@ -179,6 +164,21 @@
           "type": "string",
           "default": "",
           "description": "Default author name used when adding sidebar comments. Leave blank to use your system/git username."
+        },
+        "stego.links.identifierPattern": {
+          "type": "string",
+          "default": "\\b[A-Z][A-Z0-9]*-[A-Z0-9]+(?:-[A-Z0-9]+)*\\b",
+          "description": "Regex used to find leaf identifiers in Markdown text."
+        },
+        "stego.links.definitionBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional fallback base URL used when a leaf identifier has no local file target."
+        },
+        "stego.links.reportUnknownIdentifiers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when identifiers are found in text but missing from the content leaf index."
         }
       }
     }

@@ -13,6 +13,7 @@ export type NewManuscriptInput = {
   project: ProjectContext;
   requestedPrefixRaw?: string;
   requestedFilenameRaw?: string;
+  requestedIdRaw?: string;
 };
 
 export type NewManuscriptResult = {

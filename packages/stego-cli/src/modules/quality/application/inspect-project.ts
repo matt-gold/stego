@@ -1,9 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseCommentAppendix } from "@stego-labs/shared/domain/comments";
+import {
+  isBranchFile,
+  isSupportedLeafContentFile,
+  isValidLeafId,
+  parseBranchDocument
+} from "@stego-labs/shared/domain/content";
 import { parseMarkdownDocument } from "@stego-labs/shared/domain/frontmatter";
 import { isStageName } from "@stego-labs/shared/domain/stages";
-import { readSpineCatalogForProject } from "../../spine/index.ts";
 import type {
   ChapterEntry,
   InspectProjectOptions,
@@ -12,9 +17,7 @@ import type {
   MetadataRecord,
   ParsedCommentThread,
   ProjectInspection,
-  RequiredMetadataResult,
-  SpineCategory,
-  SpineState
+  RequiredMetadataResult
 } from "../types.ts";
 import type { ProjectContext } from "../../project/index.ts";
 
@@ -24,7 +27,6 @@ export function inspectProject(
 ): ProjectInspection {
   const repoRoot = project.workspace.repoRoot;
   const issues: Issue[] = [];
-  const emptySpineState: SpineState = { categories: [], entriesByCategory: new Map<string, Set<string>>(), issues: [] };
   const requiredMetadataState = resolveRequiredMetadata(project);
   issues.push(...requiredMetadataState.issues);
   issues.push(...validateProjectImagesConfiguration(project));
@@ -45,16 +47,14 @@ export function inspectProject(
       makeIssue(
         "error",
         "metadata",
-        "Legacy 'spineCategories' in stego-project.json is no longer supported. Use spine/ category directories and files.",
+        "Legacy 'spineCategories' in stego-project.json is unsupported under the leaf model.",
         path.relative(repoRoot, path.join(project.root, "stego-project.json"))
       )
     );
   }
 
-  const spineState = readSpine(project);
-  issues.push(...spineState.issues);
-
   let chapterFiles: string[] = [];
+  let branchFiles: string[] = [];
   const onlyFile = options.onlyFile?.trim();
   if (onlyFile) {
     const resolvedPath = path.resolve(project.root, onlyFile);
@@ -63,62 +63,88 @@ export function inspectProject(
       issues.push(
         makeIssue("error", "structure", `Requested file is outside the project: ${onlyFile}`, null)
       );
-      return { chapters: [], issues, spineState: emptySpineState };
+      return { chapters: [], issues };
     }
 
     if (!fs.existsSync(resolvedPath)) {
       issues.push(makeIssue("error", "structure", `Requested file does not exist: ${onlyFile}`, null));
-      return { chapters: [], issues, spineState: emptySpineState };
+      return { chapters: [], issues };
     }
 
-    if (!fs.statSync(resolvedPath).isFile() || !resolvedPath.endsWith(".md")) {
-      issues.push(makeIssue("error", "structure", `Requested file must be a markdown file: ${onlyFile}`, null));
-      return { chapters: [], issues, spineState: emptySpineState };
+    if (!fs.statSync(resolvedPath).isFile() || (!isSupportedLeafContentFile(resolvedPath) && !isBranchFile(resolvedPath))) {
+      issues.push(makeIssue("error", "structure", `Requested file must be a supported content file: ${onlyFile}`, null));
+      return { chapters: [], issues };
     }
 
-    const relativeToManuscript = path.relative(project.manuscriptDir, resolvedPath);
-    if (relativeToManuscript.startsWith("..") || path.isAbsolute(relativeToManuscript)) {
+    const relativeToContent = path.relative(project.contentDir, resolvedPath);
+    if (relativeToContent.startsWith("..") || path.isAbsolute(relativeToContent)) {
       issues.push(
         makeIssue(
           "error",
           "structure",
-          `Requested file must be inside manuscript directory: ${project.manuscriptDir}`,
+          `Requested file must be inside content directory: ${project.contentDir}`,
           null
         )
       );
-      return { chapters: [], issues, spineState: emptySpineState };
+      return { chapters: [], issues };
     }
 
-    chapterFiles = [resolvedPath];
+    if (isBranchFile(resolvedPath)) {
+      branchFiles = [resolvedPath];
+    } else {
+      chapterFiles = [resolvedPath];
+    }
   } else {
-    if (!fs.existsSync(project.manuscriptDir)) {
-      issues.push(makeIssue("error", "structure", `Missing manuscript directory: ${project.manuscriptDir}`));
-      return { chapters: [], issues, spineState: emptySpineState };
+    if (!fs.existsSync(project.contentDir)) {
+      issues.push(makeIssue("error", "structure", `Missing content directory: ${project.contentDir}`));
+      return { chapters: [], issues };
     }
 
-    chapterFiles = fs
-      .readdirSync(project.manuscriptDir, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-      .map((entry) => path.join(project.manuscriptDir, entry.name))
-      .sort();
+    const discovered = collectContentFiles(project.contentDir);
+    chapterFiles = discovered.leafFiles;
+    branchFiles = discovered.branchFiles;
 
-    if (chapterFiles.length === 0) {
-      issues.push(makeIssue("error", "structure", `No manuscript files found in ${project.manuscriptDir}`));
-      return { chapters: [], issues, spineState: emptySpineState };
+    if (chapterFiles.length === 0 && branchFiles.length === 0) {
+      issues.push(makeIssue("error", "structure", `No content files found in ${project.contentDir}`));
+      return { chapters: [], issues };
     }
+  }
+
+  for (const branchPath of branchFiles) {
+    issues.push(...validateBranchFile(branchPath, repoRoot));
   }
 
   const chapters = chapterFiles.map((chapterPath) =>
     parseChapter(
       chapterPath,
       project,
-      requiredMetadataState.requiredMetadata,
-      spineState.categories
+      requiredMetadataState.requiredMetadata
     )
   );
 
   for (const chapter of chapters) {
     issues.push(...chapter.issues);
+  }
+
+  const idMap = new Map<string, string>();
+  for (const chapter of chapters) {
+    if (!chapter.id) {
+      continue;
+    }
+
+    if (idMap.has(chapter.id)) {
+      issues.push(
+        makeIssue(
+          "error",
+          "metadata",
+          `Duplicate leaf id '${chapter.id}' in ${chapter.relativePath} and ${idMap.get(chapter.id)}`,
+          chapter.relativePath
+        )
+      );
+      continue;
+    }
+
+    idMap.set(chapter.id, chapter.relativePath);
   }
 
   const orderMap = new Map<number, string>();
@@ -155,17 +181,63 @@ export function inspectProject(
     return a.order - b.order;
   });
 
-  for (const chapter of chapters) {
-    issues.push(
-      ...findUnknownSpineReferences(chapter.referenceKeysByCategory, spineState.entriesByCategory, chapter.relativePath)
-    );
+  return {
+    chapters,
+    issues
+  };
+}
+
+function collectContentFiles(rootDir: string): { leafFiles: string[]; branchFiles: string[] } {
+  const leafFiles: string[] = [];
+  const branchFiles: string[] = [];
+  const stack = [rootDir];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    const entries = fs.readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      if (isBranchFile(fullPath)) {
+        branchFiles.push(fullPath);
+        continue;
+      }
+
+      if (isSupportedLeafContentFile(fullPath)) {
+        leafFiles.push(fullPath);
+      }
+    }
   }
 
   return {
-    chapters,
-    issues,
-    spineState
+    leafFiles: leafFiles.sort(),
+    branchFiles: branchFiles.sort()
   };
+}
+
+function validateBranchFile(filePath: string, repoRoot: string): Issue[] {
+  const relativePath = path.relative(repoRoot, filePath);
+  let raw = "";
+  try {
+    raw = fs.readFileSync(filePath, "utf8");
+    parseBranchDocument(raw, relativePath);
+    return [];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return [makeIssue("error", "metadata", message, relativePath)];
+  }
 }
 
 export function resolveRequiredMetadata(project: ProjectContext): RequiredMetadataResult {
@@ -245,8 +317,7 @@ export function formatIssues(issues: Issue[]): string[] {
 function parseChapter(
   chapterPath: string,
   project: ProjectContext,
-  requiredMetadata: string[],
-  spineCategories: SpineCategory[]
+  requiredMetadata: string[]
 ): ChapterEntry {
   const repoRoot = project.workspace.repoRoot;
   const runtimeConfig = project.workspace.config;
@@ -279,18 +350,22 @@ function parseChapter(
     chapterIssues.push(makeIssue("error", "metadata", `Invalid file status '${status}'. Allowed: ${runtimeConfig.allowedStatuses.join(", ")}.`, relativePath));
   }
 
-  const referenceValidation = extractReferenceKeysByCategory(metadata, relativePath, spineCategories);
-  chapterIssues.push(...referenceValidation.issues);
+  const leafId = typeof metadata.id === "string" ? metadata.id.trim() : "";
+  if (!leafId) {
+    chapterIssues.push(makeIssue("error", "metadata", "Missing required leaf id.", relativePath));
+  } else if (!isValidLeafId(leafId)) {
+    chapterIssues.push(makeIssue("error", "metadata", `Invalid leaf id '${leafId}'.`, relativePath));
+  }
   chapterIssues.push(...validateImagesMetadata(metadata, relativePath));
   chapterIssues.push(...validateMarkdownBody(body, chapterPath, repoRoot, project.root));
 
   return {
     path: chapterPath,
     relativePath,
+    id: leafId || null,
     title,
     order,
     status,
-    referenceKeysByCategory: referenceValidation.referencesByCategory,
     metadata,
     body,
     comments,
@@ -331,49 +406,6 @@ function parseOrderFromFilename(chapterPath: string, relativePath: string, issue
   return Number(match[1]);
 }
 
-function extractReferenceKeysByCategory(
-  metadata: MetadataRecord,
-  relativePath: string,
-  spineCategories: SpineCategory[]
-): { referencesByCategory: Record<string, string[]>; issues: Issue[] } {
-  const issues: Issue[] = [];
-  const referencesByCategory: Record<string, string[]> = {};
-
-  for (const category of spineCategories) {
-    const rawValue = metadata[category.key];
-    if (rawValue == null || rawValue === "") {
-      continue;
-    }
-
-    if (!Array.isArray(rawValue)) {
-      issues.push(makeIssue("error", "metadata", `Metadata '${category.key}' must be an array of spine entry keys (for example: [\"matthaeus\"]).`, relativePath));
-      continue;
-    }
-
-    const seen = new Set<string>();
-    const values: string[] = [];
-    for (const entry of rawValue) {
-      if (typeof entry !== "string") {
-        issues.push(makeIssue("error", "metadata", `Metadata '${category.key}' entries must be strings.`, relativePath));
-        continue;
-      }
-      const normalized = entry.trim();
-      if (!normalized) {
-        issues.push(makeIssue("error", "metadata", `Metadata '${category.key}' contains an empty entry key.`, relativePath));
-        continue;
-      }
-      if (seen.has(normalized)) {
-        continue;
-      }
-      seen.add(normalized);
-      values.push(normalized);
-    }
-    referencesByCategory[category.key] = values;
-  }
-
-  return { referencesByCategory, issues };
-}
-
 function validateImagesMetadata(metadata: MetadataRecord, relativePath: string): Issue[] {
   const issues: Issue[] = [];
   const rawImages = metadata.images;
@@ -393,7 +425,7 @@ function validateImagesMetadata(metadata: MetadataRecord, relativePath: string):
         makeIssue(
           "warning",
           "metadata",
-          `Manuscript frontmatter 'images.${key}' is reserved for project defaults. Put defaults in stego-project.json 'images.${key}'.`,
+          `Leaf frontmatter 'images.${key}' is reserved for project defaults. Put defaults in stego-project.json 'images.${key}'.`,
           relativePath
         )
       );
@@ -696,7 +728,7 @@ function checkLocalMarkdownLinks(body: string, chapterPath: string, repoRoot: st
       makeIssue(
         "warning",
         "assets",
-        `Local image target '${cleanTarget}' is outside project assets/. Store manuscript images under 'assets/'.`,
+        `Local image target '${cleanTarget}' is outside project assets/. Store leaf images under 'assets/'.`,
         relativePath
       )
     );
@@ -753,43 +785,6 @@ function runStyleHeuristics(body: string, relativePath: string): Issue[] {
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function readSpine(project: ProjectContext): SpineState {
-  const catalogEnvelope = readSpineCatalogForProject(project);
-  const categories: SpineCategory[] = [];
-  const entriesByCategory = new Map<string, Set<string>>();
-
-  for (const category of catalogEnvelope.state.categories) {
-    const entries = new Set<string>(category.entries.map((entry) => entry.key));
-    categories.push({ key: category.key, entries });
-    entriesByCategory.set(category.key, entries);
-  }
-
-  const issues = catalogEnvelope.state.issues.map((message) => makeIssue("warning", "continuity", message));
-  return { categories, entriesByCategory, issues };
-}
-
-function findUnknownSpineReferences(
-  referencesByCategory: Record<string, string[]>,
-  entriesByCategory: Map<string, Set<string>>,
-  relativePath: string
-): Issue[] {
-  const issues: Issue[] = [];
-  for (const [categoryKey, values] of Object.entries(referencesByCategory)) {
-    const known = entriesByCategory.get(categoryKey);
-    if (!known) {
-      issues.push(makeIssue("warning", "continuity", `Metadata category '${categoryKey}' has references but no matching spine category directory was found in spine/.`, relativePath));
-      continue;
-    }
-    for (const value of values) {
-      if (known.has(value)) {
-        continue;
-      }
-      issues.push(makeIssue("warning", "continuity", `Metadata reference '${categoryKey}: ${value}' does not exist in spine/${categoryKey}/.`, relativePath));
-    }
-  }
-  return issues;
 }
 
 function makeIssue(

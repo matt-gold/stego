@@ -2,12 +2,12 @@ import * as vscode from 'vscode';
 import { DEFAULT_IDENTIFIER_PATTERN } from '../../shared/constants';
 import { isCommentIdentifier } from '../comments';
 import { collectIdentifiers } from '../identifiers';
-import { SpineIndexService } from '../indexing';
+import { LeafIndexService } from '../indexing';
 import { getConfig } from '../project';
 
 export async function refreshDiagnosticsForDocument(
   document: vscode.TextDocument,
-  indexService: SpineIndexService,
+  indexService: LeafIndexService,
   diagnostics: vscode.DiagnosticCollection
 ): Promise<void> {
   if (document.languageId !== 'markdown') {
@@ -15,13 +15,13 @@ export async function refreshDiagnosticsForDocument(
     return;
   }
 
-  const spineConfig = getConfig('spine', document.uri);
-  if (!spineConfig.get<boolean>('reportUnknownIdentifiers', true)) {
+  const linkConfig = getConfig('links', document.uri);
+  if (!linkConfig.get<boolean>('reportUnknownIdentifiers', true)) {
     diagnostics.delete(document.uri);
     return;
   }
 
-  const pattern = spineConfig.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+  const pattern = linkConfig.get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
   const includeFences = getConfig('editor', document.uri).get<boolean>('linkInCodeFences', false);
   const matches = collectIdentifiers(document, pattern, includeFences);
   if (matches.length === 0) {
@@ -43,10 +43,10 @@ export async function refreshDiagnosticsForDocument(
 
     const diagnostic = new vscode.Diagnostic(
       match.range,
-      `Unknown Spine identifier '${match.id}'. Define it in a spine/<category>/ entry file.`,
+      `Unknown leaf identifier '${match.id}'. Define it in a content leaf with frontmatter id.`,
       vscode.DiagnosticSeverity.Warning
     );
-    diagnostic.source = 'stegoSpine';
+    diagnostic.source = 'stego';
     documentDiagnostics.push(diagnostic);
   }
 
@@ -54,7 +54,7 @@ export async function refreshDiagnosticsForDocument(
 }
 
 export async function refreshVisibleMarkdownDocuments(
-  indexService: SpineIndexService,
+  indexService: LeafIndexService,
   diagnostics: vscode.DiagnosticCollection
 ): Promise<void> {
   const documents = vscode.workspace.textDocuments.filter((document) => document.languageId === 'markdown');

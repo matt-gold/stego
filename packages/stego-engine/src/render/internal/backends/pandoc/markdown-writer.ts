@@ -1,15 +1,42 @@
+import {
+  buildLeafRootAnchor,
+  findLeafHeadingTarget,
+  injectLeafHeadingAnchors,
+  type LeafHeadingTarget
+} from "@stego-labs/shared/domain/content";
 import { createDocxLayoutBookmarkName, type DocxBlockLayoutSpec } from "@stego-labs/shared/domain/layout";
-import type { AlignValue, IndentValue, InsetValue, SpacingValue, StegoNode } from "../../../../ir/index.ts";
+import type {
+  AlignValue,
+  IndentValue,
+  InsetValue,
+  SpacingValue,
+  StegoInlineNode,
+  StegoNode
+} from "../../../../ir/index.ts";
+import type { LeafRecord } from "../../../../template/index.ts";
 import { formatSizeValue, formatSpacingValue } from "../../normalize/index.ts";
 
-export function writePandocMarkdown(nodes: StegoNode[]): {
+type LeafIndexEntry = {
+  id: string;
+  titleFromFilename: string;
+  metadata: Record<string, unknown>;
+  headings: LeafHeadingTarget[];
+};
+
+export function writePandocMarkdown(nodes: StegoNode[], leaves: LeafRecord[]): {
   markdown: string;
   docxBlockLayouts: DocxBlockLayoutSpec[];
 } {
   const blocks: string[] = [];
   const context = {
     docxBlockLayoutIndex: 0,
-    docxBlockLayouts: [] as DocxBlockLayoutSpec[]
+    docxBlockLayouts: [] as DocxBlockLayoutSpec[],
+    leaves: new Map(leaves.map((leaf) => [leaf.id, {
+      id: leaf.id,
+      titleFromFilename: leaf.titleFromFilename,
+      metadata: leaf.metadata,
+      headings: leaf.headings
+    } satisfies LeafIndexEntry]))
   };
   for (const node of nodes) {
     if (node.kind === "pageTemplate") {
@@ -27,10 +54,7 @@ export function writePandocMarkdown(nodes: StegoNode[]): {
   };
 }
 
-function renderNode(node: StegoNode, context: {
-  docxBlockLayoutIndex: number;
-  docxBlockLayouts: DocxBlockLayoutSpec[];
-}): string {
+function renderNode(node: StegoNode, context: RenderContext): string {
   switch (node.kind) {
     case "document":
     case "fragment":
@@ -77,7 +101,7 @@ function renderNode(node: StegoNode, context: {
         insetRight: node.insetRight,
         align: node.align
       });
-      const body = `${"#".repeat(node.level)} ${renderInlineChildren(node.children)}`;
+      const body = `${"#".repeat(node.level)} ${renderInlineChildren(node.children, context)}`;
       if (!layout) {
         return body;
       }
@@ -114,11 +138,13 @@ function renderNode(node: StegoNode, context: {
         firstLineIndent: node.firstLineIndent,
         align: node.align
       });
-      const body = renderInlineChildren(node.children);
+      const body = renderInlineChildren(node.children, context);
       return attrs ? `::: ${attrs}\n${body}\n:::` : body;
     }
     case "markdown":
-      return node.source.trim();
+      return renderMarkdownNode(node, context);
+    case "plainText":
+      return renderPlainTextNode(node, context);
     case "image": {
       const tokens = [];
       const width = formatSizeValue(node.width);
@@ -149,37 +175,110 @@ function renderNode(node: StegoNode, context: {
       return `::: {#${markerId}}\n${body}\n:::`;
     }
     case "pageBreak":
-      return renderDocxLayoutMarker(context, {
-        pageBreak: true
-      }, ["data-page-break=true"]);
+      return renderDocxLayoutMarker(context, { pageBreak: true }, ["data-page-break=true"]);
     case "pageNumber":
       throw new Error("<Stego.PageNumber /> may only appear inside <Stego.PageTemplate /> in V1.");
     case "text":
-      return node.value;
+      return escapeInlineText(node.value);
+    case "link":
+      return renderLink(node, context);
   }
 }
 
-function renderInlineChildren(children: StegoNode[]): string {
+type RenderContext = {
+  docxBlockLayoutIndex: number;
+  docxBlockLayouts: DocxBlockLayoutSpec[];
+  leaves: Map<string, LeafIndexEntry>;
+};
+
+function renderMarkdownNode(node: Extract<StegoNode, { kind: "markdown" }>, context: RenderContext): string {
+  if (node.leaf) {
+    const anchor = buildLeafRootAnchor(node.leaf.id);
+    const body = injectLeafHeadingAnchors(node.leaf.body.trim(), node.leaf.id);
+    return `::: {#${anchor} data-leaf-id=${node.leaf.id}}\n${body}\n:::`;
+  }
+  return (node.source || "").trim();
+}
+
+function renderPlainTextNode(node: Extract<StegoNode, { kind: "plainText" }>, context: RenderContext): string {
+  const source = node.leaf ? node.leaf.body : (node.source || "");
+  const body = source
+    .trim()
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim().split(/\r?\n/).join(" "))
+    .filter(Boolean)
+    .join("\n\n");
+  if (node.leaf) {
+    const anchor = buildLeafRootAnchor(node.leaf.id);
+    return `::: {#${anchor} data-leaf-id=${node.leaf.id}}\n${body}\n:::`;
+  }
+  return body;
+}
+
+function renderInlineChildren(children: StegoInlineNode[], context: RenderContext): string {
   return children.map((child) => {
-    if (child.kind !== "text") {
-      throw new Error(`Only text children are supported inside this node in V1. Received '${child.kind}'.`);
+    if (child.kind === "text") {
+      return escapeInlineText(child.value);
     }
-    return child.value;
+    return renderLink(child, context);
   }).join("");
 }
 
-function getOrCreateDocxBlockLayoutMarker(context: {
-  docxBlockLayoutIndex: number;
-  docxBlockLayouts: DocxBlockLayoutSpec[];
-}, input: {
-  bookmarkName?: string;
-  spaceBefore?: SpacingValue;
-  spaceAfter?: SpacingValue;
-  insetLeft?: InsetValue;
-  insetRight?: InsetValue;
-  firstLineIndent?: IndentValue;
-  align?: AlignValue;
-}): string | undefined {
+function renderLink(node: Extract<StegoInlineNode, { kind: "link" }>, context: RenderContext): string {
+  const target = context.leaves.get(node.leaf);
+  if (!target) {
+    throw new Error(`Unknown leaf '${node.leaf}' referenced by <Stego.Link />.`);
+  }
+
+  let href = `#${buildLeafRootAnchor(target.id)}`;
+  if (node.anchor) {
+    href = `#${target.id}--${normalizeAnchor(node.anchor)}`;
+  } else if (node.heading) {
+    const resolved = findLeafHeadingTarget(target.headings, node.heading);
+    if (resolved.ambiguous) {
+      throw new Error(`Heading '${node.heading}' is ambiguous in leaf '${target.id}'. Use anchor= instead.`);
+    }
+    if (!resolved.target) {
+      throw new Error(`Unknown heading '${node.heading}' in leaf '${target.id}'.`);
+    }
+    href = `#${resolved.target.anchor}`;
+  }
+
+  const label = node.children.length > 0
+    ? renderInlineChildren(node.children, context)
+    : escapeInlineText(resolveLeafLabel(target));
+  return `[${label}](${href})`;
+}
+
+function resolveLeafLabel(target: LeafIndexEntry): string {
+  const label = typeof target.metadata.label === "string" && target.metadata.label.trim()
+    ? target.metadata.label.trim()
+    : typeof target.metadata.title === "string" && target.metadata.title.trim()
+      ? target.metadata.title.trim()
+      : target.titleFromFilename.trim() || target.id;
+  return label;
+}
+
+function normalizeAnchor(value: string): string {
+  return value.trim().replace(/^#/, "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function escapeInlineText(value: string): string {
+  return value.replace(/([\[\]\\])/g, "\\$1");
+}
+
+function getOrCreateDocxBlockLayoutMarker(
+  context: RenderContext,
+  input: {
+    bookmarkName?: string;
+    spaceBefore?: SpacingValue;
+    spaceAfter?: SpacingValue;
+    insetLeft?: InsetValue;
+    insetRight?: InsetValue;
+    firstLineIndent?: IndentValue;
+    align?: AlignValue;
+  }
+): string | undefined {
   const layout = toDocxBlockLayout(input);
   if (!layout) {
     return undefined;
@@ -193,10 +292,7 @@ function getOrCreateDocxBlockLayoutMarker(context: {
 }
 
 function renderDocxLayoutMarker(
-  context: {
-    docxBlockLayoutIndex: number;
-    docxBlockLayouts: DocxBlockLayoutSpec[];
-  },
+  context: RenderContext,
   layout: Omit<DocxBlockLayoutSpec, "bookmarkName">,
   extraTokens: string[] = [],
   body = ""

@@ -3,8 +3,7 @@ import type { TemplateContext } from "../../template/index.ts";
 
 export type CompileProjectInput = {
   projectRoot: string;
-  manuscriptDir?: string;
-  spineDir?: string;
+  contentDir?: string;
   templatePath?: string;
 };
 
@@ -17,6 +16,5 @@ export type CompileProjectResult = {
 
 export type BuildTemplateContextInput = {
   projectRoot: string;
-  manuscriptDir?: string;
-  spineDir?: string;
+  contentDir?: string;
 };

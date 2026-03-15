@@ -3,18 +3,18 @@ import { DEFAULT_IDENTIFIER_PATTERN } from '../../shared/constants';
 import { escapeMarkdown } from '../../shared/markdown';
 import { collectIdentifiers } from './collectIdentifiers';
 import { isCommentIdentifier, normalizeCommentIdentifier } from '../comments';
-import { SpineIndexService } from '../indexing';
+import { LeafIndexService } from '../indexing';
 import { createExploreIdentifierCommandUri } from '../navigation';
 import { getConfig } from '../project';
 
-export function createHoverProvider(indexService: SpineIndexService): vscode.HoverProvider {
+export function createHoverProvider(indexService: LeafIndexService): vscode.HoverProvider {
   return {
     async provideHover(document, position): Promise<vscode.Hover | undefined> {
       if (!getConfig('editor', document.uri).get<boolean>('enableHover', true)) {
         return undefined;
       }
 
-      const pattern = getConfig('spine', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
+      const pattern = getConfig('links', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
       const includeFences = getConfig('editor', document.uri).get<boolean>('linkInCodeFences', false);
       const matches = collectIdentifiers(document, pattern, includeFences);
       const match = matches.find((candidate) => candidate.range.contains(position));
@@ -25,10 +25,10 @@ export function createHoverProvider(indexService: SpineIndexService): vscode.Hov
       if (isCommentIdentifier(match.id)) {
         const commentId = normalizeCommentIdentifier(match.id);
         const encodedArgs = encodeURIComponent(JSON.stringify([commentId]));
-        const commandUri = vscode.Uri.parse(`command:stegoSpine.openCommentThread?${encodedArgs}`);
+        const commandUri = vscode.Uri.parse(`command:stegoExplore.openCommentThread?${encodedArgs}`);
         const commentMd = new vscode.MarkdownString();
         commentMd.isTrusted = {
-          enabledCommands: ['stegoSpine.openCommentThread']
+          enabledCommands: ['stegoExplore.openCommentThread']
         };
         commentMd.appendMarkdown(`**${commentId}**`);
         commentMd.appendMarkdown(`\\n\\nComment identifier.`);
@@ -51,7 +51,7 @@ export function createHoverProvider(indexService: SpineIndexService): vscode.Hov
         md.appendMarkdown(`\\n\\n${escapeMarkdown(record.description)}`);
       }
 
-      md.appendMarkdown(`\\n\\n[Open in Spine Browser](${createExploreIdentifierCommandUri(match.id).toString()})`);
+      md.appendMarkdown(`\\n\\n[Open linked leaf](${createExploreIdentifierCommandUri(match.id).toString()})`);
 
       return new vscode.Hover(md, match.range);
     }

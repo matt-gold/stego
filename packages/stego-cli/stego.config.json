@@ -1,7 +1,6 @@
 {
   "projectsDir": "projects",
-  "chapterDir": "manuscript",
-  "spineDir": "spine",
+  "contentDir": "content",
   "notesDir": "notes",
   "distDir": "dist",
   "requiredMetadata": [
@@ -17,28 +16,24 @@
   "stagePolicies": {
     "draft": {
       "minimumChapterStatus": "draft",
-      "requireSpine": false,
       "enforceMarkdownlint": false,
       "enforceCSpell": false,
       "enforceLocalLinks": false
     },
     "revise": {
       "minimumChapterStatus": "revise",
-      "requireSpine": true,
       "enforceMarkdownlint": false,
       "enforceCSpell": false,
       "enforceLocalLinks": false
     },
     "line-edit": {
       "minimumChapterStatus": "line-edit",
-      "requireSpine": true,
       "enforceMarkdownlint": false,
       "enforceCSpell": true,
       "enforceLocalLinks": false
     },
     "proof": {
       "minimumChapterStatus": "proof",
-      "requireSpine": true,
       "enforceMarkdownlint": true,
       "enforceCSpell": true,
       "enforceLocalLinks": true,
@@ -46,7 +41,6 @@
     },
     "final": {
       "minimumChapterStatus": "final",
-      "requireSpine": true,
       "enforceMarkdownlint": true,
       "enforceCSpell": true,
       "enforceLocalLinks": true,

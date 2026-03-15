@@ -27,7 +27,7 @@ export async function runExport(input: RunExportInput): Promise<RunExportResult>
     ? uniqueResolvedPaths(input.resourcePaths)
     : uniqueResolvedPaths([
       input.project.root,
-      input.project.manuscriptDir,
+      input.project.contentDir,
       path.join(input.project.root, "assets"),
       path.dirname(input.inputPath)
     ]);

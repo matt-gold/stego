@@ -51,9 +51,7 @@ export function splitItems<T>(items: T[], selector: GroupSelector<T>): SplitGrou
 }
 
 export function resolveGroupValue<T>(item: T, selector: GroupSelector<T>): string | undefined {
-  const raw = typeof selector === "function"
-    ? selector(item)
-    : resolveNamedValue(item, selector);
+  const raw = selector(item);
 
   if (raw == null) {
     return undefined;
@@ -61,21 +59,4 @@ export function resolveGroupValue<T>(item: T, selector: GroupSelector<T>): strin
 
   const normalized = String(raw).trim();
   return normalized.length > 0 ? normalized : undefined;
-}
-
-function resolveNamedValue<T>(item: T, key: string): unknown {
-  const ownValue = Reflect.get(item as object, key);
-  if (typeof ownValue === "string" || typeof ownValue === "number") {
-    return ownValue;
-  }
-
-  const metadata = Reflect.get(item as object, "metadata");
-  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
-    const metadataValue = Reflect.get(metadata, key);
-    if (typeof metadataValue === "string" || typeof metadataValue === "number") {
-      return metadataValue;
-    }
-  }
-
-  return undefined;
 }

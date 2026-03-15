@@ -13,11 +13,6 @@ export interface Issue {
   line: number | null;
 }
 
-export interface SpineCategory {
-  key: string;
-  entries: Set<string>;
-}
-
 export interface ParsedCommentThread {
   id: string;
   resolved: boolean;
@@ -29,26 +24,19 @@ export type MetadataRecord = Record<string, unknown>;
 export interface ChapterEntry {
   path: string;
   relativePath: string;
+  id: string | null;
   title: string;
   order: number | null;
   status: string;
-  referenceKeysByCategory: Record<string, string[]>;
   metadata: MetadataRecord;
   body: string;
   comments: ParsedCommentThread[];
   issues: Issue[];
 }
 
-export interface SpineState {
-  categories: SpineCategory[];
-  entriesByCategory: Map<string, Set<string>>;
-  issues: Issue[];
-}
-
 export interface ProjectInspection {
   chapters: ChapterEntry[];
   issues: Issue[];
-  spineState: SpineState;
 }
 
 export interface InspectProjectOptions {
@@ -57,7 +45,6 @@ export interface InspectProjectOptions {
 
 export interface StagePolicy {
   minimumChapterStatus: StageName;
-  requireSpine: boolean;
   enforceMarkdownlint: boolean;
   enforceCSpell: boolean;
   enforceLocalLinks: boolean;
@@ -70,8 +57,8 @@ export interface StageCheckResult {
 }
 
 export interface LintSelection {
-  manuscript: boolean;
-  spine: boolean;
+  content: boolean;
+  notes: boolean;
 }
 
 export interface LintResult {

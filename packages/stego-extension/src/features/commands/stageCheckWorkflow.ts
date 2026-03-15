@@ -16,15 +16,15 @@ export function getStageCheckDetails(stage: string, scope: 'file' | 'project'): 
 
   switch (normalizedStage) {
     case 'revise':
-      details.push('Checked spine continuity.');
+      details.push('Checked leaf identifier continuity.');
       break;
     case 'line-edit':
-      details.push('Checked spine continuity.');
+      details.push('Checked leaf identifier continuity.');
       details.push('Ran spell check.');
       break;
     case 'proof':
     case 'final':
-      details.push('Checked spine continuity.');
+      details.push('Checked leaf identifier continuity.');
       details.push('Ran markdown lint.');
       details.push('Ran spell check.');
       details.push('Enforced strict local link checks.');

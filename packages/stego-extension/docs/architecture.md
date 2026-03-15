@@ -3,7 +3,7 @@
 ## Design Goals
 
 - Preserve CLI-first behavior: extension UX delegates project mutations to `@stego-labs/cli`.
-- Keep sidebar code modular by tab (`document`, `spine`, `overview`) and by rendering/orchestration seams.
+- Keep sidebar code modular by tab (`document`, `explore`, `overview`) and by rendering/orchestration seams.
 - Keep pure domain helpers testable without VS Code runtime dependencies.
 
 ## Source Layout
@@ -36,7 +36,7 @@ src/
             navigationHandlers.ts
             metadataHandlers.ts
             imagesHandlers.ts
-            spineHandlers.ts
+            exploreHandlers.ts
             commentsHandlers.ts
             workflowHandlers.ts
             overviewHandlers.ts
@@ -54,10 +54,10 @@ src/
         document/
           sidebarToc.ts
           sidebarStateBuilder.ts
-        spine/
+        explore/
           sidebarExplorer.ts
           sidebarRoutes.ts
-          spinePins.ts
+          explorerPins.ts
         overview/
           overviewMetrics.ts
       webview/
@@ -76,7 +76,7 @@ webview/
       components/
       modules/
         document/
-        spine/
+        explore/
         overview/
       styles/
       main.tsx
@@ -88,7 +88,7 @@ webview/
 - `sidebar/core/runtime`: runtime orchestration, event bus, domain action handlers, effect runner, and projection.
 - `sidebar/protocol`: typed host/webview message contracts + runtime guards.
 - `sidebar/tabs/document`: document-centric projections (TOC, metadata references, contextual backlinks).
-- `sidebar/tabs/spine`: spine explorer routing, category/entry projections, pin-state transitions.
+- `sidebar/tabs/explore`: explorer routing, reference-group/leaf projections, and pin-state transitions.
 - `sidebar/tabs/overview`: manuscript-level metrics and ordering logic.
 - `sidebar/webview`: host-side webview shell + asset resolution + state adaptation.
 - `webview/sidebar`: SolidJS webview SPA (rendering, local UI effects, typed action creators/dispatch).

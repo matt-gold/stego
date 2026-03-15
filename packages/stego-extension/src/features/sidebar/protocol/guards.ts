@@ -26,7 +26,7 @@ function asBoolean(record: Record<string, unknown>, key: string): boolean | unde
 }
 
 function asTabValue(value: string): SidebarViewTab | undefined {
-  if (value === 'document' || value === 'spine' || value === 'overview') {
+  if (value === 'document' || value === 'explore' || value === 'overview') {
     return value;
   }
   return undefined;
@@ -44,10 +44,10 @@ function parseAction(record: Record<string, unknown>, type: SidebarActionMessage
     case 'metadata.addArrayItem':
     case 'images.editFormat':
     case 'images.resetToDefaults':
-    case 'spine.openIdentifier':
-    case 'spine.unpinEntry':
-    case 'spine.togglePinnedBacklinks':
-    case 'spine.togglePinnedCollapse':
+    case 'explore.openIdentifier':
+    case 'explore.unpinEntry':
+    case 'explore.togglePinnedBacklinks':
+    case 'explore.togglePinnedCollapse':
     case 'comments.selectThread':
     case 'comments.reply':
     case 'comments.delete':
@@ -69,7 +69,7 @@ function parseAction(record: Record<string, unknown>, type: SidebarActionMessage
       return { type, id: idOrKey };
     }
     case 'metadata.setStatus':
-    case 'spine.setBacklinkFilter': {
+    case 'explore.setBacklinkFilter': {
       const value = asString(record, 'value');
       if (!value) {
         return undefined;
@@ -108,15 +108,14 @@ function parseAction(record: Record<string, unknown>, type: SidebarActionMessage
       const basePath = asString(record, 'basePath');
       return basePath ? { type, url, basePath } : { type, url };
     }
-    case 'spine.openCategory': {
+    case 'explore.openBranch': {
       const key = asString(record, 'key');
-      const prefix = asString(record, 'prefix');
-      if (!key || !prefix) {
+      if (!key) {
         return undefined;
       }
-      return { type, key, prefix };
+      return { type, key };
     }
-    case 'spine.setPinnedBacklinkFilter': {
+    case 'explore.setPinnedBacklinkFilter': {
       const id = asString(record, 'id');
       const value = asString(record, 'value');
       if (!id || value === undefined) {
@@ -159,16 +158,16 @@ function parseAction(record: Record<string, unknown>, type: SidebarActionMessage
     case 'doc.openPreview':
     case 'doc.toggleFrontmatterFold':
     case 'doc.copyCleanText':
-    case 'spine.goHome':
-    case 'spine.goBack':
-    case 'spine.goForward':
-    case 'spine.toggleExplorerCollapse':
-    case 'spine.toggleBacklinks':
-    case 'spine.createCategory':
-    case 'spine.pinActiveEntry':
-    case 'spine.pinAllFromDocument':
-    case 'spine.unpinAll':
-    case 'spine.rebuildIndex':
+    case 'explore.goHome':
+    case 'explore.goBack':
+    case 'explore.goForward':
+    case 'explore.toggleExplorerCollapse':
+    case 'explore.toggleBacklinks':
+    case 'explore.createBranch':
+    case 'explore.pinActiveEntry':
+    case 'explore.pinAllFromDocument':
+    case 'explore.unpinAll':
+    case 'explore.rebuildIndex':
     case 'comments.add':
     case 'comments.clearResolved':
     case 'workflow.validateCurrentFile':

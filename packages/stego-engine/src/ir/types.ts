@@ -24,11 +24,15 @@ export type StegoNode =
   | StegoHeadingNode
   | StegoParagraphNode
   | StegoMarkdownNode
+  | StegoPlainTextNode
   | StegoImageNode
   | StegoPageBreakNode
   | StegoPageTemplateNode
   | StegoPageNumberNode
+  | StegoLinkNode
   | StegoTextNode;
+
+export type StegoInlineNode = StegoTextNode | StegoLinkNode;
 
 export type StegoDocumentNode = {
   kind: "document";
@@ -67,7 +71,7 @@ export type StegoHeadingNode = {
   insetLeft?: InsetValue;
   insetRight?: InsetValue;
   align?: AlignValue;
-  children: StegoNode[];
+  children: StegoInlineNode[];
 };
 
 export type StegoParagraphNode = {
@@ -78,12 +82,25 @@ export type StegoParagraphNode = {
   insetRight?: InsetValue;
   firstLineIndent?: IndentValue;
   align?: AlignValue;
-  children: StegoNode[];
+  children: StegoInlineNode[];
 };
 
 export type StegoMarkdownNode = {
   kind: "markdown";
-  source: string;
+  source?: string;
+  leaf?: {
+    id: string;
+    body: string;
+  };
+};
+
+export type StegoPlainTextNode = {
+  kind: "plainText";
+  source?: string;
+  leaf?: {
+    id: string;
+    body: string;
+  };
 };
 
 export type StegoImageNode = {
@@ -114,4 +131,12 @@ export type StegoPageNumberNode = {
 export type StegoTextNode = {
   kind: "text";
   value: string;
+};
+
+export type StegoLinkNode = {
+  kind: "link";
+  leaf: string;
+  heading?: string;
+  anchor?: string;
+  children: StegoInlineNode[];
 };

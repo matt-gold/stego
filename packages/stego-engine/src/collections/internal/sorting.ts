@@ -1,4 +1,4 @@
-import type { SortSelector } from "../public/types.ts";
+type SortSelector<T> = keyof T | ((item: T) => string | number | undefined);
 
 export function sortItems<T>(items: T[], selector: SortSelector<T>): T[] {
   const next = [...items];

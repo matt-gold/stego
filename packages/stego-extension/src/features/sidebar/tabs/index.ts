@@ -1,3 +1,3 @@
 export * as SidebarDocumentTab from './document';
-export * as SidebarSpineTab from './spine';
+export * as SidebarExploreTab from './explore';
 export * as SidebarOverviewTab from './overview';

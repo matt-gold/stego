@@ -36,7 +36,7 @@ export async function exportTemplateProject(input: ExportTemplateProjectInput): 
       inputFormat: built.renderPlan.inputFormat,
       resourcePaths: [
         ...built.renderPlan.resourcePaths,
-        input.project.manuscriptDir,
+        input.project.contentDir,
         path.dirname(built.markdownPath)
       ],
       requiredFilters: built.renderPlan.requiredFilters,

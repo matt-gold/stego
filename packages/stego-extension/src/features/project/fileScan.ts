@@ -1,58 +1,30 @@
 import * as path from 'path';
 import { promises as fs, type Dirent } from 'fs';
-import { SPINE_DIR } from '../../shared/constants';
+import { isBranchFile, isSupportedLeafContentFile } from '@stego-labs/shared/domain/content';
+import { CONTENT_DIR } from '../../shared/constants';
 import { normalizeFsPath, uniqueResolvedPaths } from '../../shared/path';
-import type { ProjectSpineCategory } from '../../shared/types';
+import type { ProjectBranch } from '../../shared/types';
 
 export async function buildProjectScanPlan(
-  projectDir: string,
-  categories: ProjectSpineCategory[]
-): Promise<{ files: string[]; prefixes: Set<string>; stampParts: string[] }> {
-  const prefixes = new Set(categories.map((category) => category.prefix));
-  const spineCategoryFiles: string[] = [];
-  let needsGlobalScan = false;
-
-  for (const category of categories) {
-    const categoryDir = path.join(projectDir, SPINE_DIR, category.key);
-    if (await isDirectory(categoryDir)) {
-      const discovered = await collectMarkdownFiles(categoryDir);
-      spineCategoryFiles.push(...discovered);
-      continue;
-    }
-
-    if (!category.notesFile) {
-      needsGlobalScan = true;
-      continue;
-    }
-
-    const resolved = await resolveCategoryNotesFile(projectDir, category.notesFile);
-    if (!resolved) {
-      needsGlobalScan = true;
-      continue;
-    }
-
-    spineCategoryFiles.push(resolved);
-  }
-
-  let files = uniqueResolvedPaths(spineCategoryFiles);
-  if (needsGlobalScan || files.length === 0) {
-    const discovered = await collectMarkdownFiles(projectDir);
-    files = uniqueResolvedPaths([...files, ...discovered]);
-  }
-
+  projectDir: string
+): Promise<{ files: string[]; stampParts: string[] }> {
+  const contentRoot = path.join(projectDir, CONTENT_DIR);
+  const files = await isDirectory(contentRoot)
+    ? uniqueResolvedPaths(await collectMarkdownFiles(contentRoot))
+    : [];
   const stampParts = await buildFileStampParts(files);
-  return { files, prefixes, stampParts };
+  return { files, stampParts };
 }
 
-export async function resolveCategoryNotesFile(projectDir: string, notesFile: string): Promise<string | undefined> {
+export async function resolveBranchNotesFile(projectDir: string, notesFile: string): Promise<string | undefined> {
   const trimmed = notesFile.trim().replace(/\\/g, '/');
   if (!trimmed || path.isAbsolute(trimmed) || trimmed.startsWith('../') || trimmed.includes('/../')) {
     return undefined;
   }
 
-  const spineRoot = path.resolve(path.join(projectDir, SPINE_DIR));
-  const candidate = path.resolve(path.join(spineRoot, trimmed));
-  if (!(candidate === spineRoot || candidate.startsWith(`${spineRoot}${path.sep}`))) {
+  const contentRoot = path.resolve(path.join(projectDir, CONTENT_DIR));
+  const candidate = path.resolve(path.join(contentRoot, trimmed));
+  if (!(candidate === contentRoot || candidate.startsWith(`${contentRoot}${path.sep}`))) {
     return undefined;
   }
   return (await isFile(candidate)) ? candidate : undefined;
@@ -94,7 +66,7 @@ export async function collectMarkdownFiles(rootDir: string): Promise<string[]> {
         continue;
       }
 
-      if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+      if (entry.isFile() && (isSupportedLeafContentFile(fullPath) || isBranchFile(fullPath))) {
         results.push(fullPath);
       }
     }
@@ -106,8 +78,7 @@ export async function collectMarkdownFiles(rootDir: string): Promise<string[]> {
 
 export async function collectReferenceMarkdownFiles(projectDir: string): Promise<string[]> {
   const roots = [
-    path.join(projectDir, 'manuscript'),
-    path.join(projectDir, 'manuscripts'),
+    path.join(projectDir, CONTENT_DIR),
     path.join(projectDir, 'notes')
   ];
 
@@ -125,22 +96,11 @@ export async function collectReferenceMarkdownFiles(projectDir: string): Promise
 }
 
 export async function collectManuscriptMarkdownFiles(projectDir: string): Promise<string[]> {
-  const roots = [
-    path.join(projectDir, 'manuscript'),
-    path.join(projectDir, 'manuscripts')
-  ];
-
-  const files: string[] = [];
-  for (const root of roots) {
-    if (!(await isDirectory(root))) {
-      continue;
-    }
-
-    const discovered = await collectMarkdownFiles(root);
-    files.push(...discovered);
+  const contentRoot = path.join(projectDir, CONTENT_DIR);
+  if (!(await isDirectory(contentRoot))) {
+    return [];
   }
-
-  return uniqueResolvedPaths(files);
+  return uniqueResolvedPaths(await collectMarkdownFiles(contentRoot));
 }
 
 export async function isDirectory(dirPath: string): Promise<boolean> {
@@ -163,24 +123,24 @@ export function shouldSkipScanDirectory(name: string): boolean {
     || value === '.vscode';
 }
 
-export async function resolveCurrentSpineCategoryFile(
+export async function resolveCurrentBranchFile(
   projectDir: string,
-  categories: ProjectSpineCategory[],
+  branches: ProjectBranch[],
   currentFilePath: string
-): Promise<ProjectSpineCategory | undefined> {
+): Promise<ProjectBranch | undefined> {
   const normalizedCurrent = normalizeFsPath(path.resolve(currentFilePath));
-  for (const category of categories) {
-    if (!category.notesFile) {
+  for (const branch of branches) {
+    if (!branch.notesFile) {
       continue;
     }
 
-    const resolved = await resolveCategoryNotesFile(projectDir, category.notesFile);
+    const resolved = await resolveBranchNotesFile(projectDir, branch.notesFile);
     if (!resolved) {
       continue;
     }
 
     if (normalizeFsPath(resolved) === normalizedCurrent) {
-      return category;
+      return branch;
     }
   }
 

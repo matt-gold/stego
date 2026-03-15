@@ -2,6 +2,6 @@ export {
   ReferenceUsageIndexService
 } from './referenceUsageIndexService';
 export {
-  SpineIndexService,
+  LeafIndexService,
   resolveRecordPathToFile
-} from './spineIndexService';
+} from './leafIndexService';

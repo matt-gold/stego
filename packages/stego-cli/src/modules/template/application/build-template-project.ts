@@ -21,14 +21,14 @@ export async function buildTemplateProject(
 ): Promise<BuildTemplateProjectResult> {
   const compiled = await compileProject({
     projectRoot: project.root,
-    manuscriptDir: project.manuscriptDir,
-    spineDir: project.spineDir,
+    contentDir: project.contentDir,
     templatePath
   });
 
   const renderPlan = renderDocument({
     document: compiled.document,
-    projectRoot: project.root
+    projectRoot: project.root,
+    context: compiled.context
   });
 
   fs.mkdirSync(project.distDir, { recursive: true });

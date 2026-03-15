@@ -1,5 +1,11 @@
 import type { StegoDocumentNode } from "../../ir/index.ts";
-import type { StegoTemplate, TemplateContext } from "../public/types.ts";
+import type {
+  BranchMetadata,
+  LeafMetadata,
+  ProjectMetadata,
+  StegoTemplate,
+  TemplateContext
+} from "../public/types.ts";
 
 export function assertTemplateModule(value: unknown): StegoTemplate {
   if (
@@ -15,6 +21,21 @@ export function assertTemplateModule(value: unknown): StegoTemplate {
 }
 
 export function evaluateTemplate(template: StegoTemplate, context: TemplateContext): StegoDocumentNode {
+  const document = template.render(context);
+  if (!document || document.kind !== "document") {
+    throw new Error("Template render() must return <Stego.Document>.");
+  }
+  return document;
+}
+
+export function evaluateTypedTemplate<
+  TProjectMetadata extends ProjectMetadata = ProjectMetadata,
+  TLeafMetadata extends LeafMetadata = LeafMetadata,
+  TBranchMetadata extends BranchMetadata = BranchMetadata
+>(
+  template: StegoTemplate<TProjectMetadata, TLeafMetadata, TBranchMetadata>,
+  context: TemplateContext<TProjectMetadata, TLeafMetadata, TBranchMetadata>
+): StegoDocumentNode {
   const document = template.render(context);
   if (!document || document.kind !== "document") {
     throw new Error("Template render() must return <Stego.Document>.");

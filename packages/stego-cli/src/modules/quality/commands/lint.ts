@@ -15,8 +15,8 @@ export function registerLintCommand(registry: CommandRegistry): void {
     description: "Run markdown and spelling checks",
     options: [
       { flags: "-p, --project <project-id>", description: "Project id" },
-      { flags: "--manuscript", description: "Lint manuscript files only" },
-      { flags: "--spine", description: "Lint spine/notes files only" },
+      { flags: "--content", description: "Lint content leaves only" },
+      { flags: "--notes", description: "Lint notes/project markdown only" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],
     action: (context) => {

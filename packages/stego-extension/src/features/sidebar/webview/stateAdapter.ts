@@ -116,23 +116,39 @@ function renderExplorerPage(
   state: SidebarState,
   page: SidebarExplorerPage | undefined
 ): SidebarWebviewState['explorer'] | undefined {
-  if (!page || page.kind !== 'identifier') {
+  if (!page) {
+    return undefined;
+  }
+
+  if (page.kind === 'identifier') {
+    const sourceBodyHtml = page.entry.sourceBody
+      ? renderMarkdownForExplorer(page.entry.sourceBody, {
+        basePath: page.entry.sourceFilePath,
+        resolveImageSrc: (rawSrc, basePath) => resolveWebviewImageSrc(webview, rawSrc, basePath)
+      })
+      : undefined;
+
+    return {
+      ...page,
+      entry: {
+        ...page.entry,
+        sourceBodyHtml
+      }
+    };
+  }
+
+  if (!page.body) {
     return page;
   }
 
-  const sourceBodyHtml = page.entry.sourceBody
-    ? renderMarkdownForExplorer(page.entry.sourceBody, {
-      basePath: page.entry.sourceFilePath,
-      resolveImageSrc: (rawSrc, basePath) => resolveWebviewImageSrc(webview, rawSrc, basePath)
-    })
-    : undefined;
-
   return {
     ...page,
-    entry: {
-      ...page.entry,
-      sourceBodyHtml
-    }
+    body: renderMarkdownForExplorer(page.body, {
+      basePath: state.projectDir
+        ? path.join(state.projectDir, 'content', ...(page.branch.key ? page.branch.key.split('/') : []), '_branch.md')
+        : state.documentPath,
+      resolveImageSrc: (rawSrc, basePath) => resolveWebviewImageSrc(webview, rawSrc, basePath)
+    })
   };
 }
 
@@ -159,11 +175,11 @@ export function toSidebarWebviewState(webview: vscode.Webview, state: SidebarSta
   const manuscriptLabel = state.mode === 'manuscript'
     ? state.metadataEntries.find((entry) => entry.key === 'label' && !entry.isArray)?.valueText
     : undefined;
-  const spineEntryLabel = state.mode === 'nonManuscript' && state.showMetadataPanel
+  const leafLabel = state.mode === 'nonManuscript' && state.showMetadataPanel
     ? state.metadataEntries.find((entry) => entry.key === 'label' && !entry.isArray)?.valueText
     : undefined;
-  const preferredTitle = state.mode === 'manuscript' ? manuscriptLabel : spineEntryLabel;
-  const showSpineFilenameSubtitle = state.mode === 'nonManuscript' && !!spineEntryLabel?.trim();
+  const preferredTitle = state.mode === 'manuscript' ? manuscriptLabel : leafLabel;
+  const showReferenceFilenameSubtitle = state.mode === 'nonManuscript' && !!leafLabel?.trim();
   const fileTitle = getSidebarFileTitle(state.documentPath, preferredTitle);
   const fileStem = fileTitle.filename ? path.parse(fileTitle.filename).name : '';
 
@@ -191,7 +207,7 @@ export function toSidebarWebviewState(webview: vscode.Webview, state: SidebarSta
     documentTitle: fileTitle.title,
     documentFilename: fileTitle.filename,
     documentFileStem: fileStem,
-    showSpineFilenameSubtitle,
+    showReferenceFilenameSubtitle,
     comments,
     explorer,
     pinnedExplorers,

@@ -14,12 +14,12 @@ body {
   margin-bottom: 12px;
   background: var(--vscode-editorWidget-background);
 }
-.spine-panel-stack {
+.explore-panel-stack {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-.spine-panel-stack .panel {
+.explore-panel-stack .panel {
   margin-bottom: 0;
 }
 h2 {
@@ -87,7 +87,7 @@ h2 {
   align-items: center;
   gap: 6px;
 }
-.spine-tab-actions-row {
+.explore-tab-actions-row {
   margin: -4px 0 12px;
   display: flex;
   justify-content: flex-end;
@@ -746,7 +746,7 @@ code {
   letter-spacing: 0.02em;
   border: 1px solid var(--vscode-panel-border);
 }
-.badge.spine {
+.badge.reference {
   background: var(--vscode-button-background);
   border-color: var(--vscode-button-background);
   color: var(--vscode-button-foreground);

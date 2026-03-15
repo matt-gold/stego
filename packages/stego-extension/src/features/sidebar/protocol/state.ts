@@ -1,6 +1,6 @@
 import type { ImageStyle } from '@stego-labs/shared/domain/images';
 
-export type SidebarViewTab = 'document' | 'spine' | 'overview';
+export type SidebarViewTab = 'document' | 'explore' | 'overview';
 
 export type SidebarIdentifierLink = {
   id: string;
@@ -27,7 +27,7 @@ export type SidebarMetadataArrayItem = {
 export type SidebarMetadataEntry = {
   key: string;
   isStructural: boolean;
-  isSpineCategory: boolean;
+  isBranch: boolean;
   isArray: boolean;
   valueText: string;
   references: SidebarIdentifierLink[];
@@ -139,14 +139,15 @@ export type SidebarExplorerEntry = {
   backlinksExpanded: boolean;
 };
 
-export type SidebarExplorerCategorySummary = {
+export type SidebarExplorerBranchSummary = {
   key: string;
-  prefix: string;
+  name: string;
   label: string;
-  count: number;
+  parentKey?: string;
+  directLeafCount: number;
 };
 
-export type SidebarExplorerCategoryItem = {
+export type SidebarExplorerLeafItem = {
   id: string;
   label: string;
   title: string;
@@ -157,16 +158,21 @@ export type SidebarExplorerCategoryItem = {
 export type SidebarExplorerPage =
   | {
     kind: 'home';
-    categories: SidebarExplorerCategorySummary[];
+    branch: SidebarExplorerBranchSummary;
+    childBranches: SidebarExplorerBranchSummary[];
+    leafItems: SidebarExplorerLeafItem[];
+    body?: string;
   }
   | {
-    kind: 'category';
-    category: SidebarExplorerCategorySummary;
-    items: SidebarExplorerCategoryItem[];
+    kind: 'branch';
+    branch: SidebarExplorerBranchSummary;
+    childBranches: SidebarExplorerBranchSummary[];
+    leafItems: SidebarExplorerLeafItem[];
+    body?: string;
   }
   | {
     kind: 'identifier';
-    category?: SidebarExplorerCategorySummary;
+    branch?: SidebarExplorerBranchSummary;
     entry: SidebarExplorerEntry;
   };
 
@@ -201,7 +207,7 @@ export type SidebarWebviewState = {
   documentTitle: string;
   documentFilename: string;
   documentFileStem: string;
-  showSpineFilenameSubtitle: boolean;
+  showReferenceFilenameSubtitle: boolean;
   projectDir?: string;
   warnings: string[];
   canShowOverview: boolean;
@@ -230,7 +236,7 @@ export type SidebarWebviewState = {
   explorerLoadToken: number;
   tocEntries: SidebarTocEntry[];
   showToc: boolean;
-  isSpineCategoryFile: boolean;
+  isBranchNotesFile: boolean;
   backlinkFilter: string;
   comments: SidebarWebviewCommentsState;
 };

@@ -12,14 +12,4 @@ export type SplitGroup<T> = {
   first: T;
 };
 
-export type GroupSelector<T> = string | ((item: T) => string | undefined);
-export type SortSelector<T> = keyof T | ((item: T) => string | number | undefined);
-
-export type Collection<T> = {
-  all(): T[];
-  where(predicate: (item: T) => boolean): Collection<T>;
-  sortBy(selector: SortSelector<T>): Collection<T>;
-  groupBy(selector: GroupSelector<T>): Group<T>[];
-  splitBy(selector: GroupSelector<T>): SplitGroup<T>[];
-  map<U>(mapper: (item: T) => U): U[];
-};
+export type GroupSelector<T> = (item: T) => string | undefined;

@@ -9,8 +9,7 @@ export async function compileProject(input: CompileProjectInput): Promise<Compil
   const templatePath = resolveTemplatePath(projectRoot, input.templatePath);
   const context = buildTemplateContext({
     projectRoot,
-    manuscriptDir: input.manuscriptDir,
-    spineDir: input.spineDir
+    contentDir: input.contentDir
   });
 
   const loaded = await loadTemplateFromFile(templatePath);

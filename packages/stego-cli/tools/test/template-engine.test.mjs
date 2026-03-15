@@ -39,8 +39,7 @@ function writePng(filePath) {
 
 function createTempProject(projectId) {
   const projectRoot = path.join(repoRoot, "projects", projectId);
-  fs.mkdirSync(path.join(projectRoot, "manuscript"), { recursive: true });
-  fs.mkdirSync(path.join(projectRoot, "spine", "sources"), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, "content", "reference"), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, "assets", "maps"), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, "templates"), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, "dist"), { recursive: true });
@@ -52,7 +51,8 @@ function createTempProject(projectId) {
     subtitle: "Demo subtitle"
   }, null, 2)}\n`);
 
-  writeFile(path.join(projectRoot, "manuscript", "100-scene.md"), `---
+  writeFile(path.join(projectRoot, "content", "100-scene.md"), `---
+id: CH-OPENING
 status: revise
 chapter: 1
 chapter_title: Opening
@@ -60,8 +60,7 @@ chapter_title: Opening
 
 Hello template world.
 `);
-  writeFile(path.join(projectRoot, "spine", "sources", "_category.md"), "---\nlabel: Sources\n---\n");
-  writeFile(path.join(projectRoot, "spine", "sources", "SRC-ONE.md"), "# Source One\n\nA note.\n");
+  writeFile(path.join(projectRoot, "content", "reference", "SRC-ONE.md"), "---\nid: SRC-ONE\nkind: reference\nlabel: Source One\n---\n\n# Source One\n\nA note.\n");
   writePng(path.join(projectRoot, "assets", "maps", "city-plan.png"));
   writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
@@ -69,14 +68,25 @@ export default defineTemplate((ctx) => (
     <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
     <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
     <Stego.Image src="assets/maps/city-plan.png" alt="Map" width="60%" layout="block" align="center" />
-    {ctx.collections.manuscripts.groupBy("chapter").map((group) => (
+    {Stego.groupBy(ctx.content, (leaf) => asString(leaf.metadata.chapter)).map((group) => (
       <Stego.Section role="chapter">
         <Stego.Heading level={2}>Chapter {group.value}</Stego.Heading>
-        {group.items.map((doc) => <Stego.Markdown source={doc.body} />)}
+        {group.items.map((leaf) => <Stego.Markdown leaf={leaf} />)}
       </Stego.Section>
     ))}
+    <Stego.Paragraph><Stego.Link leaf="SRC-ONE" /></Stego.Paragraph>
   </Stego.Document>
 ));
+
+function asString(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return undefined;
+}
 `);
 
   return projectRoot;
@@ -98,6 +108,7 @@ test("template build writes markdown and render-plan artifacts", () => {
     const markdown = fs.readFileSync(markdownPath, "utf8");
     assert.match(markdown, /Chapter 1/);
     assert.match(markdown, /Hello template world\./);
+    assert.match(markdown, /\[Source One\]\(#SRC-ONE\)/);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }
