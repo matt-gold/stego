@@ -36,7 +36,7 @@ function createTempProject(projectId, projectJson, manuscriptFiles, templateCont
     templateContent || `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document>
-    {Stego.splitBy(ctx.content, (leaf) => asString(leaf.metadata.chapter)).map((group) => (
+    {Stego.splitBy(ctx.allLeaves, (leaf) => asString(leaf.metadata.chapter)).map((group) => (
       <Stego.Section role="chapter">
         <Stego.Heading level={2}>
           Chapter {group.value}

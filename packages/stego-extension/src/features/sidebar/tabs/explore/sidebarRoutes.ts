@@ -6,12 +6,12 @@ export function normalizeExplorerRoute(route: ExplorerRoute): ExplorerRoute | un
   }
 
   if (route.kind === 'branch') {
-    const key = route.key.trim();
-    if (key.includes('..')) {
+    const id = route.id.trim();
+    if (id.includes('..')) {
       return undefined;
     }
 
-    return { kind: 'branch', key };
+    return { kind: 'branch', id };
   }
 
   const id = route.id.trim().toUpperCase();
@@ -32,7 +32,7 @@ export function isSameExplorerRoute(a: ExplorerRoute, b: ExplorerRoute): boolean
   }
 
   if (a.kind === 'branch' && b.kind === 'branch') {
-    return a.key === b.key;
+    return a.id === b.id;
   }
 
   return a.kind === 'identifier' && b.kind === 'identifier' && a.id === b.id;

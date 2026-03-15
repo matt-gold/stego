@@ -9,12 +9,19 @@ import {
   buildBranchParentKey,
   parseBranchDocument
 } from '@stego-labs/shared/domain/content';
+import {
+  getTemplateNameFromFilename,
+  inferSupportedTemplateTargets,
+  isTemplateFilename,
+  parseDeclaredTemplateTargets
+} from '@stego-labs/shared/domain/templates';
 import { CONTENT_DIR } from '../../shared/constants';
 import { normalizeFsPath } from '../../shared/path';
 import { isValidMetadataKey } from '@stego-labs/shared/domain/frontmatter';
 import type {
   ImageStyle,
   ProjectBranch,
+  ProjectTemplate,
   ProjectConfigIssue,
   ProjectScanContext
 } from '../../shared/types';
@@ -258,6 +265,7 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
   const requiredMetadata = extractProjectRequiredMetadata(source, issues);
   const imageDefaults = extractProjectImageDefaults(source);
   const branches = await discoverProjectBranches(path.dirname(projectFilePath), issues);
+  const templates = await discoverProjectTemplates(path.dirname(projectFilePath), issues);
   const dedupedIssues = dedupeIssues(issues);
 
   reportProjectConfigIssues(projectFilePath, dedupedIssues);
@@ -269,6 +277,7 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
     requiredMetadata,
     imageDefaults,
     branches,
+    templates,
     issues: dedupedIssues
   };
 }
@@ -377,10 +386,10 @@ async function discoverProjectBranches(
       continue;
     }
 
-    const key = buildBranchKey(contentDir, currentDir);
-    const name = key ? buildBranchName(currentDir) : 'content';
+    const id = buildBranchKey(contentDir, currentDir);
+    const name = id ? buildBranchName(currentDir) : 'content';
     const notesFilePath = path.join(currentDir, BRANCH_FILENAME);
-    let label = key ? buildBranchLabel(name) : 'Content';
+    let label = id ? buildBranchLabel(name) : 'Content';
     let body: string | undefined;
     let notesFile: string | undefined;
 
@@ -398,10 +407,10 @@ async function discoverProjectBranches(
     }
 
     branches.push({
-      key,
+      id,
       name,
       label,
-      parentKey: buildBranchParentKey(key),
+      parentId: buildBranchParentKey(id),
       relativeDir: path.relative(projectDir, currentDir).split(path.sep).join('/'),
       notesFile,
       body
@@ -422,10 +431,65 @@ async function discoverProjectBranches(
   }
 
   return branches.sort((a, b) => {
-    const depthA = a.key ? a.key.split('/').length : 0;
-    const depthB = b.key ? b.key.split('/').length : 0;
-    return depthA - depthB || a.key.localeCompare(b.key);
+    const depthA = a.id ? a.id.split('/').length : 0;
+    const depthB = b.id ? b.id.split('/').length : 0;
+    return depthA - depthB || a.id.localeCompare(b.id);
   });
+}
+
+async function discoverProjectTemplates(
+  projectDir: string,
+  issues?: ProjectConfigIssue[]
+): Promise<ProjectTemplate[]> {
+  const templatesDir = path.join(projectDir, 'templates');
+  try {
+    const stat = await fs.stat(templatesDir);
+    if (!stat.isDirectory()) {
+      return [];
+    }
+  } catch {
+    return [];
+  }
+
+  let entries: Dirent[];
+  try {
+    entries = await fs.readdir(templatesDir, { withFileTypes: true });
+  } catch (error) {
+    if (issues) {
+      issues.push(issue('templates', `Could not read templates directory: ${error instanceof Error ? error.message : String(error)}.`));
+    }
+    return [];
+  }
+
+  const templates: ProjectTemplate[] = [];
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isFile() || !isTemplateFilename(entry.name)) {
+      continue;
+    }
+
+    const templatePath = path.join(templatesDir, entry.name);
+    let declaredTargets = null;
+    try {
+      const source = await fs.readFile(templatePath, 'utf8');
+      declaredTargets = parseDeclaredTemplateTargets(source);
+    } catch (error) {
+      if (issues) {
+        issues.push(issue(path.relative(projectDir, templatePath), `Could not read template file: ${error instanceof Error ? error.message : String(error)}.`));
+      }
+      continue;
+    }
+
+    const name = getTemplateNameFromFilename(entry.name);
+    templates.push({
+      name,
+      path: templatePath,
+      relativePath: path.relative(projectDir, templatePath).split(path.sep).join('/'),
+      declaredTargets,
+      supportedTargets: inferSupportedTemplateTargets(name, declaredTargets)
+    });
+  }
+
+  return templates;
 }
 
 export function getConfig(section: 'links' | 'editor' | 'comments', scopeUri?: vscode.Uri): vscode.WorkspaceConfiguration {

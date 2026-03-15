@@ -81,12 +81,12 @@ export function evaluateTemplate(template: StegoTemplate, context: TemplateConte
 }
 
 export function evaluateTypedTemplate<
-  TProjectMetadata extends ProjectMetadata = ProjectMetadata,
   TLeafMetadata extends LeafMetadata = LeafMetadata,
-  TBranchMetadata extends BranchMetadata = BranchMetadata
+  TBranchMetadata extends BranchMetadata = BranchMetadata,
+  TProjectMetadata extends ProjectMetadata = ProjectMetadata
 >(
-  template: StegoTemplate<TProjectMetadata, TLeafMetadata, TBranchMetadata>,
-  context: TemplateContext<TProjectMetadata, TLeafMetadata, TBranchMetadata>
+  template: StegoTemplate<TLeafMetadata, TBranchMetadata, TProjectMetadata>,
+  context: TemplateContext<TLeafMetadata, TBranchMetadata, TProjectMetadata>
 ): StegoDocumentNode {
   const document = template.render(context);
   if (!document || document.kind !== "document") {

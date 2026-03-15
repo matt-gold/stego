@@ -123,7 +123,7 @@ test('validate rejects missing and duplicate leaf ids', () => {
     writeFile(path.join(projectRoot, 'templates', 'book.template.tsx'), `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document>
-    {ctx.content.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+    {ctx.allLeaves.map((leaf) => <Stego.Markdown leaf={leaf} />)}
   </Stego.Document>
 ));
 `);

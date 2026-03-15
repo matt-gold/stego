@@ -6,6 +6,38 @@ import { RunMenu } from '../../components/runMenu';
 import { sidebarActions } from '../../actions/actionCreators';
 import { dispatchSidebarAction } from '../../actions/dispatch';
 
+function TemplatesPanel(props: { state: SidebarWebviewState }): JSX.Element {
+  return (
+    <Show when={props.state.templates.length > 0}>
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Templates</h2>
+        </div>
+        <div class="list">
+          <For each={props.state.templates}>{(template) => (
+            <article class="item metadata-item">
+              <div class="item-main">
+                <div class="item-title-row">
+                  <button
+                    class="backlink-link"
+                    onClick={() => dispatchSidebarAction(sidebarActions.openBacklink(template.path, 1))}
+                  >
+                    {template.name}
+                  </button>
+                  <For each={template.supportedTargets}>{(target) => (
+                    <span class="badge">{target}</span>
+                  )}</For>
+                </div>
+                <div class="item-subtext">{template.relativePath}</div>
+              </div>
+            </article>
+          )}</For>
+        </div>
+      </section>
+    </Show>
+  );
+}
+
 export function OverviewTab(props: { state: SidebarWebviewState }): JSX.Element {
   return (
     <Show when={props.state.overview}>
@@ -93,7 +125,7 @@ export function OverviewTab(props: { state: SidebarWebviewState }): JSX.Element 
             </article>
             <article class="item metadata-item overview-metric-card neutral">
               <div class="item-main">
-                <div class="item-title-row"><span class="item-title-text">Manuscript Files</span></div>
+                <div class="item-title-row"><span class="item-title-text">Leaf Count</span></div>
                 <div class="metadata-value">{props.state.overview?.manuscriptFileCount.toLocaleString()}</div>
               </div>
             </article>
@@ -149,7 +181,9 @@ export function OverviewTab(props: { state: SidebarWebviewState }): JSX.Element 
         </div>
 
         <div class="overview-structure">
-          <Show when={props.state.overview && props.state.overview.mapRows.length > 0} fallback={<div class="empty tiny">No manuscript files found.</div>}>
+          <TemplatesPanel state={props.state} />
+
+          <Show when={props.state.overview && props.state.overview.mapRows.length > 0} fallback={<div class="empty tiny">No leaves found.</div>}>
             <div class="overview-file-list">
               <For each={props.state.overview?.mapRows ?? []}>{(row) => (
                 <article class="item metadata-item overview-file-item">

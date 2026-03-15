@@ -377,10 +377,10 @@ async function ensureDocumentSaved(document: vscode.TextDocument): Promise<{ war
   try {
     const saved = await document.save();
     if (!saved) {
-      return { warning: 'Could not save manuscript before updating comments.' };
+      return { warning: 'Could not save leaf before updating comments.' };
     }
     return {};
   } catch (error) {
-    return { warning: `Could not save manuscript before updating comments: ${errorToMessage(error)}` };
+    return { warning: `Could not save leaf before updating comments: ${errorToMessage(error)}` };
   }
 }

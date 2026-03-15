@@ -32,7 +32,7 @@ stego template build -p fiction-example
 
 - `content/` holds authored leaves
 - directories under `content/` are exposed as branches through `_branch.md`
-- templates read leaves through `ctx.content` and branches through `ctx.branches`
+- templates read the root tree through `ctx.content`, the flat leaf list through `ctx.allLeaves`, and the flat branch list through `ctx.allBranches`
 - templates compile them into a manuscript
 - `dist/` contains generated outputs only
 

@@ -354,7 +354,7 @@ export function DocumentTab(props: { state: SidebarWebviewState }): JSX.Element 
   const showDocumentTab = () => props.state.showDocumentTab ?? props.state.hasActiveMarkdown;
   const isExploreDocument = () => props.state.mode === 'nonManuscript' && props.state.showMetadataPanel;
   const runLocalChecksLabel = () => `Run ${statusSummaryLabel(props.state)} check`;
-  const copyCleanLabel = () => (isExploreDocument() ? 'Copy leaf text' : 'Copy manuscript text');
+  const copyCleanLabel = () => 'Copy leaf text';
 
   return (
     <>

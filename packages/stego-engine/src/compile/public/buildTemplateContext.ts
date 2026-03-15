@@ -8,10 +8,26 @@ export function buildTemplateContext(input: BuildTemplateContextInput): Template
   const contentDir = input.contentDir ?? path.join(input.projectRoot, "content");
   const project = loadProject(input.projectRoot);
   const graph = loadContentGraph(input.projectRoot, contentDir, project.metadata);
+  const rootBranch = graph.branches.find((branch) => branch.id === "");
+  if (!rootBranch) {
+    throw new Error("Content tree is missing the root branch.");
+  }
 
   return {
     project,
-    content: graph.leaves,
-    branches: graph.branches
+    content: {
+      kind: "content",
+      name: "content",
+      label: rootBranch.label,
+      relativeDir: rootBranch.relativeDir,
+      path: rootBranch.path,
+      relativePath: rootBranch.relativePath,
+      metadata: rootBranch.metadata,
+      body: rootBranch.body,
+      leaves: rootBranch.leaves,
+      branches: rootBranch.branches
+    },
+    allLeaves: graph.leaves,
+    allBranches: graph.branches
   };
 }

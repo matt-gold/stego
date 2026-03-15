@@ -20,6 +20,7 @@ export function createSidebarState(overrides: Partial<SidebarWebviewState> = {})
     metadataCollapsed: false,
     metadataEditing: false,
     enableComments: true,
+    templates: [],
     metadataEntries: [],
     imageEntries: [],
     projectImageDefaults: {},

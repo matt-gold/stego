@@ -9,9 +9,11 @@ export type {
   ProjectRecord,
   LeafRecord,
   BranchRecord,
+  ContentTree,
   TemplateContext,
   StegoTemplate,
-  TemplateDefinitionOptions
+  TemplateDefinitionOptions,
+  TemplateTypes
 } from "./public/types.ts";
 export type { StegoApi } from "./public/components.ts";
 export type { ExportTarget, PresentationTarget } from "@stego-labs/shared/domain/templates";

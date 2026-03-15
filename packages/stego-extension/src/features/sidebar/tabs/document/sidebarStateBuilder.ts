@@ -89,14 +89,14 @@ export async function buildExplorerState(
   index: Map<string, LeafTargetRecord>,
   projectContext: ProjectScanContext | undefined,
   pattern: string,
-  route: { kind: 'home' } | { kind: 'branch'; key: string } | { kind: 'identifier'; id: string },
+  route: { kind: 'home' } | { kind: 'branch'; id: string } | { kind: 'identifier'; id: string },
   backlinkFilter: string,
   backlinksExpanded: boolean,
   referenceUsageService: ReferenceUsageIndexService
 ): Promise<SidebarExplorerPage | undefined> {
   const branches = projectContext?.branches ?? [];
   const projectDir = projectContext?.projectDir;
-  const rootBranch = branches.find((branch) => branch.key === '');
+  const rootBranch = branches.find((branch) => branch.id === '');
 
   if (route.kind === 'home') {
     if (!rootBranch || !projectDir) {
@@ -115,7 +115,7 @@ export async function buildExplorerState(
     if (!projectDir) {
       return undefined;
     }
-    const branch = branches.find((entry) => entry.key === route.key);
+    const branch = branches.find((entry) => entry.id === route.id);
     if (!branch) {
       return rootBranch
         ? {
@@ -131,8 +131,8 @@ export async function buildExplorerState(
     return {
       kind: 'branch',
       branch: toBranchSummary(branch, index, projectDir),
-      childBranches: collectExplorerBranchSummaries(branches, index, projectDir, branch.key),
-      leafItems: collectExplorerLeafItems(branch.key, index, projectDir),
+      childBranches: collectExplorerBranchSummaries(branches, index, projectDir, branch.id),
+      leafItems: collectExplorerLeafItems(branch.id, index, projectDir),
       body: branch.body
     };
   }
@@ -244,16 +244,16 @@ function findBranchForRecord(
     return undefined;
   }
   const contentRoot = path.join(projectDir, CONTENT_DIR);
-  const key = buildBranchKey(contentRoot, path.dirname(filePath));
-  return branches.find((branch) => branch.key === key);
+  const branchId = buildBranchKey(contentRoot, path.dirname(filePath));
+  return branches.find((branch) => branch.id === branchId);
 }
 
 function toBranchSummary(branch: ProjectBranch, index: Map<string, LeafTargetRecord>, projectDir: string) {
   return {
-    key: branch.key,
+    id: branch.id,
     name: branch.name,
     label: branch.label,
-    parentKey: branch.parentKey,
-    directLeafCount: collectExplorerLeafItems(branch.key, index, projectDir).length
+    parentId: branch.parentId,
+    directLeafCount: collectExplorerLeafItems(branch.id, index, projectDir).length
   };
 }

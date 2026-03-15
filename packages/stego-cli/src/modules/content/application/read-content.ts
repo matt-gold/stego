@@ -5,7 +5,7 @@ export function readContent(project: ProjectContext) {
   return buildTemplateContext({
     projectRoot: project.root,
     contentDir: project.contentDir
-  }).content;
+  }).allLeaves;
 }
 
 export function parseContentOutputFormat(raw: string | undefined): "text" | "json" {

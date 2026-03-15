@@ -837,8 +837,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
 
   private buildMetadataEntriesFromFrontmatter(
     frontmatter: Record<string, unknown>,
-    _branchByKey: Map<string, ProjectBranch>,
-    _branchOrderByKey: Map<string, number>,
+    _branchById: Map<string, ProjectBranch>,
+    _branchOrderById: Map<string, number>,
     index: Map<string, LeafTargetRecord>,
     document: vscode.TextDocument,
     pattern: string
@@ -855,6 +855,15 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         document,
         pattern
       ));
+  }
+
+  private buildSidebarTemplateEntries(projectContext: ProjectScanContext | undefined): SidebarState['templates'] {
+    return (projectContext?.templates ?? []).map((template) => ({
+      name: template.name,
+      path: template.path,
+      relativePath: template.relativePath,
+      supportedTargets: [...template.supportedTargets]
+    }));
   }
 
   private isReferenceLeafDocument(projectContext: ProjectScanContext | undefined, documentPath: string): boolean {
@@ -945,6 +954,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         metadataEditing: false,
         enableComments: true,
         statusControl: undefined,
+        templates: this.buildSidebarTemplateEntries(projectContext),
         metadataEntries: [],
         imageEntries: [],
         projectImageDefaults: projectContext?.imageDefaults ?? {},
@@ -1017,12 +1027,12 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }
     const warnings = this.collectSidebarWarnings(projectContext, overviewSkippedFiles);
 
-    const branchByKey = new Map<string, ProjectBranch>();
-    const branchOrderByKey = new Map<string, number>();
+    const branchById = new Map<string, ProjectBranch>();
+    const branchOrderById = new Map<string, number>();
     let branchOrder = 0;
     for (const branch of projectContext?.branches ?? []) {
-      branchByKey.set(branch.key, branch);
-      branchOrderByKey.set(branch.key, branchOrder);
+      branchById.set(branch.id, branch);
+      branchOrderById.set(branch.id, branchOrder);
       branchOrder += 1;
     }
 
@@ -1075,8 +1085,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           const parsed = parseMarkdownDocument(document.getText());
           metadataEntries = this.buildMetadataEntriesFromFrontmatter(
             parsed.frontmatter,
-            branchByKey,
-            branchOrderByKey,
+            branchById,
+            branchOrderById,
             index,
             document,
             pattern
@@ -1104,6 +1114,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         metadataEditing: leafEntryMode ? this.metadataEditing : false,
         enableComments,
         statusControl: undefined,
+        templates: this.buildSidebarTemplateEntries(projectContext),
         metadataEntries,
         imageEntries: [],
         projectImageDefaults: projectContext?.imageDefaults ?? {},
@@ -1133,8 +1144,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       const statusControl = await buildStatusControl(parsed.frontmatter, document);
       const metadataEntries = this.buildMetadataEntriesFromFrontmatter(
         parsed.frontmatter,
-        branchByKey,
-        branchOrderByKey,
+        branchById,
+        branchOrderById,
         index,
         document,
         pattern
@@ -1164,6 +1175,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         metadataEditing: this.metadataEditing,
         enableComments,
         statusControl,
+        templates: this.buildSidebarTemplateEntries(projectContext),
         metadataEntries,
         imageEntries,
         projectImageDefaults,
@@ -1203,6 +1215,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         metadataEditing: this.metadataEditing,
         enableComments,
         statusControl: undefined,
+        templates: this.buildSidebarTemplateEntries(projectContext),
         metadataEntries: [],
         imageEntries: [],
         projectImageDefaults: projectContext?.imageDefaults ?? {},
@@ -1321,8 +1334,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       return result;
     }
 
-    for (const category of projectContext.branches) {
-      const value = parsed.frontmatter[category.key];
+    for (const branch of projectContext.branches) {
+      const value = parsed.frontmatter[branch.id];
       if (typeof value === 'string') {
         pushIfKnown(value);
         for (const token of extractIdentifierTokensFromValue(value, pattern)) {
@@ -1716,7 +1729,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         shouldRefreshDiagnostics = false;
         const projectContext = await this.getCurrentProjectConfigContext();
         if (!projectContext) {
-          void vscode.window.showWarningMessage('Open a project manuscript file first to fill required metadata.');
+          void vscode.window.showWarningMessage('Open a project leaf file first to fill required metadata.');
           break;
         }
         await promptAndFillRequiredMetadata(projectContext.requiredMetadata);
@@ -1747,11 +1760,11 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       case 'explore.openBranch': {
         shouldRefreshDiagnostics = false;
         if (
-          typeof payload.key === 'string'
-          && payload.key.trim().length > 0
+          typeof payload.id === 'string'
+          && payload.id.trim().length > 0
         ) {
           this.navigateExplorerToRoute(
-            { kind: 'branch', key: payload.key.trim() },
+            { kind: 'branch', id: payload.id.trim() },
             { trackHistory: true }
           );
         }
@@ -2165,7 +2178,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         const withoutFrontmatter = withoutComments.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
         const clean = withoutFrontmatter.trim();
         await vscode.env.clipboard.writeText(clean);
-        void vscode.window.showInformationMessage('Copied manuscript text to clipboard (without metadata or comments).');
+        void vscode.window.showInformationMessage('Copied leaf text to clipboard (without metadata or comments).');
         break;
       }
       default:
@@ -2254,7 +2267,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
 
     if (overviewSkippedFiles > 0) {
       warnings.push(
-        `Overview skipped ${overviewSkippedFiles} manuscript file${overviewSkippedFiles === 1 ? '' : 's'} `
+        `Overview skipped ${overviewSkippedFiles} leaf file${overviewSkippedFiles === 1 ? '' : 's'} `
         + `due to read/parse errors. See "${PROJECT_HEALTH_CHANNEL}" output.`
       );
     }
@@ -2303,7 +2316,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         stat = await fs.stat(filePath);
       } catch (error) {
         skippedFiles += 1;
-        logProjectHealthIssue('overview', 'Skipped manuscript file (stat failed).', {
+        logProjectHealthIssue('overview', 'Skipped leaf file (stat failed).', {
           projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
           filePath,
           detail: errorToMessage(error)
@@ -2330,7 +2343,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         } catch (error) {
           skippedFiles += 1;
           cache.delete(filePath);
-          logProjectHealthIssue('overview', 'Skipped manuscript file (read failed).', {
+          logProjectHealthIssue('overview', 'Skipped leaf file (read failed).', {
             projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
             filePath,
             detail: errorToMessage(error)
@@ -2367,7 +2380,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         } catch (error) {
           skippedFiles += 1;
           cache.delete(filePath);
-          logProjectHealthIssue('overview', 'Skipped manuscript file (parse failed).', {
+          logProjectHealthIssue('overview', 'Skipped leaf file (parse failed).', {
             projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
             filePath,
             detail: errorToMessage(error)
@@ -2545,11 +2558,11 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       return;
     }
 
-    const existingBranchKeys = new Set(
-      projectContext.branches.map((branch) => branch.key.trim().toLowerCase()).filter((value) => value.length > 0)
+    const existingBranchIds = new Set(
+      projectContext.branches.map((branch) => branch.id.trim().toLowerCase()).filter((value) => value.length > 0)
     );
-    const parentKey = this.getCurrentExplorerBranchKey();
-    const parentLabel = parentKey || 'content';
+    const parentId = this.getCurrentExplorerBranchId();
+    const parentLabel = parentId || 'content';
 
     const branchName = await vscode.window.showInputBox({
       title: 'New Branch',
@@ -2557,12 +2570,12 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       placeHolder: 'characters or characters/minor',
       ignoreFocusOut: true,
       validateInput: (value) => {
-        const key = this.toBranchKey(value, parentKey);
-        if (!key) {
+        const id = this.toBranchId(value, parentId);
+        if (!id) {
           return 'Enter a branch name using letters, numbers, dashes, or slashes.';
         }
-        if (existingBranchKeys.has(key.toLowerCase())) {
-          return `Branch '${key}' already exists.`;
+        if (existingBranchIds.has(id.toLowerCase())) {
+          return `Branch '${id}' already exists.`;
         }
         return undefined;
       }
@@ -2571,20 +2584,20 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       return;
     }
 
-    const key = this.toBranchKey(branchName, parentKey);
-    if (!key) {
+    const id = this.toBranchId(branchName, parentId);
+    if (!id) {
       void vscode.window.showErrorMessage('Could not derive a valid branch path from the provided name.');
       return;
     }
-    if (existingBranchKeys.has(key.toLowerCase())) {
-      void vscode.window.showWarningMessage(`Branch '${key}' already exists.`);
+    if (existingBranchIds.has(id.toLowerCase())) {
+      void vscode.window.showWarningMessage(`Branch '${id}' already exists.`);
       return;
     }
 
-    const label = this.toCategoryHeadingFromKey(path.basename(key));
-    const metadataPath = path.join(projectContext.projectDir, CONTENT_DIR, ...key.split('/'), '_branch.md');
+    const label = this.toBranchHeadingFromId(path.basename(id));
+    const metadataPath = path.join(projectContext.projectDir, CONTENT_DIR, ...id.split('/'), '_branch.md');
     const referenceDir = path.dirname(metadataPath);
-    const categoryDoc = [
+    const branchDoc = [
       '---',
       `label: ${label}`,
       '---',
@@ -2598,7 +2611,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       try {
         await fs.stat(metadataPath);
       } catch {
-        await fs.writeFile(metadataPath, categoryDoc, 'utf8');
+        await fs.writeFile(metadataPath, branchDoc, 'utf8');
       }
     } catch (error) {
       void vscode.window.showErrorMessage(`Could not add branch: ${errorToMessage(error)}`);
@@ -2609,16 +2622,16 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     this.referenceUsageService.clear();
 
     this.setActiveTab('explore');
-    this.navigateExplorerToRoute({ kind: 'branch', key }, { trackHistory: true });
+    this.navigateExplorerToRoute({ kind: 'branch', id }, { trackHistory: true });
     try {
       await openBacklinkFile(metadataPath, 1);
     } catch (error) {
       void vscode.window.showWarningMessage(`Added branch, but could not open its notes file: ${errorToMessage(error)}`);
     }
-    void vscode.window.showInformationMessage(`Added branch '${key}'.`);
+    void vscode.window.showInformationMessage(`Added branch '${id}'.`);
   }
 
-  private toBranchKey(name: string, parentKey = ''): string {
+  private toBranchId(name: string, parentId = ''): string {
     const normalized = name
       .trim()
       .split('/')
@@ -2633,24 +2646,24 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     if (normalized.length === 0) {
       return '';
     }
-    return parentKey ? `${parentKey}/${normalized.join('/')}` : normalized.join('/');
+    return parentId ? `${parentId}/${normalized.join('/')}` : normalized.join('/');
   }
 
-  private getCurrentExplorerBranchKey(): string {
+  private getCurrentExplorerBranchId(): string {
     if (this.explorerRoute.kind === 'branch') {
-      return this.explorerRoute.key;
+      return this.explorerRoute.id;
     }
     const page = this.lastRenderedState?.explorer;
-    if (page?.kind === 'identifier' && page.branch?.key) {
-      return page.branch.key;
+    if (page?.kind === 'identifier' && page.branch?.id) {
+      return page.branch.id;
     }
     return '';
   }
 
-  private toCategoryHeadingFromKey(key: string): string {
-    const normalized = key.replace(/[_-]+/g, ' ').trim();
+  private toBranchHeadingFromId(id: string): string {
+    const normalized = id.replace(/[_-]+/g, ' ').trim();
     if (!normalized) {
-      return 'Explore Category';
+      return 'Branch';
     }
     return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
   }

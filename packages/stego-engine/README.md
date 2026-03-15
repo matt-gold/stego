@@ -21,7 +21,7 @@ export default defineTemplate((ctx) => (
   <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
     <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
     <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
-    {ctx.content.map((leaf) => (
+    {ctx.allLeaves.map((leaf) => (
       <Stego.Markdown leaf={leaf} />
     ))}
   </Stego.Document>
@@ -35,19 +35,20 @@ That default form keeps the full low-friction Stego API and works well for singl
 Advanced template mode narrows the Stego API to the strict intersection of the presentation targets you declare:
 
 ```tsx
-import { defineTemplate, type TemplateContext } from "@stego-labs/engine";
+import { defineTemplate, type TemplateContext, type TemplateTypes } from "@stego-labs/engine";
 
 type ProjectMeta = { title: string };
 type LeafMeta = { id: string; chapter?: string };
 type BranchMeta = { label?: string };
+type PrintTemplate = TemplateTypes<LeafMeta, BranchMeta, ProjectMeta, ["docx", "pdf"]>;
 
-export default defineTemplate(
+export default defineTemplate<PrintTemplate>(
   { targets: ["docx", "pdf"] as const },
-  (ctx: TemplateContext<ProjectMeta, LeafMeta, BranchMeta>, Stego) => (
+  (ctx, Stego) => (
     <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
       <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
       <Stego.Heading level={1}>{ctx.project.metadata.title}</Stego.Heading>
-      {ctx.content.map((leaf) => (
+      {ctx.allLeaves.map((leaf) => (
         <Stego.Markdown leaf={leaf} />
       ))}
     </Stego.Document>
@@ -57,11 +58,35 @@ export default defineTemplate(
 
 Target-aware templates are meant for advanced template mode and multiple templates per project. They are opt-in. The global `Stego` import stays broad for the default lane.
 
+If you do not need explicit metadata typing, omitting the generic entirely and typing the callback context is still fine:
+
+```tsx
+export default defineTemplate(
+  { targets: ["docx", "pdf"] as const },
+  (ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, Stego) => (
+    <Stego.Document page={{ size: "6x9", margin: "0.75in" }} />
+  )
+);
+```
+
 Markdown is a special-case export artifact. It is still useful for debug, diff, and interchange output, but it does not participate in the strict target-aware type contract the way `docx`, `pdf`, and `epub` do.
 
-`ctx.content` is the full ordered array of leaves loaded from `content/`.
+`ctx.content` is the root content tree loaded from `content/`.
 
-`ctx.branches` exposes the discovered branch tree for directories under `content/`. Every directory is a branch, and `_branch.md` enriches it with `label` and branch notes.
+- `ctx.content.leaves` are the direct leaves under `content/`
+- `ctx.content.branches` are the top-level branches under `content/`
+- nested branches continue through `branch.branches`
+
+`ctx.allLeaves` is the full ordered flat leaf list.
+
+`ctx.allBranches` is the flat list of discovered branches under `content/`, including the root branch with `id === ""`. Every directory is a branch, and `_branch.md` enriches it with `label` and branch notes.
+
+Branch and leaf relationships are exposed directly:
+
+- `branch.id` is the structural branch id such as `reference/characters`
+- `branch.parentId` points to the containing branch
+- `branch.leaves` contains the direct leaves in that branch
+- `leaf.branchId` points back to the containing branch
 
 Built-in leaf renderers:
 
@@ -94,7 +119,7 @@ Use `groupBy()` when you want bucketed groups by key regardless of where items a
 
 ```ts
 const references = Stego.groupBy(
-  ctx.content.filter((leaf) => leaf.metadata.kind === "reference"),
+  ctx.allLeaves.filter((leaf) => leaf.metadata.kind === "reference"),
   (leaf) => typeof leaf.metadata.kind === "string" ? leaf.metadata.kind : undefined
 );
 ```
@@ -103,7 +128,7 @@ Use `splitBy()` when you want contiguous groups in the current order:
 
 ```ts
 const chapters = Stego.splitBy(
-  ctx.content,
+  ctx.allLeaves,
   (leaf) => typeof leaf.metadata.chapter === "string" ? leaf.metadata.chapter : undefined
 );
 ```

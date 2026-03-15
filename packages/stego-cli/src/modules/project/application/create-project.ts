@@ -144,7 +144,7 @@ Start writing here.
 
 export default defineTemplate((ctx) => {
   const generatedAt = new Date().toISOString();
-  const chapterLeaves = ctx.content.filter((leaf) => leaf.metadata.kind !== "reference");
+  const chapterLeaves = ctx.allLeaves.filter((leaf) => leaf.metadata.kind !== "reference");
   const chapterGroups = Stego.splitBy(chapterLeaves, (leaf) => asString(leaf.metadata.chapter));
   const tocEntries = chapterGroups
     .filter(hasTitledBoundary)
