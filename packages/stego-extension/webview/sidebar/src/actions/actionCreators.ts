@@ -30,7 +30,7 @@ export const sidebarActions = {
     ? ({ type: 'doc.openExternalLink', url, basePath })
     : ({ type: 'doc.openExternalLink', url }),
   openIdentifier: (id: string): SidebarActionMessage => ({ type: 'explore.openIdentifier', id }),
-  openBranch: (key: string): SidebarActionMessage => ({ type: 'explore.openBranch', key }),
+  openBranch: (id: string): SidebarActionMessage => ({ type: 'explore.openBranch', id }),
   exploreHome: (): SidebarActionMessage => ({ type: 'explore.goHome' }),
   exploreBack: (): SidebarActionMessage => ({ type: 'explore.goBack' }),
   exploreForward: (): SidebarActionMessage => ({ type: 'explore.goForward' }),

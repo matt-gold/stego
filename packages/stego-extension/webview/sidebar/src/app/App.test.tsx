@@ -98,4 +98,56 @@ describe('App', () => {
     root.remove();
     resetSidebarState();
   });
+
+  it('renders template links with export target badges in the manuscript tab', () => {
+    setWebviewApiForTest(undefined);
+    const root = document.createElement('div');
+    document.body.append(root);
+    updateSidebarState(createSidebarState({
+      activeTab: 'overview',
+      overview: {
+        manuscriptTitle: 'Test Manuscript',
+        generatedAt: '2026-03-01T06:31:35.598Z',
+        wordCount: 1200,
+        manuscriptFileCount: 3,
+        missingRequiredMetadataCount: 0,
+        unresolvedCommentsCount: 0,
+        gateSnapshot: {
+          stageCheck: { state: 'never' },
+          build: { state: 'never' }
+        },
+        stageBreakdown: [],
+        mapRows: []
+      },
+      templates: [
+        {
+          name: 'book',
+          path: '/tmp/project/templates/book.template.tsx',
+          relativePath: 'templates/book.template.tsx',
+          supportedTargets: ['md', 'docx', 'pdf']
+        },
+        {
+          name: 'web',
+          path: '/tmp/project/templates/web.template.tsx',
+          relativePath: 'templates/web.template.tsx',
+          supportedTargets: ['epub']
+        }
+      ]
+    }));
+
+    const dispose = render(() => <App />, root);
+
+    expect(root.textContent).toContain('Templates');
+    expect(root.textContent).toContain('book');
+    expect(root.textContent).toContain('web');
+    expect(root.textContent).toContain('md');
+    expect(root.textContent).toContain('docx');
+    expect(root.textContent).toContain('pdf');
+    expect(root.textContent).toContain('epub');
+    expect(root.textContent).toContain('templates/book.template.tsx');
+
+    dispose();
+    root.remove();
+    resetSidebarState();
+  });
 });

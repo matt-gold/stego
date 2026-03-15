@@ -41,7 +41,7 @@ function createTempProject(projectId, projectJson, contentFiles = [], extraFiles
     `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document>
-    {ctx.content.map((leaf) => (
+    {ctx.allLeaves.map((leaf) => (
       <Stego.Markdown leaf={leaf} />
     ))}
   </Stego.Document>

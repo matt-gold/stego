@@ -7,7 +7,7 @@ It demonstrates:
 - the leaf model (`content/` contains authored leaves)
 - branch notes with `_branch.md`
 - manuscript build/export through TSX templates
-- `ctx.content` / `ctx.branches` in real templates
+- `ctx.content` / `ctx.allLeaves` / `ctx.allBranches` in real templates
 - internal links with `Stego.Link`
 - one example convention that renders reference leaves into backmatter appendices
 

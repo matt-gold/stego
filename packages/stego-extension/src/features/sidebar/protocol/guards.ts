@@ -109,11 +109,11 @@ function parseAction(record: Record<string, unknown>, type: SidebarActionMessage
       return basePath ? { type, url, basePath } : { type, url };
     }
     case 'explore.openBranch': {
-      const key = asString(record, 'key');
-      if (!key) {
+      const id = asString(record, 'id');
+      if (!id) {
         return undefined;
       }
-      return { type, key };
+      return { type, id };
     }
     case 'explore.setPinnedBacklinkFilter': {
       const id = asString(record, 'id');

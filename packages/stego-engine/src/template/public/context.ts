@@ -5,7 +5,9 @@ export type {
   ProjectRecord,
   LeafRecord,
   BranchRecord,
+  ContentTree,
   TemplateContext,
   StegoTemplate,
-  TemplateDefinitionOptions
+  TemplateDefinitionOptions,
+  TemplateTypes
 } from "./types.ts";

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ImageStyle } from '@stego-labs/shared/domain/images';
+import type { ExportTarget, PresentationTarget } from '@stego-labs/shared/domain/templates';
 
 export type { ImageStyle };
 
@@ -37,6 +38,13 @@ export type SidebarImageEntry = {
   effectiveStyle: ImageStyle;
 };
 
+export type SidebarTemplateEntry = {
+  name: string;
+  path: string;
+  relativePath: string;
+  supportedTargets: readonly ExportTarget[];
+};
+
 export type SidebarState = {
   hasActiveMarkdown: boolean;
   showDocumentTab?: boolean;
@@ -55,6 +63,7 @@ export type SidebarState = {
   metadataEditing: boolean;
   enableComments: boolean;
   statusControl?: SidebarStatusControl;
+  templates: SidebarTemplateEntry[];
   metadataEntries: SidebarMetadataEntry[];
   imageEntries: SidebarImageEntry[];
   projectImageDefaults: ImageStyle;
@@ -224,10 +233,10 @@ export type SidebarExplorerEntry = {
 };
 
 export type SidebarExplorerBranchSummary = {
-  key: string;
+  id: string;
   name: string;
   label: string;
-  parentKey?: string;
+  parentId?: string;
   directLeafCount: number;
 };
 
@@ -273,7 +282,7 @@ export type SidebarPinnedExplorerPanel = {
 
 export type ExplorerRoute =
   | { kind: 'home' }
-  | { kind: 'branch'; key: string }
+  | { kind: 'branch'; id: string }
   | { kind: 'identifier'; id: string };
 
 export type LeafSectionPreview = {
@@ -286,13 +295,21 @@ export type LeafSectionPreview = {
 };
 
 export type ProjectBranch = {
-  key: string;
+  id: string;
   name: string;
   label: string;
-  parentKey?: string;
+  parentId?: string;
   relativeDir: string;
   notesFile?: string;
   body?: string;
+};
+
+export type ProjectTemplate = {
+  name: string;
+  path: string;
+  relativePath: string;
+  declaredTargets: readonly PresentationTarget[] | null;
+  supportedTargets: readonly ExportTarget[];
 };
 
 export type ProjectConfigIssue = {
@@ -307,6 +324,7 @@ export type ProjectScanContext = {
   requiredMetadata: string[];
   imageDefaults: ImageStyle;
   branches: ProjectBranch[];
+  templates: ProjectTemplate[];
   issues: ProjectConfigIssue[];
 };
 

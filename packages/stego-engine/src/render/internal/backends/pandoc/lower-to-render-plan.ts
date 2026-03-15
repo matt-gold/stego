@@ -12,7 +12,7 @@ export function lowerToPandocRenderPlan(
   context: TemplateContext
 ): RenderDocumentResult {
   const layout = normalizePageLayout(document);
-  const markdown = writePandocMarkdown(document.children, context.content);
+  const markdown = writePandocMarkdown(document.children, context.allLeaves);
   return {
     backend: "pandoc",
     inputFormat: "markdown-implicit_figures",

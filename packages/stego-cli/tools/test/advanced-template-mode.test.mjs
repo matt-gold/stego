@@ -55,7 +55,7 @@ Hello advanced templates.
 export default defineTemplate((ctx) => (
   <Stego.Document>
     <Stego.Heading level={1}>BOOK DEFAULT</Stego.Heading>
-    {ctx.content.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+    {ctx.allLeaves.map((leaf) => <Stego.Markdown leaf={leaf} />)}
   </Stego.Document>
 ));
 `);
@@ -68,7 +68,7 @@ export default defineTemplate(
     <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
       <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
       <Stego.Heading level={1}>PRINT TEMPLATE</Stego.Heading>
-      {ctx.content.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+      {ctx.allLeaves.map((leaf) => <Stego.Markdown leaf={leaf} />)}
     </Stego.Document>
   )
 );
@@ -81,7 +81,7 @@ export default defineTemplate(
   (ctx, Stego) => (
     <Stego.Document>
       <Stego.Heading level={1}>EBOOK TEMPLATE</Stego.Heading>
-      {ctx.content.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+      {ctx.allLeaves.map((leaf) => <Stego.Markdown leaf={leaf} />)}
     </Stego.Document>
   )
 );
@@ -252,7 +252,7 @@ test("validate fails when a discovered advanced template is missing target decla
 export default defineTemplate((ctx) => (
   <Stego.Document>
     <Stego.Heading level={1}>MISSING TARGETS</Stego.Heading>
-    {ctx.content.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+    {ctx.allLeaves.map((leaf) => <Stego.Markdown leaf={leaf} />)}
   </Stego.Document>
 ));
 `

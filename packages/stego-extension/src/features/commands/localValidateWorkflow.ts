@@ -15,7 +15,7 @@ import type { WorkflowRunResult } from './workflowUtils';
 
 export function getLocalValidateDetails(relativeFile: string, stage: string): string[] {
   return [
-    `Ran manuscript validation (${relativeFile}).`,
+    `Ran leaf validation (${relativeFile}).`,
     'Checked metadata and frontmatter.',
     'Checked markdown structure and links.',
     ...getStageCheckDetails(stage, 'file')
@@ -48,7 +48,7 @@ export async function runLocalValidateWorkflow(): Promise<WorkflowRunResult> {
   }
 
   if (!stage) {
-    void vscode.window.showWarningMessage('Validate requires manuscript metadata status to run stage checks.');
+    void vscode.window.showWarningMessage('Validate requires leaf metadata status to run stage checks.');
     return { ok: false, cancelled: true, projectDir: context.projectDir };
   }
 

@@ -30,7 +30,7 @@ export type SidebarActionMessage =
   | { type: 'doc.openBacklink'; filePath: string; line?: number }
   | { type: 'doc.openExternalLink'; url: string; basePath?: string }
   | { type: 'explore.openIdentifier'; id: string }
-  | { type: 'explore.openBranch'; key: string }
+  | { type: 'explore.openBranch'; id: string }
   | NoPayload<'explore.goHome'>
   | NoPayload<'explore.goBack'>
   | NoPayload<'explore.goForward'>

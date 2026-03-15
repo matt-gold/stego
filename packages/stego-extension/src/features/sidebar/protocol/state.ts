@@ -1,4 +1,5 @@
 import type { ImageStyle } from '@stego-labs/shared/domain/images';
+import type { ExportTarget } from '@stego-labs/shared/domain/templates';
 
 export type SidebarViewTab = 'document' | 'explore' | 'overview';
 
@@ -140,10 +141,10 @@ export type SidebarExplorerEntry = {
 };
 
 export type SidebarExplorerBranchSummary = {
-  key: string;
+  id: string;
   name: string;
   label: string;
-  parentKey?: string;
+  parentId?: string;
   directLeafCount: number;
 };
 
@@ -198,6 +199,13 @@ export type SidebarWebviewImageEntry = {
   thumbnailSrc?: string;
 };
 
+export type SidebarTemplateEntry = {
+  name: string;
+  path: string;
+  relativePath: string;
+  supportedTargets: readonly ExportTarget[];
+};
+
 export type SidebarWebviewState = {
   hasActiveMarkdown: boolean;
   showDocumentTab?: boolean;
@@ -220,6 +228,7 @@ export type SidebarWebviewState = {
   metadataEditing: boolean;
   enableComments: boolean;
   statusControl?: SidebarStatusControl;
+  templates: SidebarTemplateEntry[];
   metadataEntries: SidebarMetadataEntry[];
   imageEntries: SidebarWebviewImageEntry[];
   projectImageDefaults: ImageStyle;

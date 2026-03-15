@@ -1,4 +1,11 @@
-import { defineTemplate, Stego, type BranchRecord, type LeafRecord, type TemplateContext } from "../template/index.ts";
+import {
+  defineTemplate,
+  Stego,
+  type BranchRecord,
+  type LeafRecord,
+  type TemplateContext,
+  type TemplateTypes
+} from "../template/index.ts";
 
 type ProjectMeta = {
   title: string;
@@ -16,10 +23,15 @@ type BranchMeta = {
   label?: string;
 };
 
-const legacyTemplate = defineTemplate<ProjectMeta, LeafMeta, BranchMeta>((ctx) => {
-  const firstLeaf = ctx.content[0];
+type LegacyTemplateTypes = TemplateTypes<LeafMeta, BranchMeta, ProjectMeta>;
+type PrintTemplateTypes = TemplateTypes<LeafMeta, BranchMeta, ProjectMeta, ["docx", "pdf"]>;
+
+const legacyTemplate = defineTemplate<LegacyTemplateTypes>((ctx) => {
+  const firstLeaf = ctx.allLeaves[0];
+  const firstBranchLeaf = ctx.content.branches[0]?.leaves[0];
   const chapter = firstLeaf?.metadata.chapter;
-  const branchLabel = ctx.branches[0]?.metadata.label;
+  const branchChapter = firstBranchLeaf?.metadata.chapter;
+  const branchLabel = ctx.content.branches[0]?.metadata.label;
   const projectTitle = ctx.project.metadata.title;
 
   return (
@@ -27,17 +39,17 @@ const legacyTemplate = defineTemplate<ProjectMeta, LeafMeta, BranchMeta>((ctx) =
       <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
       <Stego.KeepTogether>
         <Stego.Heading level={1}>{projectTitle}</Stego.Heading>
-        <Stego.Paragraph align="center">{chapter ?? branchLabel ?? "Untitled"}</Stego.Paragraph>
+        <Stego.Paragraph align="center">{chapter ?? branchChapter ?? branchLabel ?? "Untitled"}</Stego.Paragraph>
       </Stego.KeepTogether>
       {firstLeaf ? <Stego.Markdown leaf={firstLeaf} /> : null}
     </Stego.Document>
   );
 });
 
-const printTemplate = defineTemplate(
+const printTemplate = defineTemplate<PrintTemplateTypes>(
   { targets: ["docx", "pdf"] as const },
-  (ctx: TemplateContext<ProjectMeta, LeafMeta, BranchMeta>, PrintStego) => {
-    const firstLeaf = ctx.content[0];
+  (ctx, PrintStego) => {
+    const firstLeaf = ctx.allLeaves[0];
 
     return (
       <PrintStego.Document page={{ size: "6x9", margin: "0.75in" }}>
@@ -58,7 +70,7 @@ const printTemplate = defineTemplate(
 
 const allPresentationTargetsTemplate = defineTemplate(
   { targets: ["docx", "pdf", "epub"] as const },
-  (_ctx: TemplateContext<ProjectMeta, LeafMeta, BranchMeta>, MultiTargetStego) => {
+  (_ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, MultiTargetStego) => {
     // @ts-expect-error epub removes page-template support from the strict intersection
     MultiTargetStego.PageTemplate;
 
@@ -78,7 +90,7 @@ const allPresentationTargetsTemplate = defineTemplate(
 
 const epubTemplate = defineTemplate(
   { targets: ["epub"] as const },
-  (_ctx: TemplateContext<ProjectMeta, LeafMeta, BranchMeta>, EpubStego) => {
+  (_ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, EpubStego) => {
     // @ts-expect-error epub-only templates do not expose page numbers
     EpubStego.PageNumber;
 
@@ -99,6 +111,7 @@ const epubTemplate = defineTemplate(
 const typedLeaf: LeafRecord<LeafMeta> = {
   kind: "leaf",
   id: "CH-ONE",
+  branchId: "",
   format: "markdown",
   path: "/tmp/project/content/100-one.md",
   relativePath: "content/100-one.md",
@@ -114,19 +127,34 @@ const typedLeaf: LeafRecord<LeafMeta> = {
   headings: []
 };
 
-const typedBranch: BranchRecord<BranchMeta> = {
+const typedBranch: BranchRecord<BranchMeta, LeafMeta> = {
   kind: "branch",
-  key: "",
+  id: "reference",
+  name: "reference",
+  label: "Reference",
+  parentId: "",
+  depth: 1,
+  relativeDir: "content/reference",
+  metadata: {
+    label: "Reference"
+  },
+  leaves: [typedLeaf],
+  branches: []
+};
+
+const typedRootBranch: BranchRecord<BranchMeta, LeafMeta> = {
+  kind: "branch",
+  id: "",
   name: "content",
   label: "Content",
   depth: 0,
   relativeDir: "content",
-  metadata: {
-    label: "Content"
-  }
+  metadata: {},
+  leaves: [],
+  branches: [typedBranch]
 };
 
-const typedContext: TemplateContext<ProjectMeta, LeafMeta, BranchMeta> = {
+const typedContext: TemplateContext<LeafMeta, BranchMeta, ProjectMeta> = {
   project: {
     id: "demo",
     root: "/tmp/project",
@@ -134,8 +162,17 @@ const typedContext: TemplateContext<ProjectMeta, LeafMeta, BranchMeta> = {
       title: "Demo"
     }
   },
-  content: [typedLeaf],
-  branches: [typedBranch]
+  content: {
+    kind: "content",
+    name: "content",
+    label: "Content",
+    relativeDir: "content",
+    metadata: {},
+    leaves: [],
+    branches: [typedBranch]
+  },
+  allLeaves: [typedLeaf],
+  allBranches: [typedRootBranch, typedBranch]
 };
 
 legacyTemplate.render(typedContext);
@@ -144,6 +181,9 @@ allPresentationTargetsTemplate.render(typedContext);
 epubTemplate.render(typedContext);
 
 // @ts-expect-error leaf metadata should be strongly typed
-typedContext.content[0]?.metadata.not_a_real_key;
+typedContext.allLeaves[0]?.metadata.not_a_real_key;
+
+// @ts-expect-error branch leaf metadata should be strongly typed
+typedContext.allBranches[1]?.leaves[0]?.metadata.not_a_real_key;
 
 export {};

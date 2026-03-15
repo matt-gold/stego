@@ -2,7 +2,7 @@ import { defineTemplate, Stego } from "@stego-labs/engine";
 
 export default defineTemplate((ctx) => {
   const generatedAt = new Date().toISOString();
-  const storyLeaves = ctx.content.filter((leaf) => leaf.metadata.kind !== "reference");
+  const storyLeaves = ctx.allLeaves.filter((leaf) => leaf.metadata.kind !== "reference");
   const chapterGroups = Stego.splitBy(storyLeaves, (leaf) => asString(leaf.metadata.chapter));
   const tocEntries = chapterGroups
     .filter(hasTitledBoundary)
@@ -10,7 +10,7 @@ export default defineTemplate((ctx) => {
       const heading = formatChapterHeading(group.value, group.first.metadata.chapter_title);
       return `- [${heading}](#${slugify(heading)})`;
     });
-  const sources = ctx.content
+  const sources = ctx.allLeaves
     .filter((leaf) => leaf.metadata.kind === "reference" && leaf.relativePath.includes("/sources/"))
     .sort((a, b) => a.id.localeCompare(b.id));
 

@@ -27,7 +27,7 @@ function ExplorerBreadcrumbs(props: { page?: SidebarExplorerPage; collapsed: boo
                 class="explorer-crumb-link"
                 onClick={() => {
                   if (props.page?.kind === 'identifier' && props.page.branch) {
-                    dispatchSidebarAction(sidebarActions.openBranch(props.page.branch.key));
+                    dispatchSidebarAction(sidebarActions.openBranch(props.page.branch.id));
                   }
                 }}
               >
@@ -156,7 +156,7 @@ function ExplorerIdentifierCard(props: {
 function BranchPageCard(props: {
   label: string;
   body?: string;
-  childBranches: Array<{ key: string; label: string; directLeafCount: number }>;
+  childBranches: Array<{ id: string; label: string; directLeafCount: number }>;
   leafItems: Array<{ id: string; label: string; title: string; description: string; known: boolean }>;
   showCreateButton: boolean;
 }): JSX.Element {
@@ -173,7 +173,7 @@ function BranchPageCard(props: {
           <div class="explorer-list">
             <For each={props.childBranches}>{(branch) => (
               <div class="explorer-list-row">
-                <button class="id-link" onClick={() => dispatchSidebarAction(sidebarActions.openBranch(branch.key))}>{branch.label}</button>
+                <button class="id-link" onClick={() => dispatchSidebarAction(sidebarActions.openBranch(branch.id))}>{branch.label}</button>
                 <span class="badge">{branch.directLeafCount}</span>
               </div>
             )}</For>

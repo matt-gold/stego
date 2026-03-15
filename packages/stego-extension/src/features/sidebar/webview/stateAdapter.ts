@@ -145,7 +145,7 @@ function renderExplorerPage(
     ...page,
     body: renderMarkdownForExplorer(page.body, {
       basePath: state.projectDir
-        ? path.join(state.projectDir, 'content', ...(page.branch.key ? page.branch.key.split('/') : []), '_branch.md')
+        ? path.join(state.projectDir, 'content', ...(page.branch.id ? page.branch.id.split('/') : []), '_branch.md')
         : state.documentPath,
       resolveImageSrc: (rawSrc, basePath) => resolveWebviewImageSrc(webview, rawSrc, basePath)
     })

@@ -20,10 +20,10 @@ export function collectExplorerBranchSummaries(
   branches: ProjectBranch[],
   index: Map<string, LeafTargetRecord>,
   projectDir: string,
-  parentKey?: string
+  parentId?: string
 ): SidebarExplorerBranchSummary[] {
   return branches
-    .filter((branch) => branch.parentKey === parentKey)
+    .filter((branch) => branch.parentId === parentId)
     .map((branch) => toBranchSummary(branch, index, projectDir))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
@@ -158,11 +158,11 @@ function toBranchSummary(
   projectDir: string
 ): SidebarExplorerBranchSummary {
   return {
-    key: branch.key,
+    id: branch.id,
     name: branch.name,
     label: branch.label,
-    parentKey: branch.parentKey,
-    directLeafCount: collectExplorerLeafItems(branch.key, index, projectDir).length
+    parentId: branch.parentId,
+    directLeafCount: collectExplorerLeafItems(branch.id, index, projectDir).length
   };
 }
 

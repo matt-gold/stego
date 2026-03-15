@@ -58,9 +58,13 @@ Leaf files can define per-path overrides with `images` frontmatter. Global keys 
 
 Build structure lives in `templates/`.
 
-Templates are plain TSX modules powered by `@stego-labs/engine`. They receive project metadata plus `ctx.content`, the full ordered array of leaves loaded from `content/`, and `ctx.branches`, the discovered branch tree for directories under `content/`.
+Templates are plain TSX modules powered by `@stego-labs/engine`. They receive project metadata plus `ctx.content`, the root content tree loaded from `content/`, `ctx.allLeaves`, the full ordered flat array of leaves, and `ctx.allBranches`, the flat array of discovered branches under `content/`.
 
-Use template code to group leaves, insert headings, control page breaks, and render frontmatter or backmatter. Ordered grouping is typically done with `Stego.splitBy(ctx.content, ...)`, which preserves file order and lets boundary-only metadata flow across subsequent leaves.
+`ctx.content.leaves` are the direct leaves under the root `content/` directory. `ctx.content.branches` are the top-level branches, and each branch continues downward through `branch.branches`.
+
+Each branch has a structural `id`, an optional `parentId`, a `leaves` array for the direct leaves in that branch, and a `branches` array for child branches. Each leaf also exposes `branchId` so template code can move in either direction.
+
+Use template code to group leaves, insert headings, control page breaks, and render frontmatter or backmatter. Ordered grouping is typically done with `Stego.splitBy(ctx.allLeaves, ...)`, which preserves file order and lets boundary-only metadata flow across subsequent leaves.
 
 Use `Stego.groupBy(...)` when you want bucketed summaries that ignore file-order boundaries.
 

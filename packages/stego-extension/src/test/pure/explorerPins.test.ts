@@ -103,7 +103,7 @@ test('resetActiveExplorerForNewInstance clears active explorer state after pin',
   const current: ActiveExplorerState = {
     route: { kind: 'identifier', id: 'LOC-HARBOR' },
     backStack: [{ kind: 'home' }],
-    forwardStack: [{ kind: 'branch', key: 'locations' }],
+    forwardStack: [{ kind: 'branch', id: 'locations' }],
     backlinksExpanded: true,
     backlinkFilter: 'chapter-1',
     loadToken: 7

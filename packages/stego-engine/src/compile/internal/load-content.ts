@@ -39,10 +39,14 @@ export function loadContentGraph(
   const branches: BranchRecord[] = [];
   collectDirectory(contentDir, projectRoot, contentDir, projectMeta, leaves, branches);
   validateLeafIds(leaves);
+  const sortedLeaves = leaves.sort((a, b) => compareOrders(a.order, b.order) || a.relativePath.localeCompare(b.relativePath));
+  const sortedBranches = branches.sort((a, b) => a.depth - b.depth || a.id.localeCompare(b.id));
+  attachBranchLeaves(sortedLeaves, sortedBranches);
+  attachBranchChildren(sortedBranches);
 
   return {
-    leaves: leaves.sort((a, b) => compareOrders(a.order, b.order) || a.relativePath.localeCompare(b.relativePath)),
-    branches: branches.sort((a, b) => a.depth - b.depth || a.key.localeCompare(b.key))
+    leaves: sortedLeaves,
+    branches: sortedBranches
   };
 }
 
@@ -69,17 +73,17 @@ function collectDirectory(
     if (!entry.isFile() || isBranchFile(fullPath) || !isSupportedLeafContentFile(fullPath)) {
       continue;
     }
-    leaves.push(loadLeaf(projectRoot, fullPath, projectMeta));
+    leaves.push(loadLeaf(projectRoot, contentRoot, fullPath, projectMeta));
   }
 }
 
 function loadBranch(projectRoot: string, contentRoot: string, dirPath: string): BranchRecord {
   const branchFilePath = path.join(dirPath, BRANCH_FILENAME);
   const relativeDir = path.relative(projectRoot, dirPath).split(path.sep).join("/");
-  const key = buildBranchKey(contentRoot, dirPath);
-  const parentKey = buildBranchParentKey(key);
-  const depth = key ? key.split("/").length : 0;
-  const name = key ? buildBranchName(dirPath) : "content";
+  const id = buildBranchKey(contentRoot, dirPath);
+  const parentId = buildBranchParentKey(id);
+  const depth = id ? id.split("/").length : 0;
+  const name = id ? buildBranchName(dirPath) : "content";
 
   if (!fs.existsSync(branchFilePath)) {
     return createImplicitBranch(projectRoot, contentRoot, dirPath);
@@ -90,31 +94,35 @@ function loadBranch(projectRoot: string, contentRoot: string, dirPath: string): 
 
   return {
     kind: "branch",
-    key,
+    id,
     name,
     label: buildBranchLabel(name, parsed.metadata.label),
-    parentKey,
+    parentId,
     depth,
     relativeDir,
     path: branchFilePath,
     relativePath: path.relative(projectRoot, branchFilePath).split(path.sep).join("/"),
     metadata: parsed.metadata,
-    body: parsed.body || undefined
+    body: parsed.body || undefined,
+    leaves: [],
+    branches: []
   };
 }
 
 function createImplicitBranch(projectRoot: string, contentRoot: string, dirPath: string): BranchRecord {
-  const key = buildBranchKey(contentRoot, dirPath);
-  const name = key ? buildBranchName(dirPath) : "content";
+  const id = buildBranchKey(contentRoot, dirPath);
+  const name = id ? buildBranchName(dirPath) : "content";
   return {
     kind: "branch",
-    key,
+    id,
     name,
-    label: key ? buildBranchLabel(name) : "Content",
-    parentKey: buildBranchParentKey(key),
-    depth: key ? key.split("/").length : 0,
+    label: id ? buildBranchLabel(name) : "Content",
+    parentId: buildBranchParentKey(id),
+    depth: id ? id.split("/").length : 0,
     relativeDir: path.relative(projectRoot, dirPath).split(path.sep).join("/"),
-    metadata: {}
+    metadata: {},
+    leaves: [],
+    branches: []
   };
 }
 
@@ -134,7 +142,12 @@ function validateLeafIds(leaves: LeafRecord[]): void {
   }
 }
 
-function loadLeaf(projectRoot: string, filePath: string, projectMeta: Record<string, unknown>): LeafRecord {
+function loadLeaf(
+  projectRoot: string,
+  contentRoot: string,
+  filePath: string,
+  projectMeta: Record<string, unknown>
+): LeafRecord {
   const raw = fs.readFileSync(filePath, "utf8");
   const parsed = parseMarkdownDocument(raw);
   const withoutComments = parseCommentAppendix(parsed.body).contentWithoutComments;
@@ -155,6 +168,7 @@ function loadLeaf(projectRoot: string, filePath: string, projectMeta: Record<str
   return {
     kind: "leaf",
     id,
+    branchId: buildBranchKey(contentRoot, path.dirname(filePath)),
     format,
     path: filePath,
     relativePath,
@@ -167,6 +181,45 @@ function loadLeaf(projectRoot: string, filePath: string, projectMeta: Record<str
     order: parseOrder(path.basename(filePath)),
     headings: format === "markdown" ? collectLeafHeadingTargets(body, id) : []
   };
+}
+
+function attachBranchLeaves(leaves: LeafRecord[], branches: BranchRecord[]): void {
+  const leavesByBranchId = new Map<string, LeafRecord[]>();
+  for (const leaf of leaves) {
+    const existing = leavesByBranchId.get(leaf.branchId);
+    if (existing) {
+      existing.push(leaf);
+      continue;
+    }
+    leavesByBranchId.set(leaf.branchId, [leaf]);
+  }
+
+  for (const branch of branches) {
+    branch.leaves = leavesByBranchId.get(branch.id) ?? [];
+  }
+}
+
+function attachBranchChildren(branches: BranchRecord[]): void {
+  const branchById = new Map<string, BranchRecord>();
+  for (const branch of branches) {
+    branch.branches = [];
+    branchById.set(branch.id, branch);
+  }
+
+  for (const branch of branches) {
+    if (!branch.id) {
+      continue;
+    }
+    const parent = branchById.get(branch.parentId ?? "");
+    if (!parent) {
+      continue;
+    }
+    parent.branches.push(branch);
+  }
+
+  for (const branch of branches) {
+    branch.branches.sort((left, right) => left.id.localeCompare(right.id));
+  }
 }
 
 function parseOrder(basename: string): number | null {

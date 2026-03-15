@@ -57,8 +57,9 @@ test("TSX helpers create document IR through defineTemplate", () => {
 
   const document = template.render({
     project: { id: "demo", root: "/tmp/demo", metadata: { title: "Demo" } },
-    content: [],
-    branches: []
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: []
   });
 
   assert.equal(document.kind, "document");
@@ -79,8 +80,9 @@ test("target-aware templates reject unsupported runtime capabilities", () => {
 
   assert.throws(() => engine.evaluateTemplate(template, {
     project: { id: "demo", root: "/tmp/demo", metadata: {} },
-    content: [],
-    branches: []
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: []
   }), /declared targets \(epub\) do not all support/i);
 });
 
@@ -105,8 +107,9 @@ test("evaluateTemplate rejects empty in-memory target declarations", () => {
 
   assert.throws(() => engine.evaluateTemplate(template, {
     project: { id: "demo", root: "/tmp/demo", metadata: {} },
-    content: [],
-    branches: []
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: []
   }), /one or more presentation targets/i);
 });
 
@@ -137,7 +140,7 @@ test("compileProject loads leaves, excludes _branch.md from content, and builds 
       `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document>
-    {ctx.content.map((leaf) => (
+    {ctx.allLeaves.map((leaf) => (
       <Stego.Markdown leaf={leaf} />
     ))}
   </Stego.Document>
@@ -148,12 +151,18 @@ export default defineTemplate((ctx) => (
     const compiled = await engine.compileProject({ projectRoot: tempDir });
     const rendered = engine.renderDocument({ document: compiled.document, projectRoot: tempDir, context: compiled.context });
 
-    assert.equal(Array.isArray(compiled.context.content), true);
-    assert.equal(Array.isArray(compiled.context.branches), true);
-    assert.equal(compiled.context.content.length, 2);
-    assert.equal(compiled.context.content.some((leaf) => leaf.relativePath.endsWith("_branch.md")), false);
-    assert.equal(compiled.context.branches.some((branch) => branch.key === "" && branch.label === "Book Content"), true);
-    assert.equal(compiled.context.branches.some((branch) => branch.key === "reference/characters" && branch.label === "Characters"), true);
+    assert.equal(Array.isArray(compiled.context.content.leaves), true);
+    assert.equal(Array.isArray(compiled.context.content.branches), true);
+    assert.equal(Array.isArray(compiled.context.allLeaves), true);
+    assert.equal(Array.isArray(compiled.context.allBranches), true);
+    assert.equal(compiled.context.allLeaves.length, 2);
+    assert.equal(compiled.context.allLeaves.some((leaf) => leaf.relativePath.endsWith("_branch.md")), false);
+    assert.equal(compiled.context.content.label, "Book Content");
+    assert.equal(compiled.context.allBranches.some((branch) => branch.id === "" && branch.label === "Book Content"), true);
+    assert.equal(compiled.context.allBranches.some((branch) => branch.id === "reference/characters" && branch.label === "Characters"), true);
+    assert.equal(compiled.context.allLeaves.find((leaf) => leaf.id === "CHAR-ONE")?.branchId, "reference/characters");
+    assert.equal(compiled.context.allBranches.find((branch) => branch.id === "reference/characters")?.leaves.length, 1);
+    assert.equal(compiled.context.content.branches.find((branch) => branch.id === "reference")?.branches[0]?.id, "reference/characters");
 
     assert.match(rendered.markdown, /Body\./);
     assert.doesNotMatch(rendered.markdown, /CMT-0001/);
@@ -202,8 +211,9 @@ test("renderDocument emits keep-together, layout, footer page-number metadata, a
     projectRoot: "/tmp/demo",
     context: {
       project: { id: "demo", root: "/tmp/demo", metadata: {} },
-      content: [],
-      branches: []
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: []
     }
   });
   assert.equal(rendered.backend, "pandoc");

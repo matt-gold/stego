@@ -2,9 +2,9 @@ import { defineTemplate, Stego } from "@stego-labs/engine";
 
 export default defineTemplate((ctx) => {
   const generatedAt = new Date().toISOString();
-  const chapterLeaves = ctx.content.filter((leaf) => leaf.metadata.kind !== "reference");
+  const chapterLeaves = ctx.allLeaves.filter((leaf) => leaf.metadata.kind !== "reference");
   const chapterGroups = Stego.splitBy(chapterLeaves, (leaf) => asString(leaf.metadata.chapter));
-  const referenceSections = groupReferenceLeaves(ctx.content.filter((leaf) => leaf.metadata.kind === "reference"));
+  const referenceSections = groupReferenceLeaves(ctx.allLeaves.filter((leaf) => leaf.metadata.kind === "reference"));
 
   const tocEntries = [
     ...chapterGroups
