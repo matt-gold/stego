@@ -1,5 +1,14 @@
 # stego-cli
 
+## 1.0.5
+
+### Patch Changes
+
+- c0d590b: Improve branch-scoped metadata requirements, fix example project defaults, and refine extension sidebar behavior with faster manuscript loading and cleaner Explore details.
+- Updated dependencies [c0d590b]
+  - @stego-labs/shared@1.0.5
+  - @stego-labs/engine@1.0.5
+
 ## 1.0.4
 
 ### Patch Changes
