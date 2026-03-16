@@ -91,6 +91,25 @@ test('validate treats _branch.md as branch metadata, not a leaf', () => {
   }
 });
 
+test('validate allows leaves without numeric filename prefixes', () => {
+  const projectId = `leaf-no-prefix-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(projectId, {
+    id: projectId,
+    title: 'Leaf Without Prefix Test',
+    requiredMetadata: ['status']
+  });
+
+  try {
+    writeFile(path.join(projectRoot, 'content', 'FLOW-STAGE-PROMOTION.md'), '---\nid: FLOW-STAGE-PROMOTION\nstatus: draft\n---\n\nBody.\n');
+
+    const validate = runCli(['validate', '--project', projectId]);
+    assert.equal(validate.status, 0, `${validate.stdout}\n${validate.stderr}`);
+    assert.doesNotMatch(`${validate.stdout}\n${validate.stderr}`, /Filename must start with a numeric prefix/);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
 test('validate rejects invalid _branch.md metadata', () => {
   const projectId = `branch-invalid-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId, {
@@ -106,6 +125,43 @@ test('validate rejects invalid _branch.md metadata', () => {
     const validate = runCli(['validate', '--project', projectId]);
     assert.equal(validate.status, 1, `${validate.stdout}\n${validate.stderr}`);
     assert.match(`${validate.stdout}\n${validate.stderr}`, /unsupported frontmatter key 'kind'/);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test('project requiredMetadata applies only to manuscript leaves and branch requiredLeafMetadata applies to branch leaves', () => {
+  const projectId = `branch-required-metadata-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(projectId, {
+    id: projectId,
+    title: 'Branch Required Metadata Test',
+    requiredMetadata: ['status']
+  });
+
+  try {
+    writeFile(
+      path.join(projectRoot, 'content', '100-one.md'),
+      '---\nid: CH-ONE\nstatus: draft\n---\n\nOne.\n'
+    );
+    writeFile(
+      path.join(projectRoot, 'content', 'reference', 'characters', '_branch.md'),
+      '---\nlabel: Characters\nrequiredLeafMetadata:\n  - kind\n  - label\n---\n\nReference notes.\n'
+    );
+    writeFile(
+      path.join(projectRoot, 'content', 'reference', 'characters', 'CHAR-ONE.md'),
+      '---\nid: CHAR-ONE\nkind: reference\nlabel: Character One\n---\n\nReference.\n'
+    );
+    writeFile(
+      path.join(projectRoot, 'content', 'reference', 'characters', 'CHAR-TWO.md'),
+      '---\nid: CHAR-TWO\nkind: reference\n---\n\nReference.\n'
+    );
+
+    const validate = runCli(['validate', '--project', projectId]);
+    assert.equal(validate.status, 0, `${validate.stdout}\n${validate.stderr}`);
+
+    const output = `${validate.stdout}\n${validate.stderr}`;
+    assert.doesNotMatch(output, /CHAR-ONE\.md[\s\S]*Missing required metadata key 'status'/);
+    assert.match(output, /CHAR-TWO\.md[\s\S]*Missing required metadata key 'label'/);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }

@@ -104,7 +104,7 @@ export async function buildExplorerState(
     }
     return {
       kind: 'home',
-      branch: toBranchSummary(rootBranch, index, projectDir),
+      branch: toBranchSummary(rootBranch, branches, index, projectDir),
       childBranches: collectExplorerBranchSummaries(branches, index, projectDir, ''),
       leafItems: collectExplorerLeafItems('', index, projectDir),
       body: rootBranch.body
@@ -120,7 +120,7 @@ export async function buildExplorerState(
       return rootBranch
         ? {
           kind: 'home',
-          branch: toBranchSummary(rootBranch, index, projectDir),
+          branch: toBranchSummary(rootBranch, branches, index, projectDir),
           childBranches: collectExplorerBranchSummaries(branches, index, projectDir, ''),
           leafItems: collectExplorerLeafItems('', index, projectDir),
           body: rootBranch.body
@@ -130,7 +130,7 @@ export async function buildExplorerState(
 
     return {
       kind: 'branch',
-      branch: toBranchSummary(branch, index, projectDir),
+      branch: toBranchSummary(branch, branches, index, projectDir),
       childBranches: collectExplorerBranchSummaries(branches, index, projectDir, branch.id),
       leafItems: collectExplorerLeafItems(branch.id, index, projectDir),
       body: branch.body
@@ -161,7 +161,7 @@ export async function buildExplorerState(
 
   return {
     kind: 'identifier',
-    branch: branch && projectDir ? toBranchSummary(branch, index, projectDir) : undefined,
+    branch: branch && projectDir ? toBranchSummary(branch, branches, index, projectDir) : undefined,
     entry: {
       id,
       label,
@@ -248,12 +248,21 @@ function findBranchForRecord(
   return branches.find((branch) => branch.id === branchId);
 }
 
-function toBranchSummary(branch: ProjectBranch, index: Map<string, LeafTargetRecord>, projectDir: string) {
+function toBranchSummary(
+  branch: ProjectBranch,
+  branches: ProjectBranch[],
+  index: Map<string, LeafTargetRecord>,
+  projectDir: string
+) {
+  const directBranchCount = branches.filter((candidate) => candidate.parentId === branch.id).length;
+  const directLeafCount = collectExplorerLeafItems(branch.id, index, projectDir).length;
   return {
     id: branch.id,
     name: branch.name,
     label: branch.label,
     parentId: branch.parentId,
-    directLeafCount: collectExplorerLeafItems(branch.id, index, projectDir).length
+    directBranchCount,
+    directLeafCount,
+    directChildCount: directBranchCount + directLeafCount
   };
 }

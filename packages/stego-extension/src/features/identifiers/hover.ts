@@ -31,8 +31,8 @@ export function createHoverProvider(indexService: LeafIndexService): vscode.Hove
           enabledCommands: ['stegoExplore.openCommentThread']
         };
         commentMd.appendMarkdown(`**${commentId}**`);
-        commentMd.appendMarkdown(`\\n\\nComment identifier.`);
-        commentMd.appendMarkdown(`\\n\\n[Open comment](${commandUri.toString()})`);
+        commentMd.appendMarkdown(`\n\nComment identifier.`);
+        commentMd.appendMarkdown(`\n\n[Open comment](${commandUri.toString()})`);
         return new vscode.Hover(commentMd, match.range);
       }
 
@@ -44,14 +44,14 @@ export function createHoverProvider(indexService: LeafIndexService): vscode.Hove
       md.appendMarkdown(`**${match.id}**`);
 
       if (record?.title) {
-        md.appendMarkdown(`\\n\\n${escapeMarkdown(record.title)}`);
+        md.appendMarkdown(`\n\n${escapeMarkdown(record.title)}`);
       }
 
       if (record?.description) {
-        md.appendMarkdown(`\\n\\n${escapeMarkdown(record.description)}`);
+        md.appendMarkdown(`\n\n${escapeMarkdown(record.description)}`);
       }
 
-      md.appendMarkdown(`\\n\\n[Open linked leaf](${createExploreIdentifierCommandUri(match.id).toString()})`);
+      md.appendMarkdown(`\n\n[Open linked leaf](${createExploreIdentifierCommandUri(match.id).toString()})`);
 
       return new vscode.Hover(md, match.range);
     }

@@ -8,6 +8,7 @@ export type LeafMetadata = Record<string, unknown> & {
 };
 export type BranchMetadata = {
   label?: string;
+  requiredLeafMetadata?: string[];
 };
 
 export type LeafRecord<TMetadata extends LeafMetadata = LeafMetadata> = {

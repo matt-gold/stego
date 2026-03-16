@@ -3,6 +3,7 @@ import path from "node:path";
 import { parseCommentAppendix } from "@stego-labs/shared/domain/comments";
 import {
   isBranchFile,
+  isManuscriptContentPath,
   isSupportedLeafContentFile,
   isValidLeafId,
   parseBranchDocument
@@ -30,6 +31,7 @@ export function inspectProject(
   const requiredMetadataState = resolveRequiredMetadata(project);
   issues.push(...requiredMetadataState.issues);
   issues.push(...validateProjectImagesConfiguration(project));
+  const branchRequiredMetadataByDir = new Map<string, string[]>();
 
   if (project.meta.compileStructure !== undefined) {
     issues.push(
@@ -112,13 +114,24 @@ export function inspectProject(
 
   for (const branchPath of branchFiles) {
     issues.push(...validateBranchFile(branchPath, repoRoot));
+    try {
+      const raw = fs.readFileSync(branchPath, "utf8");
+      const parsed = parseBranchDocument(raw, path.relative(repoRoot, branchPath));
+      branchRequiredMetadataByDir.set(path.resolve(path.dirname(branchPath)), parsed.metadata.requiredLeafMetadata ?? []);
+    } catch {
+      // Branch parse/validation issues are already reported above.
+    }
   }
 
   const chapters = chapterFiles.map((chapterPath) =>
     parseChapter(
       chapterPath,
       project,
-      requiredMetadataState.requiredMetadata
+      resolveEffectiveRequiredMetadataForLeaf(
+      chapterPath,
+        requiredMetadataState.requiredMetadata,
+        branchRequiredMetadataByDir
+      )
     )
   );
 
@@ -145,27 +158,6 @@ export function inspectProject(
     }
 
     idMap.set(chapter.id, chapter.relativePath);
-  }
-
-  const orderMap = new Map<number, string>();
-  for (const chapter of chapters) {
-    if (chapter.order == null) {
-      continue;
-    }
-
-    if (orderMap.has(chapter.order)) {
-      issues.push(
-        makeIssue(
-          "error",
-          "ordering",
-          `Duplicate filename order prefix '${chapter.order}' in ${chapter.relativePath} and ${orderMap.get(chapter.order)}`,
-          chapter.relativePath
-        )
-      );
-      continue;
-    }
-
-    orderMap.set(chapter.order, chapter.relativePath);
   }
 
   chapters.sort((a, b) => {
@@ -341,7 +333,14 @@ function parseChapter(
 
   const title = deriveEntryTitle(metadata.title, chapterPath);
   if (metadata.order != null && metadata.order !== "") {
-    chapterIssues.push(makeIssue("warning", "metadata", "Metadata 'order' is ignored. Ordering is derived from filename prefix.", relativePath));
+    chapterIssues.push(
+      makeIssue(
+        "warning",
+        "metadata",
+        "Metadata 'order' is ignored. Use template logic for ordering; numeric filename prefixes are optional ordering hints only.",
+        relativePath
+      )
+    );
   }
 
   const order = parseOrderFromFilename(chapterPath, relativePath, chapterIssues);
@@ -373,6 +372,25 @@ function parseChapter(
   };
 }
 
+function resolveEffectiveRequiredMetadataForLeaf(
+  chapterPath: string,
+  projectRequiredMetadata: string[],
+  branchRequiredMetadataByDir: Map<string, string[]>
+): string[] {
+  const requiredMetadata = isManuscriptContentPath(chapterPath)
+    ? [...projectRequiredMetadata]
+    : [];
+  const branchRequiredMetadata = branchRequiredMetadataByDir.get(path.resolve(path.dirname(chapterPath))) ?? [];
+
+  for (const key of branchRequiredMetadata) {
+    if (!requiredMetadata.includes(key)) {
+      requiredMetadata.push(key);
+    }
+  }
+
+  return requiredMetadata;
+}
+
 function deriveEntryTitle(rawTitle: unknown, chapterPath: string): string {
   if (typeof rawTitle === "string" && rawTitle.trim()) {
     return rawTitle.trim();
@@ -390,7 +408,6 @@ function parseOrderFromFilename(chapterPath: string, relativePath: string, issue
   const basename = path.basename(chapterPath, ".md");
   const match = basename.match(/^(\d+)[-_]/);
   if (!match) {
-    issues.push(makeIssue("error", "ordering", "Filename must start with a numeric prefix followed by '-' or '_' (for example '100-scene.md').", relativePath));
     return null;
   }
   if (match[1].length < 3) {

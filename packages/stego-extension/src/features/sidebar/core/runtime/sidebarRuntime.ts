@@ -56,12 +56,10 @@ import {
   findNearestProjectConfig,
   getConfig,
   logProjectHealthIssue,
-  collectManuscriptMarkdownFiles,
   resolveCurrentBranchFile
 } from '../../../project';
 import { buildExplorerState, buildMetadataEntry, buildTocWithBacklinks, collectTocEntries, isManuscriptPath } from '../../tabs/document';
 import { normalizeExplorerRoute, isSameExplorerRoute } from '../../tabs/explore';
-import { compareOverviewStatus, countOverviewWords } from '../../tabs/overview';
 import { renderSidebarShellHtml } from '../../webview';
 import {
   parseSidebarInboundMessage,
@@ -73,13 +71,9 @@ import { SIDEBAR_ACTION_HANDLERS } from './actionHandlers';
 import { SidebarEventBus } from './bus';
 import type { SidebarRuntimeEvent } from './events';
 import { SidebarEffectRunner } from './effects/runner';
+import { OverviewSummaryCache } from './overview/overviewSummaryCache';
 import { projectSidebarState } from './projector/sidebarStateProjector';
-import type {
-  GateSnapshotByProject,
-  OverviewBuildResult,
-  OverviewFileCache,
-  RefreshMode
-} from '../sidebarProvider.types';
+import type { RefreshMode } from '../sidebarProvider.types';
 import {
   EXPLORER_PIN_LIMIT,
   type ActiveExplorerState,
@@ -101,7 +95,6 @@ import {
   normalizeAuthor,
   readCommentStateForFile,
   replyToComment,
-  stripStegoCommentsAppendix,
   toggleCommentResolved
 } from '../../../comments';
 
@@ -129,8 +122,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   private explorerLoadToken = 0;
   private readonly pinnedByProject = new Map<string, PinnedExplorerEntryState[]>();
   private readonly expandedTocBacklinks = new Set<string>();
-  private readonly overviewFileCache = new Map<string, OverviewFileCache>();
-  private readonly gateSnapshotByProject: GateSnapshotByProject = new Map();
+  private readonly gateSnapshotByProject = new Map<string, SidebarOverviewGateSnapshot>();
+  private readonly overviewSummaryCache: OverviewSummaryCache;
   private readonly bus = new SidebarEventBus<SidebarRuntimeEvent>();
   private readonly effectRunner = new SidebarEffectRunner();
   private readonly stateSubscribers = new Set<(state: SidebarWebviewState) => void>();
@@ -147,7 +140,37 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     private readonly indexService: LeafIndexService,
     private readonly referenceUsageService: ReferenceUsageIndexService,
     private readonly diagnostics: vscode.DiagnosticCollection
-  ) {}
+  ) {
+    this.overviewSummaryCache = new OverviewSummaryCache({
+      getGateSnapshot: (projectDir) => this.getGateSnapshot(projectDir),
+      requestRefresh: () => {
+        const activeOverview = this.activeTab === 'overview'
+          || this.lastRenderedState?.activeTab === 'overview';
+        if (!activeOverview) {
+          return;
+        }
+        this.scheduleRefresh({ mode: 'full', debounceMs: 0 });
+      },
+      readCommentStateForFile,
+      logIssue: (headline, options) => logProjectHealthIssue('overview', headline, options)
+    });
+  }
+
+  public markOverviewFileDirty(filePath: string, options?: { commentsChanged?: boolean }): void {
+    this.overviewSummaryCache.markFileDirty(filePath, options);
+  }
+
+  public markOverviewProjectDirty(projectDir: string, options?: { commentsChanged?: boolean }): void {
+    this.overviewSummaryCache.markProjectDirty(projectDir, options);
+  }
+
+  public clearOverviewProject(projectDir: string): void {
+    this.overviewSummaryCache.clearProject(projectDir);
+  }
+
+  public async prewarmOverview(projectContext: ProjectScanContext): Promise<void> {
+    await this.overviewSummaryCache.getSnapshot(projectContext);
+  }
 
   public subscribe(listener: (state: SidebarWebviewState) => void): () => void {
     this.stateSubscribers.add(listener);
@@ -900,19 +923,23 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         : undefined;
       const canShowOverview = !!projectContext;
       const showExplorer = (projectContext?.branches.length ?? 0) > 0;
-      let overview: SidebarOverviewState | undefined;
-      let overviewSkippedFiles = 0;
-      if (projectContext) {
-        const built = await this.buildOverviewState(projectContext);
-        overview = built.overview;
-        overviewSkippedFiles = built.skippedFiles;
-      }
-      const warnings = this.collectSidebarWarnings(projectContext, overviewSkippedFiles);
       let activeTab = this.resolveEffectiveTab(this.activeTab, canShowOverview, showExplorer);
       if (activeTab === 'document') {
         activeTab = canShowOverview ? 'overview' : (showExplorer ? 'explore' : 'document');
       }
       this.activeTab = activeTab;
+
+      let overview: SidebarOverviewState | undefined;
+      let overviewSkippedFiles = 0;
+      let overviewLoading = false;
+      if (projectContext && activeTab === 'overview') {
+        // overview requested -> stale/ready/loading snapshot -> webview refresh
+        const built = await this.overviewSummaryCache.getSnapshot(projectContext);
+        overview = built.overview;
+        overviewSkippedFiles = built.skippedFiles;
+        overviewLoading = built.loading;
+      }
+      const warnings = this.collectSidebarWarnings(projectContext, overviewSkippedFiles);
 
       let explorer = undefined;
       let pinnedExplorers: SidebarPinnedExplorerPanel[] = [];
@@ -947,6 +974,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir: projectContext?.projectDir,
         warnings,
         canShowOverview,
+        overviewLoading,
         overview,
         activeTab,
         showExplorer,
@@ -1020,10 +1048,13 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     this.activeTab = effectiveTab;
     let overview: SidebarOverviewState | undefined;
     let overviewSkippedFiles = 0;
+    let overviewLoading = false;
     if (projectContext && effectiveTab === 'overview') {
-      const built = await this.buildOverviewState(projectContext);
+      // overview requested -> stale/ready/loading snapshot -> webview refresh
+      const built = await this.overviewSummaryCache.getSnapshot(projectContext);
       overview = built.overview;
       overviewSkippedFiles = built.skippedFiles;
+      overviewLoading = built.loading;
     }
     const warnings = this.collectSidebarWarnings(projectContext, overviewSkippedFiles);
 
@@ -1105,6 +1136,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir: projectContext?.projectDir,
         warnings,
         canShowOverview,
+        overviewLoading,
         overview,
         activeTab: effectiveTab,
         mode: 'nonManuscript',
@@ -1167,6 +1199,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir,
         warnings,
         canShowOverview,
+        overviewLoading,
         overview,
         activeTab: effectiveTab,
         mode: 'manuscript',
@@ -1206,6 +1239,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir: projectContext?.projectDir,
         warnings,
         canShowOverview,
+        overviewLoading,
         overview,
         activeTab: effectiveTab,
         mode: 'manuscript',
@@ -1237,27 +1271,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         comments
       };
     }
-  }
-
-  private compareManuscriptFiles(aPath: string, bPath: string): number {
-    const aName = path.basename(aPath, path.extname(aPath));
-    const bName = path.basename(bPath, path.extname(bPath));
-    const aMatch = aName.match(/^(\d+)[-_]/);
-    const bMatch = bName.match(/^(\d+)[-_]/);
-
-    if (aMatch && bMatch) {
-      const aOrder = Number(aMatch[1]);
-      const bOrder = Number(bMatch[1]);
-      if (aOrder !== bOrder) {
-        return aOrder - bOrder;
-      }
-    } else if (aMatch) {
-      return -1;
-    } else if (bMatch) {
-      return 1;
-    }
-
-    return aPath.localeCompare(bPath);
   }
 
   private collectReferencedLeafIdsInDocument(
@@ -2051,6 +2064,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         this.selectedCommentId = result.id;
         break;
@@ -2085,6 +2099,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         this.selectedCommentId = result.id ?? payload.id.trim().toUpperCase();
         break;
@@ -2103,6 +2118,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         this.selectedCommentId = payload.id.trim().toUpperCase();
         break;
@@ -2136,6 +2152,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         if (this.selectedCommentId === payload.id.trim().toUpperCase()) {
           this.selectedCommentId = undefined;
@@ -2153,6 +2170,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         if (!this.selectedCommentId) {
           break;
@@ -2273,193 +2291,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }
 
     return warnings;
-  }
-
-  private async buildOverviewState(projectContext: {
-    projectDir: string;
-    projectTitle?: string;
-    requiredMetadata: string[];
-    issues: ProjectConfigIssue[];
-  }): Promise<OverviewBuildResult> {
-    const manuscriptFiles = (await collectManuscriptMarkdownFiles(projectContext.projectDir))
-      .sort((a, b) => this.compareManuscriptFiles(a, b));
-    const cache = this.getOverviewCache(projectContext.projectDir);
-    if (manuscriptFiles.length === 0) {
-      return {
-        overview: {
-          manuscriptTitle: projectContext.projectTitle?.trim() || path.basename(projectContext.projectDir),
-          generatedAt: new Date().toISOString(),
-          wordCount: 0,
-          manuscriptFileCount: 0,
-          missingRequiredMetadataCount: 0,
-          unresolvedCommentsCount: 0,
-          gateSnapshot: this.getGateSnapshot(projectContext.projectDir),
-          stageBreakdown: [],
-          mapRows: []
-        },
-        skippedFiles: 0
-      };
-    }
-
-    let wordCount = 0;
-    let missingRequiredMetadataCount = 0;
-    let unresolvedCommentsCount = 0;
-    let skippedFiles = 0;
-    const stageCounts = new Map<string, number>();
-    const mapRows: SidebarOverviewState['mapRows'] = [];
-    let firstUnresolvedComment: SidebarOverviewState['firstUnresolvedComment'];
-    let firstMissingMetadata: SidebarOverviewState['firstMissingMetadata'];
-
-    for (const filePath of manuscriptFiles) {
-      let stat: { mtimeMs: number };
-      try {
-        stat = await fs.stat(filePath);
-      } catch (error) {
-        skippedFiles += 1;
-        logProjectHealthIssue('overview', 'Skipped leaf file (stat failed).', {
-          projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
-          filePath,
-          detail: errorToMessage(error)
-        });
-        continue;
-      }
-
-      const cached = cache.get(filePath);
-      let frontmatter: Record<string, unknown>;
-      let unresolvedCount: number;
-      let firstUnresolvedCommentId: string | undefined;
-      let status: string;
-
-      if (cached && cached.mtimeMs === stat.mtimeMs) {
-        frontmatter = cached.frontmatter;
-        wordCount += cached.wordCount;
-        unresolvedCount = cached.unresolvedCount;
-        firstUnresolvedCommentId = cached.firstUnresolvedCommentId;
-        status = cached.status;
-      } else {
-        let text = '';
-        try {
-          text = await fs.readFile(filePath, 'utf8');
-        } catch (error) {
-          skippedFiles += 1;
-          cache.delete(filePath);
-          logProjectHealthIssue('overview', 'Skipped leaf file (read failed).', {
-            projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
-            filePath,
-            detail: errorToMessage(error)
-          });
-          continue;
-        }
-
-        try {
-          const commentState = await readCommentStateForFile(filePath, { showWarning: false });
-          const contentWithoutComments = commentState.state
-            ? commentState.state.contentWithoutComments
-            : stripStegoCommentsAppendix(text);
-          const parsed = parseMarkdownDocument(contentWithoutComments);
-          frontmatter = parsed.frontmatter;
-          const fileWordCount = countOverviewWords(parsed.body);
-          wordCount += fileWordCount;
-
-          unresolvedCount = commentState.state?.unresolvedCount ?? 0;
-          firstUnresolvedCommentId = commentState.state?.comments.find((comment) => comment.status === 'open')?.id;
-
-          const statusRaw = frontmatter.status;
-          status = statusRaw === null || statusRaw === undefined || String(statusRaw).trim().length === 0
-            ? '(missing)'
-            : String(statusRaw).trim().toLowerCase();
-
-          cache.set(filePath, {
-            mtimeMs: stat.mtimeMs,
-            frontmatter,
-            wordCount: fileWordCount,
-            unresolvedCount,
-            firstUnresolvedCommentId,
-            status
-          });
-        } catch (error) {
-          skippedFiles += 1;
-          cache.delete(filePath);
-          logProjectHealthIssue('overview', 'Skipped leaf file (parse failed).', {
-            projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
-            filePath,
-            detail: errorToMessage(error)
-          });
-          continue;
-        }
-      }
-
-      let fileMissingMetadata = false;
-      for (const key of projectContext.requiredMetadata) {
-        const value = frontmatter[key];
-        if (value === null || value === undefined || String(value).trim().length === 0) {
-          missingRequiredMetadataCount += 1;
-          fileMissingMetadata = true;
-        }
-      }
-
-      if (!firstMissingMetadata && fileMissingMetadata) {
-        firstMissingMetadata = {
-          filePath,
-          fileLabel: path.basename(filePath)
-        };
-      }
-
-      stageCounts.set(status, (stageCounts.get(status) ?? 0) + 1);
-
-      mapRows.push({
-        kind: 'file',
-        filePath,
-        fileLabel: path.basename(filePath),
-        status
-      });
-
-      unresolvedCommentsCount += unresolvedCount;
-
-      if (!firstUnresolvedComment && firstUnresolvedCommentId) {
-        firstUnresolvedComment = {
-          filePath,
-          fileLabel: path.basename(filePath),
-          commentId: firstUnresolvedCommentId
-        };
-      }
-    }
-
-    for (const cachedPath of [...cache.keys()]) {
-      if (!manuscriptFiles.includes(cachedPath)) {
-        cache.delete(cachedPath);
-      }
-    }
-
-    const stageBreakdown = [...stageCounts.entries()]
-      .map(([status, count]) => ({ status, count }))
-      .sort((a, b) => compareOverviewStatus(a.status, b.status));
-
-    return {
-      overview: {
-        manuscriptTitle: projectContext.projectTitle?.trim() || path.basename(projectContext.projectDir),
-        generatedAt: new Date().toISOString(),
-        wordCount,
-        manuscriptFileCount: manuscriptFiles.length,
-        missingRequiredMetadataCount,
-        unresolvedCommentsCount,
-        gateSnapshot: this.getGateSnapshot(projectContext.projectDir),
-        stageBreakdown,
-        mapRows,
-        firstUnresolvedComment,
-        firstMissingMetadata
-      },
-      skippedFiles
-    };
-  }
-
-  private getOverviewCache(projectDir: string): OverviewFileCache {
-    let cache = this.overviewFileCache.get(projectDir);
-    if (!cache) {
-      cache = new Map();
-      this.overviewFileCache.set(projectDir, cache);
-    }
-    return cache;
   }
 
   private getGateSnapshot(projectDir: string): SidebarOverviewGateSnapshot {

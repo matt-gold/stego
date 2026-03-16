@@ -18,7 +18,7 @@ const IMAGE_EXTENSION_FILTERS = [
 ];
 
 export async function runInsertImageWorkflow(): Promise<WorkflowRunResult> {
-  const context = await resolveProjectScriptContext();
+  const context = await resolveProjectScriptContext({ requireMarkdown: true });
   if (!context) {
     return { ok: false, cancelled: true };
   }

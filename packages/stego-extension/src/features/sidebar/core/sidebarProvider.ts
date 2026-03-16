@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { WorkflowRunResult } from '../../commands';
 import { ReferenceUsageIndexService, LeafIndexService } from '../../indexing';
+import type { ProjectScanContext } from '../../../shared/types';
 import { SidebarRuntime } from './runtime/sidebarRuntime';
 import type { RefreshMode } from './sidebarProvider.types';
 
@@ -41,6 +42,22 @@ export class MetadataSidebarProvider implements vscode.WebviewViewProvider {
 
   public scheduleRefresh(options?: { mode?: RefreshMode; debounceMs?: number }): void {
     this.runtime.scheduleRefresh(options);
+  }
+
+  public markOverviewFileDirty(filePath: string, options?: { commentsChanged?: boolean }): void {
+    this.runtime.markOverviewFileDirty(filePath, options);
+  }
+
+  public markOverviewProjectDirty(projectDir: string, options?: { commentsChanged?: boolean }): void {
+    this.runtime.markOverviewProjectDirty(projectDir, options);
+  }
+
+  public clearOverviewProject(projectDir: string): void {
+    this.runtime.clearOverviewProject(projectDir);
+  }
+
+  public async prewarmOverview(projectContext: ProjectScanContext): Promise<void> {
+    await this.runtime.prewarmOverview(projectContext);
   }
 
   public async refresh(mode: RefreshMode = 'full'): Promise<void> {

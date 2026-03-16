@@ -24,6 +24,10 @@ export type WorkflowCommandInvocation = {
   runner: 'script' | 'stego';
 };
 
+type ResolveProjectScriptContextOptions = {
+  requireMarkdown?: boolean;
+};
+
 type StegoRunner = {
   command: string;
   prefixArgs: string[];
@@ -182,9 +186,22 @@ async function resolveStegoRunner(cwd: string): Promise<StegoRunner | undefined>
   return detection;
 }
 
-export async function resolveProjectScriptContext(): Promise<ProjectScriptContext | undefined> {
-  const document = getActiveMarkdownDocument(true);
+export async function resolveProjectScriptContext(
+  options: ResolveProjectScriptContextOptions = {}
+): Promise<ProjectScriptContext | undefined> {
+  const requireMarkdown = options.requireMarkdown ?? true;
+  const document = requireMarkdown
+    ? getActiveMarkdownDocument(true)
+    : vscode.window.activeTextEditor?.document;
   if (!document) {
+    if (!requireMarkdown) {
+      void vscode.window.showWarningMessage('Open a project file to run project actions.');
+    }
+    return undefined;
+  }
+
+  if (requireMarkdown && document.languageId !== 'markdown') {
+    void vscode.window.showWarningMessage('Open a Markdown leaf file to run this action.');
     return undefined;
   }
 

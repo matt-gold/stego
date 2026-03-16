@@ -392,11 +392,13 @@ async function discoverProjectBranches(
     let label = id ? buildBranchLabel(name) : 'Content';
     let body: string | undefined;
     let notesFile: string | undefined;
+    let requiredLeafMetadata: string[] = [];
 
     try {
       const raw = await fs.readFile(notesFilePath, 'utf8');
       const parsed = parseBranchDocument(raw, path.relative(projectDir, notesFilePath));
       label = buildBranchLabel(name, parsed.metadata.label);
+      requiredLeafMetadata = parsed.metadata.requiredLeafMetadata ?? [];
       body = parsed.body || undefined;
       notesFile = path.relative(contentDir, notesFilePath).split(path.sep).join('/');
     } catch (error) {
@@ -413,6 +415,7 @@ async function discoverProjectBranches(
       parentId: buildBranchParentKey(id),
       relativeDir: path.relative(projectDir, currentDir).split(path.sep).join('/'),
       notesFile,
+      requiredLeafMetadata,
       body
     });
 

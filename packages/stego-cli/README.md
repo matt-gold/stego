@@ -32,6 +32,8 @@ stego template build -p fiction-example
 
 - `content/` holds authored leaves
 - directories under `content/` are exposed as branches through `_branch.md`
+- project `requiredMetadata` applies to manuscript leaves
+- branch `_branch.md` files can declare `requiredLeafMetadata` for the direct leaves in that branch
 - templates read the root tree through `ctx.content`, the flat leaf list through `ctx.allLeaves`, and the flat branch list through `ctx.allBranches`
 - templates compile them into a manuscript
 - `dist/` contains generated outputs only
@@ -50,7 +52,7 @@ stego export -p fiction-example --format md
 stego metadata read projects/fiction-example/content/100-the-commission.md --format json
 ```
 
-`stego new` supports `--i <prefix>` for numeric prefix override, `--filename <name>` for an explicit filename, and `--id <leaf-id>` for an explicit leaf id.
+`stego new` supports `--i <prefix>` for an optional numeric prefix override, `--filename <name>` for an explicit filename, and `--id <leaf-id>` for an explicit leaf id.
 
 ## Template engine
 

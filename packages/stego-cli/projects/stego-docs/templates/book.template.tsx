@@ -94,7 +94,7 @@ function asString(value: unknown): string | undefined {
   return undefined;
 }
 
-function groupReferenceLeaves(leaves: Array<{ relativePath: string; metadata: Record<string, unknown> }>) {
+function groupReferenceLeaves<T extends { relativePath: string }>(leaves: T[]) {
   const groups = new Map<string, typeof leaves>();
   for (const leaf of leaves) {
     const relative = leaf.relativePath.replace(/^content\/reference\//, "");

@@ -16,7 +16,7 @@ type ManuscriptOrderEntry = {
 };
 
 export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
-  const context = await resolveProjectScriptContext();
+  const context = await resolveProjectScriptContext({ requireMarkdown: false });
   if (!context) {
     return { ok: false, cancelled: true };
   }

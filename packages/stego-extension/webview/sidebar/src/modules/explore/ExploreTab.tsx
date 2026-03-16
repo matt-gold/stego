@@ -156,7 +156,7 @@ function ExplorerIdentifierCard(props: {
 function BranchPageCard(props: {
   label: string;
   body?: string;
-  childBranches: Array<{ id: string; label: string; directLeafCount: number }>;
+  childBranches: Array<{ id: string; label: string; directChildCount: number }>;
   leafItems: Array<{ id: string; label: string; title: string; description: string; known: boolean }>;
   showCreateButton: boolean;
 }): JSX.Element {
@@ -174,7 +174,7 @@ function BranchPageCard(props: {
             <For each={props.childBranches}>{(branch) => (
               <div class="explorer-list-row">
                 <button class="id-link" onClick={() => dispatchSidebarAction(sidebarActions.openBranch(branch.id))}>{branch.label}</button>
-                <span class="badge">{branch.directLeafCount}</span>
+                <span class="badge">{branch.directChildCount}</span>
               </div>
             )}</For>
           </div>

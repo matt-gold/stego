@@ -38,7 +38,7 @@ export function getStageCheckDetails(stage: string, scope: 'file' | 'project'): 
 }
 
 export async function runProjectGateStageWorkflow(): Promise<WorkflowRunResult> {
-  const context = await resolveProjectScriptContext();
+  const context = await resolveProjectScriptContext({ requireMarkdown: false });
   if (!context) {
     return { ok: false, cancelled: true };
   }

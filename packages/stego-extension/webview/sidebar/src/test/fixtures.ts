@@ -15,6 +15,7 @@ export function createSidebarState(overrides: Partial<SidebarWebviewState> = {})
     warnings: [],
     canShowOverview: true,
     activeTab: 'document',
+    overviewLoading: false,
     mode: 'manuscript',
     showExplorer: true,
     metadataCollapsed: false,

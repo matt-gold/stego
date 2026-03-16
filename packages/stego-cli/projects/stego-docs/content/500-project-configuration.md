@@ -44,7 +44,22 @@ Projects can declare advisory metadata keys in `requiredMetadata`.
 
 Stego reports missing keys as warnings so teams can standardize frontmatter without blocking early drafting.
 
-Common keys include `status`, ordered boundary fields such as `chapter`, and project-specific metadata such as point of view, timeline, or reference identifiers.
+At the project level, `requiredMetadata` applies to manuscript leaves.
+
+Branches can narrow or extend that policy locally with `_branch.md`:
+
+```yaml
+---
+label: Characters
+requiredLeafMetadata:
+  - kind
+  - label
+---
+```
+
+`requiredLeafMetadata` applies only to the direct leaves in that branch directory. That is the right place for reference-specific requirements such as `kind` or `label`.
+
+Common manuscript keys include `status`, ordered boundary fields such as `chapter`, and project-specific metadata such as point of view or timeline.
 
 ## Leaf image settings
 

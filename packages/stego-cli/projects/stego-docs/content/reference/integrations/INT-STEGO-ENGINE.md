@@ -1,10 +1,7 @@
 ---
 id: INT-STEGO-ENGINE
 kind: reference
----
-
----
-label: `@stego-labs/engine` powers TSX templates and the render-plan pipeline behind Stego builds.
+label: "`@stego-labs/engine` powers TSX templates and the render-plan pipeline behind Stego builds."
 ---
 
 # `@stego-labs/engine` powers TSX templates and the render-plan pipeline behind Stego builds.

@@ -1,10 +1,7 @@
 ---
 id: CON-NOTES
 kind: reference
----
-
----
-label: `notes/` contains supporting material that is not part of compiled manuscript output.
+label: "`notes/` contains supporting material that is not part of compiled manuscript output."
 ---
 
 # `notes/` contains supporting material that is not part of compiled manuscript output.

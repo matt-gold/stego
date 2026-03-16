@@ -55,6 +55,7 @@ export type SidebarState = {
   warnings: string[];
   canShowOverview: boolean;
   activeTab: SidebarViewTab;
+  overviewLoading: boolean;
   overview?: SidebarOverviewState;
   mode?: 'manuscript' | 'nonManuscript';
   parseError?: string;
@@ -237,7 +238,9 @@ export type SidebarExplorerBranchSummary = {
   name: string;
   label: string;
   parentId?: string;
+  directBranchCount: number;
   directLeafCount: number;
+  directChildCount: number;
 };
 
 export type SidebarExplorerLeafItem = {
@@ -301,6 +304,7 @@ export type ProjectBranch = {
   parentId?: string;
   relativeDir: string;
   notesFile?: string;
+  requiredLeafMetadata: string[];
   body?: string;
 };
 

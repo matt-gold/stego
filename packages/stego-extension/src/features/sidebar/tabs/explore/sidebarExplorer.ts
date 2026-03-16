@@ -15,6 +15,7 @@ import type {
 } from '../../../../shared/types';
 import { tryParseIdentifierFromHeading } from '../../../identifiers';
 import { resolveRecordPathToFile } from '../../../indexing';
+import { buildExploreFileLabel } from './exploreFileLabel';
 
 export function collectExplorerBranchSummaries(
   branches: ProjectBranch[],
@@ -24,7 +25,7 @@ export function collectExplorerBranchSummaries(
 ): SidebarExplorerBranchSummary[] {
   return branches
     .filter((branch) => branch.parentId === parentId)
-    .map((branch) => toBranchSummary(branch, index, projectDir))
+    .map((branch) => toBranchSummary(branch, index, projectDir, branches))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
@@ -61,7 +62,7 @@ export async function resolveLeafSectionPreview(
   identifier: string,
   record: LeafTargetRecord | undefined,
   _document: vscode.TextDocument,
-  _projectContext: ProjectScanContext | undefined
+  projectContext: ProjectScanContext | undefined
 ): Promise<LeafSectionPreview | undefined> {
   const folder = vscode.workspace.getWorkspaceFolder(vscode.window.activeTextEditor?.document.uri ?? vscode.Uri.file('/'));
   const candidates: string[] = [];
@@ -73,7 +74,7 @@ export async function resolveLeafSectionPreview(
 
   const uniqueCandidates = uniqueResolvedPaths(candidates);
   for (const filePath of uniqueCandidates) {
-    const preview = await parseIdentifierSectionFromFile(filePath, identifier);
+    const preview = await parseIdentifierSectionFromFile(filePath, identifier, projectContext?.projectDir);
     if (preview) {
       return preview;
     }
@@ -98,9 +99,7 @@ export async function parseIdentifierSectionFromFile(
     return undefined;
   }
 
-  const fileLabel = projectDir
-    ? path.relative(projectDir, filePath).split(path.sep).join('/')
-    : filePath;
+  const fileLabel = buildExploreFileLabel(filePath, projectDir);
   const lines = raw.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     const match = lines[index].match(/^(#{1,6})\s+(.+?)\s*$/);
@@ -155,14 +154,19 @@ export function collectHeadingSectionBody(lines: string[], startIndex: number, h
 function toBranchSummary(
   branch: ProjectBranch,
   index: Map<string, LeafTargetRecord>,
-  projectDir: string
+  projectDir: string,
+  branches: ProjectBranch[]
 ): SidebarExplorerBranchSummary {
+  const directBranchCount = branches.filter((candidate) => candidate.parentId === branch.id).length;
+  const directLeafCount = collectExplorerLeafItems(branch.id, index, projectDir).length;
   return {
     id: branch.id,
     name: branch.name,
     label: branch.label,
     parentId: branch.parentId,
-    directLeafCount: collectExplorerLeafItems(branch.id, index, projectDir).length
+    directBranchCount,
+    directLeafCount,
+    directChildCount: directBranchCount + directLeafCount
   };
 }
 

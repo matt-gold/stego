@@ -1,5 +1,9 @@
 import path from "node:path";
-import { parseMarkdownDocument, type FrontmatterRecord } from "../frontmatter/index.ts";
+import {
+  isValidMetadataKey,
+  parseMarkdownDocument,
+  type FrontmatterRecord
+} from "../frontmatter/index.ts";
 
 export type LeafFormat = "markdown" | "plaintext";
 
@@ -11,6 +15,7 @@ export type LeafHeadingTarget = {
 
 export type BranchMetadata = {
   label?: string;
+  requiredLeafMetadata?: string[];
 };
 
 export type ParsedBranchDocument = {
@@ -79,6 +84,21 @@ export function buildBranchLabel(name: string, metadataLabel?: string): string {
   return toTitleCase(name);
 }
 
+export function isManuscriptContentPath(filePath: string): boolean {
+  const normalized = path.resolve(filePath);
+  if (isBranchFile(normalized)) {
+    return false;
+  }
+
+  const parts = normalized.split(/[\\/]/).filter(Boolean);
+  const contentIndex = parts.lastIndexOf("content");
+  if (contentIndex >= 0) {
+    return parts[contentIndex + 1] !== "reference";
+  }
+
+  return parts.includes("manuscript") || parts.includes("manuscripts");
+}
+
 export function parseBranchDocument(raw: string, filePath = BRANCH_FILENAME): ParsedBranchDocument {
   let parsed;
   try {
@@ -99,21 +119,71 @@ export function validateBranchFrontmatter(
   frontmatter: FrontmatterRecord,
   filePath = BRANCH_FILENAME
 ): BranchMetadata {
-  const allowedKeys = new Set(["label"]);
+  const allowedKeys = new Set(["label", "requiredLeafMetadata"]);
   for (const key of Object.keys(frontmatter)) {
     if (!allowedKeys.has(key)) {
-      throw new Error(`Branch file '${filePath}' has unsupported frontmatter key '${key}'. Only 'label' is allowed.`);
+      throw new Error(
+        `Branch file '${filePath}' has unsupported frontmatter key '${key}'. Only 'label' and 'requiredLeafMetadata' are allowed.`
+      );
     }
   }
 
   const rawLabel = frontmatter.label;
+  const rawRequiredLeafMetadata = frontmatter.requiredLeafMetadata;
+  const requiredLeafMetadata = validateBranchRequiredLeafMetadata(rawRequiredLeafMetadata, filePath);
+
   if (rawLabel == null) {
-    return {};
+    return requiredLeafMetadata.length > 0 ? { requiredLeafMetadata } : {};
   }
   if (typeof rawLabel !== "string" || rawLabel.trim().length === 0) {
     throw new Error(`Branch file '${filePath}' must define 'label' as a non-empty string.`);
   }
-  return { label: rawLabel.trim() };
+  return requiredLeafMetadata.length > 0
+    ? { label: rawLabel.trim(), requiredLeafMetadata }
+    : { label: rawLabel.trim() };
+}
+
+function validateBranchRequiredLeafMetadata(value: unknown, filePath: string): string[] {
+  if (value == null) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`Branch file '${filePath}' must define 'requiredLeafMetadata' as an array of metadata keys.`);
+  }
+
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry !== "string") {
+      throw new Error(
+        `Branch file '${filePath}' has non-string requiredLeafMetadata entry at index ${index}.`
+      );
+    }
+
+    const key = entry.trim();
+    if (!key) {
+      throw new Error(
+        `Branch file '${filePath}' has empty requiredLeafMetadata entry at index ${index}.`
+      );
+    }
+
+    if (!isValidMetadataKey(key)) {
+      throw new Error(
+        `Branch file '${filePath}' has invalid requiredLeafMetadata key '${key}'.`
+      );
+    }
+
+    if (seen.has(key)) {
+      throw new Error(
+        `Branch file '${filePath}' has duplicate requiredLeafMetadata key '${key}'.`
+      );
+    }
+
+    seen.add(key);
+    result.push(key);
+  }
+
+  return result;
 }
 
 export function slugifyLeafHeading(value: string): string {

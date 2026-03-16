@@ -23,7 +23,7 @@ export function getLocalValidateDetails(relativeFile: string, stage: string): st
 }
 
 export async function runLocalValidateWorkflow(): Promise<WorkflowRunResult> {
-  const context = await resolveProjectScriptContext();
+  const context = await resolveProjectScriptContext({ requireMarkdown: true });
   if (!context) {
     return { ok: false, cancelled: true };
   }

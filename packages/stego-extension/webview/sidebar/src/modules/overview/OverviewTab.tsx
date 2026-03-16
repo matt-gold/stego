@@ -39,26 +39,34 @@ function TemplatesPanel(props: { state: SidebarWebviewState }): JSX.Element {
 }
 
 export function OverviewTab(props: { state: SidebarWebviewState }): JSX.Element {
-  return (
-    <Show when={props.state.overview}>
-      <section class="panel title-panel">
-        <div class="panel-heading">
-          <div class="title-heading-block">
-            <h2>{props.state.overview?.manuscriptTitle}</h2>
-            <div class="title-structure">Last updated <RelativeTime value={props.state.overview?.generatedAt} /></div>
-          </div>
-          <div class="actions">
-            <RunMenu
-              summaryLabel="Actions"
-              items={[
-                { label: 'New Leaf', title: 'New Leaf', icon: <PlusIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runNewManuscript()) },
-                { label: 'Compile Full Manuscript', title: 'Run Build', icon: <FileIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runCompile()) },
-                { label: 'Run Stage Check', title: 'Run Stage Check', icon: <CheckIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runStageCheck()) }
-              ]}
-            />
-          </div>
-        </div>
+  const manuscriptTitle = () => props.state.overview?.manuscriptTitle ?? 'Manuscript';
 
+  return (
+    <section class="panel title-panel">
+      <div class="panel-heading">
+        <div class="title-heading-block">
+          <h2>{manuscriptTitle()}</h2>
+          <Show when={props.state.overview?.generatedAt}>
+            <div class="title-structure">Last updated <RelativeTime value={props.state.overview?.generatedAt} /></div>
+          </Show>
+        </div>
+        <div class="actions">
+          <RunMenu
+            summaryLabel="Actions"
+            items={[
+              { label: 'New Leaf', title: 'New Leaf', icon: <PlusIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runNewManuscript()) },
+              { label: 'Compile Full Manuscript', title: 'Run Build', icon: <FileIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runCompile()) },
+              { label: 'Run Stage Check', title: 'Run Stage Check', icon: <CheckIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runStageCheck()) }
+            ]}
+          />
+        </div>
+      </div>
+
+      <Show when={props.state.overviewLoading}>
+        <div class="status-note overview-gate-error">Loading manuscript overview...</div>
+      </Show>
+
+      <Show when={props.state.overview}>
         <div class="overview-stage">
           <div class="overview-stage-list">
             <div class="overview-gate-item">
@@ -114,7 +122,9 @@ export function OverviewTab(props: { state: SidebarWebviewState }): JSX.Element 
             </div>
           </div>
         </div>
+      </Show>
 
+      <Show when={props.state.overview}>
         <div class="overview-metrics">
           <div class="overview-metric-row">
             <article class="item metadata-item overview-metric-card neutral">
@@ -179,33 +189,36 @@ export function OverviewTab(props: { state: SidebarWebviewState }): JSX.Element 
             </article>
           </div>
         </div>
+      </Show>
 
-        <div class="overview-structure">
-          <TemplatesPanel state={props.state} />
+      <div class="overview-structure">
+        <TemplatesPanel state={props.state} />
 
-          <Show when={props.state.overview && props.state.overview.mapRows.length > 0} fallback={<div class="empty tiny">No leaves found.</div>}>
-            <div class="overview-file-list">
-              <For each={props.state.overview?.mapRows ?? []}>{(row) => (
-                <article class="item metadata-item overview-file-item">
-                  <div class="item-main">
-                    <div class="item-title-row">
-                      <button
-                        class="backlink-link"
-                        onClick={() => {
-                          dispatchSidebarAction(sidebarActions.openOverviewFile(row.filePath));
-                        }}
-                      >
-                        {row.fileLabel}
-                      </button>
-                      <span class="badge">{row.status}</span>
-                    </div>
+        <Show
+          when={props.state.overview && props.state.overview.mapRows.length > 0}
+          fallback={<div class="empty tiny">{props.state.overviewLoading ? 'Loading leaves with status...' : 'No leaves with status.'}</div>}
+        >
+          <div class="overview-file-list">
+            <For each={props.state.overview?.mapRows ?? []}>{(row) => (
+              <article class="item metadata-item overview-file-item">
+                <div class="item-main">
+                  <div class="item-title-row">
+                    <button
+                      class="backlink-link"
+                      onClick={() => {
+                        dispatchSidebarAction(sidebarActions.openOverviewFile(row.filePath));
+                      }}
+                    >
+                      {row.fileLabel}
+                    </button>
+                    <span class="badge">{row.status}</span>
                   </div>
-                </article>
-              )}</For>
-            </div>
-          </Show>
-        </div>
-      </section>
-    </Show>
+                </div>
+              </article>
+            )}</For>
+          </div>
+        </Show>
+      </div>
+    </section>
   );
 }
