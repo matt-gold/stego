@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
-import { buildIndexFromHeadingScan } from '../../features/indexing/leafIndexService';
+import { buildIndexFromHeadingScan } from '../../features/indexing/leafIndexModel';
 import { buildProjectScanPlan } from '../../features/project/fileScan';
 
 function writeFile(filePath: string, content: string): void {
