@@ -29,6 +29,8 @@ export type SidebarMetadataEntry = {
   key: string;
   isStructural: boolean;
   isBranch: boolean;
+  isInherited: boolean;
+  inheritedFrom?: string;
   isArray: boolean;
   valueText: string;
   references: SidebarIdentifierLink[];
@@ -145,7 +147,9 @@ export type SidebarExplorerBranchSummary = {
   name: string;
   label: string;
   parentId?: string;
+  directBranchCount: number;
   directLeafCount: number;
+  directChildCount: number;
 };
 
 export type SidebarExplorerLeafItem = {
@@ -215,13 +219,13 @@ export type SidebarWebviewState = {
   documentTitle: string;
   documentFilename: string;
   documentFileStem: string;
-  showReferenceFilenameSubtitle: boolean;
   projectDir?: string;
   warnings: string[];
   canShowOverview: boolean;
   activeTab: SidebarViewTab;
+  overviewLoading: boolean;
   overview?: SidebarOverviewState;
-  mode?: 'manuscript' | 'nonManuscript';
+  documentKind?: 'leaf' | 'branchNotes';
   parseError?: string;
   showExplorer: boolean;
   metadataCollapsed: boolean;

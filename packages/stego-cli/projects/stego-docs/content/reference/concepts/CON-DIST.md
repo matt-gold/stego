@@ -1,10 +1,7 @@
 ---
 id: CON-DIST
 kind: reference
----
-
----
-label: `dist/` is generated output only and can be rebuilt from sources.
+label: "`dist/` is generated output only and can be rebuilt from sources."
 ---
 
 # `dist/` is generated output only and can be rebuilt from sources.

@@ -2,27 +2,31 @@ import * as path from 'path';
 import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { errorToMessage } from '../../shared/errors';
+import { CONTENT_DIR } from '../../shared/constants';
 import type { ScriptRunResult } from '../../shared/types';
 import { pickToastDetails, resolveProjectScriptContext, resolveWorkflowCommandInvocation, runCommand } from './workflowUtils';
 import type { WorkflowRunResult } from './workflowUtils';
 import { suppressAutoFoldFrontmatterForDocument } from './frontmatterFold';
 
-const DEFAULT_MANUSCRIPT_DIR = 'content';
-const DEFAULT_NEW_MANUSCRIPT_SLUG = 'new-leaf';
+const DEFAULT_NEW_LEAF_SLUG = 'new-leaf';
+const DEFAULT_MANUSCRIPT_BRANCH_DIR = 'manuscript';
 
-type ManuscriptOrderEntry = {
+type LeafOrderEntry = {
   order: number;
   filename: string;
 };
 
 export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
-  const context = await resolveProjectScriptContext();
+  const context = await resolveProjectScriptContext({ requireMarkdown: false });
   if (!context) {
     return { ok: false, cancelled: true };
   }
 
-  const manuscriptFilesBefore = await listManuscriptFiles(context.projectDir);
-  const defaultFilename = await inferDefaultManuscriptFilename(context.projectDir);
+  const targetDir = await resolveTargetLeafDir(context.projectDir, context.document.uri.fsPath);
+  const contentRoot = path.join(context.projectDir, CONTENT_DIR);
+  const targetDirRelative = toContentRelativeDir(contentRoot, targetDir);
+  const existingLeafFiles = await listLeafFiles(targetDir);
+  const defaultFilename = await inferDefaultLeafFilename(targetDir);
   const requestedFilename = await promptRequestedFilename(defaultFilename);
   if (requestedFilename === undefined) {
     return { ok: false, cancelled: true, projectDir: context.projectDir };
@@ -32,10 +36,16 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
     : '';
 
   const scriptArgs = normalizedRequestedFilename ? ['--filename', normalizedRequestedFilename] : [];
+  if (targetDirRelative) {
+    scriptArgs.push('--dir', targetDirRelative);
+  }
   scriptArgs.push('--format', 'json');
   const stegoArgs = ['new', '--project', context.projectId];
   if (normalizedRequestedFilename) {
     stegoArgs.push('--filename', normalizedRequestedFilename);
+  }
+  if (targetDirRelative) {
+    stegoArgs.push('--dir', targetDirRelative);
   }
   stegoArgs.push('--format', 'json');
 
@@ -81,12 +91,13 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
     };
   }
 
-  const createdPath = extractCreatedManuscriptPath(result);
-  const resolvedPath = await resolveCreatedManuscriptPath(
+  const createdPath = extractCreatedLeafPath(result);
+  const resolvedPath = await resolveCreatedLeafPath(
     createdPath,
     context.document.uri,
     context.projectDir,
-    manuscriptFilesBefore
+    targetDir,
+    existingLeafFiles
   );
   const finalPath = resolvedPath;
 
@@ -150,7 +161,7 @@ async function promptRequestedFilename(defaultFilename: string): Promise<string 
   return trimmed || '';
 }
 
-function extractCreatedManuscriptPath(result: ScriptRunResult): string | undefined {
+function extractCreatedLeafPath(result: ScriptRunResult): string | undefined {
   const text = `${result.stdout}\n${result.stderr}`.trim();
   if (!text) {
     return undefined;
@@ -190,18 +201,19 @@ function extractCreatedManuscriptPath(result: ScriptRunResult): string | undefin
   return undefined;
 }
 
-async function resolveCreatedManuscriptPath(
+async function resolveCreatedLeafPath(
   rawPath: string | undefined,
   scopeUri: vscode.Uri,
   projectDir: string,
-  manuscriptFilesBefore: Set<string>
+  targetDir: string,
+  leafFilesBefore: Set<string>
 ): Promise<string | undefined> {
   const resolvedFromOutput = await resolveCreatedPath(rawPath, scopeUri, projectDir);
   if (resolvedFromOutput) {
     return resolvedFromOutput;
   }
 
-  return detectCreatedManuscriptPath(projectDir, manuscriptFilesBefore);
+  return detectCreatedLeafPath(targetDir, leafFilesBefore);
 }
 
 async function resolveCreatedPath(
@@ -267,11 +279,10 @@ async function resolveCreatedPathCandidates(
   return [...candidates];
 }
 
-async function listManuscriptFiles(projectDir: string): Promise<Set<string>> {
-  const manuscriptDir = await resolveManuscriptDir(projectDir);
+async function listLeafFiles(dirPath: string): Promise<Set<string>> {
   let entries: string[];
   try {
-    entries = await fs.readdir(manuscriptDir);
+    entries = await fs.readdir(dirPath);
   } catch {
     return new Set();
   }
@@ -279,14 +290,14 @@ async function listManuscriptFiles(projectDir: string): Promise<Set<string>> {
   return new Set(
     entries
       .filter((name) => name.toLowerCase().endsWith('.md'))
-      .map((name) => path.resolve(path.join(manuscriptDir, name)))
+      .map((name) => path.resolve(path.join(dirPath, name)))
   );
 }
 
-async function listManuscriptOrderEntries(manuscriptDir: string): Promise<ManuscriptOrderEntry[]> {
+async function listLeafOrderEntries(dirPath: string): Promise<LeafOrderEntry[]> {
   let entries: string[];
   try {
-    entries = await fs.readdir(manuscriptDir);
+    entries = await fs.readdir(dirPath);
   } catch {
     return [];
   }
@@ -303,7 +314,7 @@ async function listManuscriptOrderEntries(manuscriptDir: string): Promise<Manusc
         filename: name
       };
     })
-    .filter((entry): entry is ManuscriptOrderEntry => !!entry)
+    .filter((entry): entry is LeafOrderEntry => !!entry)
     .sort((a, b) => {
       if (a.order === b.order) {
         return a.filename.localeCompare(b.filename);
@@ -312,7 +323,7 @@ async function listManuscriptOrderEntries(manuscriptDir: string): Promise<Manusc
     });
 }
 
-function inferNextManuscriptPrefix(entries: ManuscriptOrderEntry[]): number {
+function inferNextLeafPrefix(entries: LeafOrderEntry[]): number {
   if (entries.length === 0) {
     return 100;
   }
@@ -327,44 +338,42 @@ function inferNextManuscriptPrefix(entries: ManuscriptOrderEntry[]): number {
   return latest + (step > 0 ? step : 1);
 }
 
-async function inferDefaultManuscriptFilename(projectDir: string): Promise<string> {
-  const manuscriptDir = await resolveManuscriptDir(projectDir);
-  const entries = await listManuscriptOrderEntries(manuscriptDir);
-  const nextPrefix = inferNextManuscriptPrefix(entries);
-  return `${nextPrefix}-${DEFAULT_NEW_MANUSCRIPT_SLUG}.md`;
+async function inferDefaultLeafFilename(targetDir: string): Promise<string> {
+  const entries = await listLeafOrderEntries(targetDir);
+  const nextPrefix = inferNextLeafPrefix(entries);
+  return `${nextPrefix}-${DEFAULT_NEW_LEAF_SLUG}.md`;
 }
 
-async function resolveManuscriptDir(projectDir: string): Promise<string> {
-  const workspaceRoot = await findNearestStegoWorkspaceRoot(projectDir);
-  if (!workspaceRoot) {
-    return path.join(projectDir, DEFAULT_MANUSCRIPT_DIR);
+async function resolveTargetLeafDir(projectDir: string, activeFilePath: string): Promise<string> {
+  const contentRoot = path.join(projectDir, CONTENT_DIR);
+  const normalizedActiveFilePath = path.resolve(activeFilePath);
+  const relativeToContent = path.relative(contentRoot, normalizedActiveFilePath);
+  if (!relativeToContent.startsWith('..') && !path.isAbsolute(relativeToContent)) {
+    return path.dirname(normalizedActiveFilePath);
   }
 
-  const configPath = path.join(workspaceRoot, 'stego.config.json');
-  try {
-    const raw = await fs.readFile(configPath, 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return path.join(projectDir, DEFAULT_MANUSCRIPT_DIR);
-    }
-
-    const chapterDirRaw = (parsed as Record<string, unknown>).chapterDir;
-    const chapterDir = typeof chapterDirRaw === 'string'
-      ? chapterDirRaw.trim()
-      : '';
-    const resolvedDir = chapterDir || DEFAULT_MANUSCRIPT_DIR;
-    return path.join(projectDir, resolvedDir);
-  } catch {
-    return path.join(projectDir, DEFAULT_MANUSCRIPT_DIR);
+  const manuscriptDir = path.join(contentRoot, DEFAULT_MANUSCRIPT_BRANCH_DIR);
+  if (await isDirectory(manuscriptDir)) {
+    return manuscriptDir;
   }
+
+  return contentRoot;
 }
 
-async function detectCreatedManuscriptPath(
-  projectDir: string,
-  manuscriptFilesBefore: Set<string>
+function toContentRelativeDir(contentRoot: string, targetDir: string): string | undefined {
+  const relative = path.relative(contentRoot, targetDir);
+  if (!relative || relative === '.') {
+    return undefined;
+  }
+  return relative.split(path.sep).join('/');
+}
+
+async function detectCreatedLeafPath(
+  targetDir: string,
+  leafFilesBefore: Set<string>
 ): Promise<string | undefined> {
-  const manuscriptFilesAfter = await listManuscriptFiles(projectDir);
-  const created = [...manuscriptFilesAfter].filter((filePath) => !manuscriptFilesBefore.has(filePath));
+  const leafFilesAfter = await listLeafFiles(targetDir);
+  const created = [...leafFilesAfter].filter((filePath) => !leafFilesBefore.has(filePath));
   if (created.length > 0) {
     created.sort((a, b) => a.localeCompare(b));
     return created[created.length - 1];
@@ -393,5 +402,14 @@ async function findNearestStegoWorkspaceRoot(startDir: string): Promise<string |
     }
 
     current = parent;
+  }
+}
+
+async function isDirectory(dirPath: string): Promise<boolean> {
+  try {
+    const stat = await fs.stat(dirPath);
+    return stat.isDirectory();
+  } catch {
+    return false;
   }
 }

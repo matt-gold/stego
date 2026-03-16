@@ -2,6 +2,8 @@ export {
   ReferenceUsageIndexService
 } from './referenceUsageIndexService';
 export {
-  LeafIndexService,
-  resolveRecordPathToFile
+  LeafIndexService
 } from './leafIndexService';
+export {
+  resolveRecordPathToFile
+} from './leafIndexModel';

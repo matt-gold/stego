@@ -1,45 +1,48 @@
+import fs from "node:fs";
 import path from "node:path";
-import { isValidLeafId } from "@stego-labs/shared/domain/content";
-import type { ProjectContext } from "../../project/index.ts";
-import type { ManuscriptOutputFormat, NewManuscriptInput, NewManuscriptResult } from "../types.ts";
 import {
+  BRANCH_FILENAME,
+  createEmptyEffectiveBranchLeafPolicy,
+  isValidLeafId,
+  mergeBranchLeafPolicy,
+  parseBranchDocument,
+  type EffectiveBranchLeafPolicy
+} from "@stego-labs/shared/domain/content";
+import type { LeafOutputFormat, NewLeafInput, NewLeafResult } from "../types.ts";
+import {
+  ensureLeafDir,
   fileExists,
-  ensureManuscriptDir,
   joinPath,
   listExistingLeafIds,
-  listManuscriptOrderEntries,
+  listLeafOrderEntries,
   writeTextFile
 } from "../infra/manuscript-repo.ts";
 import {
-  inferNextManuscriptPrefix,
-  parseManuscriptPrefix,
-  parseOrderFromManuscriptFilename,
-  parseRequestedManuscriptFilename
+  inferNextLeafPrefix,
+  parseLeafPrefix,
+  parseOrderFromLeafFilename,
+  parseRequestedLeafFilename
 } from "./order-inference.ts";
 
-const DEFAULT_NEW_MANUSCRIPT_SLUG = "new-leaf";
+const DEFAULT_NEW_LEAF_SLUG = "new-leaf";
+const DEFAULT_MANUSCRIPT_BRANCH_DIR = "manuscript";
 
-export function createNewManuscript(input: NewManuscriptInput): NewManuscriptResult {
+export function createNewLeaf(input: NewLeafInput): NewLeafResult {
   const project = input.project;
-  ensureManuscriptDir(project.contentDir);
+  const targetDir = resolveTargetDir(project.contentDir, input.requestedDirRaw);
+  ensureLeafDir(targetDir);
 
-  const requiredMetadataState = resolveRequiredMetadata(project);
-  if (requiredMetadataState.errors.length > 0) {
-    throw new Error(
-      `Unable to resolve required metadata for project '${project.id}': ${requiredMetadataState.errors.join(" ")}`
-    );
-  }
-
-  const existingEntries = listManuscriptOrderEntries(project.contentDir);
-  const explicitPrefix = parseManuscriptPrefix(input.requestedPrefixRaw);
-  const requestedFilename = parseRequestedManuscriptFilename(input.requestedFilenameRaw);
+  const effectiveLeafPolicy = resolveEffectiveLeafPolicyForDirectory(project.contentDir, targetDir);
+  const existingEntries = listLeafOrderEntries(targetDir);
+  const explicitPrefix = parseLeafPrefix(input.requestedPrefixRaw);
+  const requestedFilename = parseRequestedLeafFilename(input.requestedFilenameRaw);
   if (requestedFilename && explicitPrefix != null) {
     throw new Error("Options --filename and --i/-i cannot be used together.");
   }
 
   let filename: string;
   if (requestedFilename) {
-    const requestedOrder = parseOrderFromManuscriptFilename(requestedFilename);
+    const requestedOrder = parseOrderFromLeafFilename(requestedFilename);
     if (requestedOrder != null) {
       const collision = existingEntries.find((entry) => entry.order === requestedOrder);
       if (collision) {
@@ -50,18 +53,18 @@ export function createNewManuscript(input: NewManuscriptInput): NewManuscriptRes
     }
     filename = requestedFilename;
   } else {
-    const nextPrefix = explicitPrefix ?? inferNextManuscriptPrefix(existingEntries);
+    const nextPrefix = explicitPrefix ?? inferNextLeafPrefix(existingEntries);
     const collision = existingEntries.find((entry) => entry.order === nextPrefix);
     if (collision) {
       throw new Error(
         `Leaf prefix '${nextPrefix}' is already used by '${collision.filename}'. Re-run with --i <number> to choose an unused prefix.`
       );
     }
-    filename = `${nextPrefix}-${DEFAULT_NEW_MANUSCRIPT_SLUG}.md`;
+    filename = `${nextPrefix}-${DEFAULT_NEW_LEAF_SLUG}.md`;
   }
 
-  const manuscriptPath = joinPath(project.contentDir, filename);
-  if (fileExists(manuscriptPath)) {
+  const leafPath = joinPath(targetDir, filename);
+  if (fileExists(leafPath)) {
     throw new Error(`Leaf already exists: ${filename}`);
   }
 
@@ -69,17 +72,17 @@ export function createNewManuscript(input: NewManuscriptInput): NewManuscriptRes
   const leafId = resolveLeafId(input.requestedIdRaw, filename, existingLeafIds);
 
   writeTextFile(
-    manuscriptPath,
-    renderNewManuscriptTemplate(requiredMetadataState.requiredMetadata, leafId)
+    leafPath,
+    renderNewLeafTemplate(effectiveLeafPolicy, leafId)
   );
 
   return {
     projectId: project.id,
-    filePath: path.relative(project.workspace.repoRoot, manuscriptPath)
+    filePath: path.relative(project.workspace.repoRoot, leafPath)
   };
 }
 
-export function parseManuscriptOutputFormat(raw: string | undefined): ManuscriptOutputFormat {
+export function parseNewLeafOutputFormat(raw: string | undefined): LeafOutputFormat {
   if (!raw || raw === "text") {
     return "text";
   }
@@ -89,57 +92,82 @@ export function parseManuscriptOutputFormat(raw: string | undefined): Manuscript
   throw new Error("Invalid --format value. Use 'text' or 'json'.");
 }
 
-function resolveRequiredMetadata(project: ProjectContext): { requiredMetadata: string[]; errors: string[] } {
-  const raw = project.meta.requiredMetadata;
-  if (raw == null) {
-    return {
-      requiredMetadata: project.workspace.config.requiredMetadata,
-      errors: []
-    };
+function resolveTargetDir(contentRoot: string, requestedDirRaw: string | undefined): string {
+  const normalized = requestedDirRaw?.trim();
+  if (!normalized || normalized === ".") {
+    return resolveDefaultTargetDir(contentRoot);
+  }
+  if (path.isAbsolute(normalized)) {
+    throw new Error(`Invalid --dir '${requestedDirRaw}'. Use a path relative to content/.`);
   }
 
-  if (!Array.isArray(raw)) {
-    return {
-      requiredMetadata: project.workspace.config.requiredMetadata,
-      errors: ["Project 'requiredMetadata' must be an array of metadata keys."]
-    };
+  const targetDir = path.resolve(contentRoot, normalized);
+  const relative = path.relative(path.resolve(contentRoot), targetDir);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`Invalid --dir '${requestedDirRaw}'. Target must stay within content/.`);
   }
-
-  const requiredMetadata: string[] = [];
-  const seen = new Set<string>();
-  const errors: string[] = [];
-
-  for (const [index, entry] of raw.entries()) {
-    if (typeof entry !== "string") {
-      errors.push(`Project 'requiredMetadata' entry at index ${index} must be a string.`);
-      continue;
-    }
-
-    const key = entry.trim();
-    if (!key) {
-      errors.push(`Project 'requiredMetadata' entry at index ${index} cannot be empty.`);
-      continue;
-    }
-
-    if (seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    requiredMetadata.push(key);
-  }
-
-  return {
-    requiredMetadata,
-    errors
-  };
+  return targetDir;
 }
 
-function renderNewManuscriptTemplate(requiredMetadata: string[], leafId: string): string {
-  const lines: string[] = ["---", `id: ${leafId}`, "status: draft"];
-  const seenKeys = new Set<string>(["status"]);
+function resolveDefaultTargetDir(contentRoot: string): string {
+  const resolvedContentRoot = path.resolve(contentRoot);
+  const manuscriptDir = path.join(resolvedContentRoot, DEFAULT_MANUSCRIPT_BRANCH_DIR);
+  if (fs.existsSync(manuscriptDir) && fs.statSync(manuscriptDir).isDirectory()) {
+    return manuscriptDir;
+  }
+  return resolvedContentRoot;
+}
 
-  for (const key of requiredMetadata) {
+function resolveEffectiveLeafPolicyForDirectory(
+  contentRoot: string,
+  targetDir: string
+): EffectiveBranchLeafPolicy {
+  let effectiveLeafPolicy = createEmptyEffectiveBranchLeafPolicy();
+  const contentDir = path.resolve(contentRoot);
+  let currentDir = path.resolve(targetDir);
+  const ancestorDirs: string[] = [];
+  while (true) {
+    const relative = path.relative(contentDir, currentDir);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      break;
+    }
+    ancestorDirs.push(currentDir);
+    if (currentDir === contentDir) {
+      break;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+
+  ancestorDirs.reverse();
+  for (const dirPath of ancestorDirs) {
+    const branchPath = path.join(dirPath, BRANCH_FILENAME);
+    if (!fs.existsSync(branchPath)) {
+      continue;
+    }
+
+    const parsed = parseBranchDocument(
+      fs.readFileSync(branchPath, "utf8"),
+      path.relative(contentDir, branchPath) || BRANCH_FILENAME
+    );
+    effectiveLeafPolicy = mergeBranchLeafPolicy(effectiveLeafPolicy, parsed.metadata.leafPolicy);
+  }
+
+  return effectiveLeafPolicy;
+}
+
+function renderNewLeafTemplate(
+  effectiveLeafPolicy: EffectiveBranchLeafPolicy,
+  leafId: string
+): string {
+  const lines: string[] = ["---", `id: ${leafId}`];
+  const seenKeys = new Set<string>(["id"]);
+
+  if (effectiveLeafPolicy.requiredMetadata.includes("status")) {
+    lines.push("status: draft");
+    seenKeys.add("status");
+  }
+
+  for (const key of effectiveLeafPolicy.requiredMetadata) {
     const normalized = key.trim();
     if (!normalized || seenKeys.has(normalized)) {
       continue;

@@ -2,16 +2,17 @@ import type { CommandRegistry } from "../../../app/command-registry.ts";
 import { writeJson, writeText } from "../../../app/output-renderer.ts";
 import { resolveProjectContext } from "../../project/index.ts";
 import { resolveWorkspaceContext } from "../../workspace/index.ts";
-import { createNewManuscript, parseManuscriptOutputFormat } from "../application/create-manuscript.ts";
+import { createNewLeaf, parseNewLeafOutputFormat } from "../application/create-manuscript.ts";
 
 export function registerNewManuscriptCommand(registry: CommandRegistry): void {
   registry.register({
     name: "new",
-    description: "Create a new leaf file under content/",
+    description: "Create a new leaf in a content directory",
     options: [
       { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "-i, --i <prefix>", description: "Numeric filename prefix override" },
       { flags: "--filename <name>", description: "Explicit leaf filename" },
+      { flags: "--dir <content-relative-dir>", description: "Leaf directory relative to content/" },
       { flags: "--id <leaf-id>", description: "Explicit leaf id" },
       { flags: "--format <format>", description: "text|json" },
       { flags: "--root <path>", description: "Workspace root path" }
@@ -27,13 +28,14 @@ export function registerNewManuscriptCommand(registry: CommandRegistry): void {
         env: context.env,
         explicitProjectId: readStringOption(context.options, "project")
       });
-      const result = createNewManuscript({
+      const result = createNewLeaf({
         project,
         requestedPrefixRaw: readStringOption(context.options, "i"),
         requestedFilenameRaw: readStringOption(context.options, "filename"),
+        requestedDirRaw: readStringOption(context.options, "dir"),
         requestedIdRaw: readStringOption(context.options, "id")
       });
-      const outputFormat = parseManuscriptOutputFormat(readStringOption(context.options, "format"));
+      const outputFormat = parseNewLeafOutputFormat(readStringOption(context.options, "format"));
 
       if (outputFormat === "json") {
         writeJson({

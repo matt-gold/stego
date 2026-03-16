@@ -1,5 +1,9 @@
 import type { StegoNode } from "../../ir/index.ts";
-import type { LeafFormat, LeafHeadingTarget } from "@stego-labs/shared/domain/content";
+import type {
+  BranchLeafPolicy,
+  LeafFormat,
+  LeafHeadingTarget
+} from "@stego-labs/shared/domain/content";
 import type { PresentationTarget } from "@stego-labs/shared/domain/templates";
 
 export type ProjectMetadata = Record<string, unknown>;
@@ -8,6 +12,7 @@ export type LeafMetadata = Record<string, unknown> & {
 };
 export type BranchMetadata = {
   label?: string;
+  leafPolicy?: BranchLeafPolicy;
 };
 
 export type LeafRecord<TMetadata extends LeafMetadata = LeafMetadata> = {

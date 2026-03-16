@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { END_SENTINEL, START_SENTINEL } from '@stego-labs/shared/domain/comments';
 import { METADATA_VIEW_ID } from './shared/constants';
@@ -16,8 +17,9 @@ import { refreshDiagnosticsForDocument, refreshVisibleMarkdownDocuments } from '
 import { createDocumentLinkProvider, createHoverProvider } from './features/identifiers';
 import { ReferenceUsageIndexService, LeafIndexService } from './features/indexing';
 import { getActiveMarkdownDocument, getFrontmatterLineRange, getStegoCommentsLineRange } from './features/metadata';
-import { detectStegoOpenMode, getConfig, isProjectFile } from './features/project';
+import { detectStegoOpenMode, findNearestProjectConfig, getConfig, isProjectFile } from './features/project';
 import { MetadataSidebarProvider } from './features/sidebar';
+import type { ProjectScanContext } from './shared/types';
 import {
   addCommentAtSelection,
   clearCachedCommentState,
@@ -45,6 +47,65 @@ export function activate(context: vscode.ExtensionContext): void {
   const refreshOpenModeContext = async (): Promise<void> => {
     const mode = await detectStegoOpenMode();
     await vscode.commands.executeCommand('setContext', 'stegoExplore.isStegoWorkspace', mode === 'workspace');
+  };
+
+  const markVisibleProjectsDirty = async (options?: { commentsChanged?: boolean }): Promise<void> => {
+    const projectContexts = await collectVisibleProjectContexts();
+    for (const projectContext of projectContexts) {
+      sidebarProvider.markOverviewProjectDirty(projectContext.projectDir, options);
+    }
+  };
+
+  const prewarmVisibleProjectOverviews = async (): Promise<void> => {
+    const projectContexts = await collectVisibleProjectContexts();
+    await Promise.allSettled(projectContexts.map((projectContext) => sidebarProvider.prewarmOverview(projectContext)));
+  };
+
+  const prewarmOverviewForDocument = async (document: vscode.TextDocument | undefined): Promise<void> => {
+    const projectContext = await resolveProjectContext(document);
+    if (!projectContext) {
+      return;
+    }
+
+    try {
+      await sidebarProvider.prewarmOverview(projectContext);
+    } catch {
+      // Ignore background prewarm failures; the on-demand overview path will retry.
+    }
+  };
+
+  const resolveProjectContext = async (document: vscode.TextDocument | undefined): Promise<ProjectScanContext | undefined> => {
+    if (!document) {
+      return undefined;
+    }
+
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) {
+      return undefined;
+    }
+
+    return findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath);
+  };
+
+  const collectVisibleProjectContexts = async (): Promise<ProjectScanContext[]> => {
+    const seen = new Set<string>();
+    const projectContexts: ProjectScanContext[] = [];
+    const documents = new Set<vscode.TextDocument>([
+      ...vscode.workspace.textDocuments,
+      ...vscode.window.visibleTextEditors.map((editor) => editor.document)
+    ]);
+
+    for (const document of documents) {
+      const projectContext = await resolveProjectContext(document);
+      if (!projectContext || seen.has(projectContext.projectDir)) {
+        continue;
+      }
+
+      seen.add(projectContext.projectDir);
+      projectContexts.push(projectContext);
+    }
+
+    return projectContexts;
   };
 
   context.subscriptions.push(
@@ -91,8 +152,10 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       if (result.id) {
+        sidebarProvider.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         await sidebarProvider.focusComment(result.id);
       } else {
+        sidebarProvider.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         await sidebarProvider.refresh();
       }
       await syncCommentStateAndTracker(document, false);
@@ -167,6 +230,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       void syncCommentStateAndTracker(document, false);
       commentDecorations.refreshVisibleEditors();
+      void prewarmOverviewForDocument(document);
       sidebarProvider.scheduleRefresh({ mode: 'full', debounceMs: 120 });
     }),
     vscode.workspace.onDidChangeTextDocument((event) => {
@@ -180,6 +244,9 @@ export function activate(context: vscode.ExtensionContext): void {
         && changesLikelyAffectCommentAppendix(event);
       if (commentsChanged) {
         void syncCommentStateAndTracker(event.document, false);
+      }
+      if (event.document.languageId === 'markdown' && event.contentChanges.length > 0) {
+        sidebarProvider.markOverviewFileDirty(event.document.uri.fsPath, { commentsChanged });
       }
       if (event.document === vscode.window.activeTextEditor?.document) {
         if (commentsChanged) {
@@ -205,9 +272,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
       if (document.languageId === 'markdown') {
         void handleExcerptPersistOnSave(document);
+        sidebarProvider.markOverviewFileDirty(document.uri.fsPath);
+      }
+
+      if (isProjectFile(document.uri)) {
+        sidebarProvider.markOverviewProjectDirty(path.dirname(document.uri.fsPath));
       }
 
       commentDecorations.refreshVisibleEditors();
+      void prewarmOverviewForDocument(document);
       void sidebarProvider.refresh();
     }),
     vscode.workspace.onDidCloseTextDocument((document) => {
@@ -219,6 +292,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('stego')) {
+        void markVisibleProjectsDirty();
         indexService.clear();
         referenceUsageService.clear();
         void refreshVisibleMarkdownDocuments(indexService, diagnostics);
@@ -241,6 +315,7 @@ export function activate(context: vscode.ExtensionContext): void {
         void syncCommentStateAndTracker(editor.document, false);
       }
       commentDecorations.refreshEditor(editor);
+      void prewarmOverviewForDocument(editor?.document);
       sidebarProvider.scheduleRefresh({ mode: 'full', debounceMs: 120 });
     }),
     vscode.window.onDidChangeVisibleTextEditors(() => {
@@ -253,6 +328,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   void refreshVisibleMarkdownDocuments(indexService, diagnostics);
   commentDecorations.refreshVisibleEditors();
+  void prewarmVisibleProjectOverviews();
   void sidebarProvider.refresh();
   void refreshOpenModeContext();
   void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);

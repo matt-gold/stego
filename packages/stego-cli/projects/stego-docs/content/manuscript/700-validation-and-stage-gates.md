@@ -31,7 +31,7 @@ Stego separates baseline validation from stage-aware enforcement.
 
 Use `validate` for fast project integrity checks while drafting or restructuring.
 
-It checks configuration shape, manuscript ordering, metadata parsing, and continuity reference structure.
+It checks configuration shape, optional filename ordering hints, metadata parsing, and continuity reference structure.
 
 ## `check-stage`
 

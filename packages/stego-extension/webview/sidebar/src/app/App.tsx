@@ -110,46 +110,47 @@ export function App(): JSX.Element {
 
   return (
     <div class="sidebar-root">
-      <Show when={state()} keyed fallback={<div class="empty-panel">Loading Stego sidebar…</div>}>
-        {(current) => {
-          const showExploreTabActions = current.activeTab === 'explore' && current.showExplorer && current.hasActiveMarkdown;
+      <Show when={state()} fallback={<div class="empty-panel">Loading Stego sidebar…</div>}>
+        {(currentAccessor) => {
+          const current = createMemo(currentAccessor);
+          const showExploreTabActions = () => current().activeTab === 'explore' && current().showExplorer && current().hasActiveMarkdown;
 
           return (
             <>
-              <Show when={showDocumentTab() || current.showExplorer || current.canShowOverview}>
+              <Show when={showDocumentTab() || current().showExplorer || current().canShowOverview}>
                 <div class="sidebar-tabs">
                   <div class="sidebar-tabs-main">
                     <Show when={showDocumentTab()}>
-                      <button class={`sidebar-tab${current.activeTab === 'document' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('document'))}>Document</button>
+                      <button class={`sidebar-tab${current().activeTab === 'document' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('document'))}>Document</button>
                     </Show>
-                    <Show when={current.showExplorer}>
-                      <button class={`sidebar-tab${current.activeTab === 'explore' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('explore'))}>Explore</button>
+                    <Show when={current().showExplorer}>
+                      <button class={`sidebar-tab${current().activeTab === 'explore' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('explore'))}>Explore</button>
                     </Show>
-                    <Show when={current.canShowOverview}>
-                      <button class={`sidebar-tab${current.activeTab === 'overview' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('overview'))}>Manuscript</button>
+                    <Show when={current().canShowOverview}>
+                      <button class={`sidebar-tab${current().activeTab === 'overview' ? ' active' : ''}`} onClick={() => dispatchSidebarAction(sidebarActions.setTab('overview'))}>Manuscript</button>
                     </Show>
                   </div>
                   <div class="sidebar-tabs-nav">
-                    <button class="btn subtle btn-icon" onClick={() => dispatchSidebarAction(sidebarActions.globalBack())} disabled={!current.globalCanGoBack} aria-label="Back" title="Back"><BackIcon /></button>
-                    <button class="btn subtle btn-icon" onClick={() => dispatchSidebarAction(sidebarActions.globalForward())} disabled={!current.globalCanGoForward} aria-label="Forward" title="Forward"><ForwardIcon /></button>
+                    <button class="btn subtle btn-icon" onClick={() => dispatchSidebarAction(sidebarActions.globalBack())} disabled={!current().globalCanGoBack} aria-label="Back" title="Back"><BackIcon /></button>
+                    <button class="btn subtle btn-icon" onClick={() => dispatchSidebarAction(sidebarActions.globalForward())} disabled={!current().globalCanGoForward} aria-label="Forward" title="Forward"><ForwardIcon /></button>
                   </div>
                 </div>
               </Show>
 
-              <Show when={showExploreTabActions}>
+              <Show when={showExploreTabActions()}>
                 <div class="explore-tab-actions-row">
                   <div class="sidebar-tabs-actions">
-                    <button class="btn subtle" onClick={() => dispatchSidebarAction(sidebarActions.pinAllFromDocument())} disabled={!current.canPinAllFromFile}>Pin All From File</button>
-                    <Show when={current.pinnedExplorers.length > 0}>
+                    <button class="btn subtle" onClick={() => dispatchSidebarAction(sidebarActions.pinAllFromDocument())} disabled={!current().canPinAllFromFile}>Pin All From File</button>
+                    <Show when={current().pinnedExplorers.length > 0}>
                       <button class="btn subtle" onClick={() => dispatchSidebarAction(sidebarActions.unpinAll())}>Unpin All</button>
                     </Show>
                   </div>
                 </div>
               </Show>
 
-              <Show when={current.warnings.length > 0}>
+              <Show when={current().warnings.length > 0}>
                 <div class="warning-panel">
-                  <For each={current.warnings}>{(warning, index) => (
+                  <For each={current().warnings}>{(warning, index) => (
                     <>
                       {index() > 0 ? <br /> : null}
                       {warning}
@@ -159,23 +160,23 @@ export function App(): JSX.Element {
               </Show>
 
               <Switch>
-                <Match when={current.activeTab === 'overview' && !!current.overview}>
-                  <OverviewTab state={current} />
+                <Match when={current().activeTab === 'overview'}>
+                  <OverviewTab state={current()} />
                 </Match>
-                <Match when={current.activeTab === 'explore'}>
-                  <ExploreTab state={current} />
+                <Match when={current().activeTab === 'explore'}>
+                  <ExploreTab state={current()} />
                 </Match>
-                <Match when={current.documentTabDetached}>
-                  <DocumentTab state={current} />
+                <Match when={current().documentTabDetached}>
+                  <DocumentTab state={current()} />
                 </Match>
-                <Match when={!current.hasActiveMarkdown && current.canShowOverview}>
+                <Match when={!current().hasActiveMarkdown && current().canShowOverview}>
                   <div class="empty-panel">Overview is available for this project.</div>
                 </Match>
-                <Match when={!current.hasActiveMarkdown}>
+                <Match when={!current().hasActiveMarkdown}>
                   <div class="empty-panel">Open a Markdown document to use the Stego sidebar.</div>
                 </Match>
                 <Match when={true}>
-                  <DocumentTab state={current} />
+                  <DocumentTab state={current()} />
                 </Match>
               </Switch>
             </>

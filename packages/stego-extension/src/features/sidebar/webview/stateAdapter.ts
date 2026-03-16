@@ -172,15 +172,10 @@ function renderPinnedExplorerPanels(
 }
 
 export function toSidebarWebviewState(webview: vscode.Webview, state: SidebarState): SidebarWebviewState {
-  const manuscriptLabel = state.mode === 'manuscript'
+  const leafLabel = state.documentKind === 'leaf' && state.showMetadataPanel
     ? state.metadataEntries.find((entry) => entry.key === 'label' && !entry.isArray)?.valueText
     : undefined;
-  const leafLabel = state.mode === 'nonManuscript' && state.showMetadataPanel
-    ? state.metadataEntries.find((entry) => entry.key === 'label' && !entry.isArray)?.valueText
-    : undefined;
-  const preferredTitle = state.mode === 'manuscript' ? manuscriptLabel : leafLabel;
-  const showReferenceFilenameSubtitle = state.mode === 'nonManuscript' && !!leafLabel?.trim();
-  const fileTitle = getSidebarFileTitle(state.documentPath, preferredTitle);
+  const fileTitle = getSidebarFileTitle(state.documentPath, leafLabel);
   const fileStem = fileTitle.filename ? path.parse(fileTitle.filename).name : '';
 
   const comments: SidebarWebviewState['comments'] = {
@@ -207,7 +202,6 @@ export function toSidebarWebviewState(webview: vscode.Webview, state: SidebarSta
     documentTitle: fileTitle.title,
     documentFilename: fileTitle.filename,
     documentFileStem: fileStem,
-    showReferenceFilenameSubtitle,
     comments,
     explorer,
     pinnedExplorers,

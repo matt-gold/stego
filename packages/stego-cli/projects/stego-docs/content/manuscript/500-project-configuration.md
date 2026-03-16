@@ -40,11 +40,22 @@ Stego uses two configuration layers:
 
 ## Metadata requirements
 
-Projects can declare advisory metadata keys in `requiredMetadata`.
-
 Stego reports missing keys as warnings so teams can standardize frontmatter without blocking early drafting.
 
-Common keys include `status`, ordered boundary fields such as `chapter`, and project-specific metadata such as point of view, timeline, or reference identifiers.
+Metadata requirements and defaults live on branches through `_branch.md`:
+
+```yaml
+---
+label: Manuscript
+leafPolicy:
+  requiredMetadata:
+    - status
+---
+```
+
+Branch `leafPolicy` inherits from parent branches by default. Use it to define subtree-level metadata rules and defaults for leaves. `requiredMetadata` unions through the branch chain, and `defaults` apply nearest-branch-wins fallback values to descendant leaves.
+
+Common manuscript keys include `status`, ordered boundary fields such as `chapter`, and project-specific metadata such as point of view or timeline.
 
 ## Leaf image settings
 
@@ -60,7 +71,7 @@ Build structure lives in `templates/`.
 
 Templates are plain TSX modules powered by `@stego-labs/engine`. They receive project metadata plus `ctx.content`, the root content tree loaded from `content/`, `ctx.allLeaves`, the full ordered flat array of leaves, and `ctx.allBranches`, the flat array of discovered branches under `content/`.
 
-`ctx.content.leaves` are the direct leaves under the root `content/` directory. `ctx.content.branches` are the top-level branches, and each branch continues downward through `branch.branches`.
+`ctx.content.leaves` are the direct leaves under the root `content/` directory, which may be empty if a project keeps ordered draft leaves under `content/manuscript/`. `ctx.content.branches` are the top-level branches, and each branch continues downward through `branch.branches`.
 
 Each branch has a structural `id`, an optional `parentId`, a `leaves` array for the direct leaves in that branch, and a `branches` array for child branches. Each leaf also exposes `branchId` so template code can move in either direction.
 

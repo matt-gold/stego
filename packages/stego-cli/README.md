@@ -31,7 +31,9 @@ stego template build -p fiction-example
 ## Core model
 
 - `content/` holds authored leaves
+- scaffolded draft leaves live under `content/manuscript/`
 - directories under `content/` are exposed as branches through `_branch.md`
+- branch `_branch.md` files declare inheritable `leafPolicy` rules for leaves in that branch subtree
 - templates read the root tree through `ctx.content`, the flat leaf list through `ctx.allLeaves`, and the flat branch list through `ctx.allBranches`
 - templates compile them into a manuscript
 - `dist/` contains generated outputs only
@@ -47,10 +49,10 @@ stego validate -p fiction-example
 stego build -p fiction-example
 stego check-stage -p fiction-example --stage revise
 stego export -p fiction-example --format md
-stego metadata read projects/fiction-example/content/100-the-commission.md --format json
+stego metadata read projects/fiction-example/content/manuscript/100-the-commission.md --format json
 ```
 
-`stego new` supports `--i <prefix>` for numeric prefix override, `--filename <name>` for an explicit filename, and `--id <leaf-id>` for an explicit leaf id.
+`stego new` supports `--dir <content-relative-dir>` for the target branch directory, `--i <prefix>` for an optional numeric prefix override, `--filename <name>` for an explicit filename, and `--id <leaf-id>` for an explicit leaf id.
 
 ## Template engine
 

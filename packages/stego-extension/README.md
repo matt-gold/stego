@@ -29,8 +29,9 @@ Stego looks for a `stego-project.json` file starting from the active file's dire
 Current project configuration fields:
 
 - `title` or `name`
-- `requiredMetadata`
 - `images`
+
+Leaf metadata requirements and defaults come from branch `_branch.md` files via `leafPolicy`.
 
 Legacy `spineCategories` and `compileStructure` are no longer supported.
 

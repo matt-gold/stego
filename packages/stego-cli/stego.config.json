@@ -3,9 +3,6 @@
   "contentDir": "content",
   "notesDir": "notes",
   "distDir": "dist",
-  "requiredMetadata": [
-    "status"
-  ],
   "allowedStatuses": [
     "draft",
     "revise",

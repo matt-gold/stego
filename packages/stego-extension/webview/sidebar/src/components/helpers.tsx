@@ -94,9 +94,9 @@ export function ReferenceCards(props: { references: SidebarIdentifierLink[] }): 
 }
 
 export function statusSummaryLabel(state: SidebarWebviewState): string {
-  if (state.mode !== 'manuscript') {
+  if (!state.statusControl) {
     return 'stage';
   }
 
-  return state.statusControl?.value?.trim() || state.statusControl?.invalidValue?.trim() || 'stage';
+  return state.statusControl.value?.trim() || state.statusControl.invalidValue?.trim() || 'stage';
 }

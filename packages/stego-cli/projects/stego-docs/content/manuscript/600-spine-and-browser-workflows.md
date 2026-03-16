@@ -32,7 +32,7 @@ Stego uses explicit leaf ids for internal references.
 
 ## How `stego-docs` uses leaves
 
-This documentation project stores ordered chapter leaves at the top of `content/` and reference leaves under `content/reference/`.
+This documentation project stores ordered chapter leaves under `content/manuscript/` and reference leaves under `content/reference/`.
 
 Templates group those leaves differently depending on the output:
 

@@ -2,10 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { isBranchFile, isSupportedLeafContentFile } from "@stego-labs/shared/domain/content";
 import { parseMarkdownDocument } from "@stego-labs/shared/domain/frontmatter";
-import type { ManuscriptOrderEntry } from "../types.ts";
+import type { LeafOrderEntry } from "../types.ts";
 
-export function ensureManuscriptDir(contentDir: string): void {
-  fs.mkdirSync(contentDir, { recursive: true });
+export function ensureLeafDir(dirPath: string): void {
+  fs.mkdirSync(dirPath, { recursive: true });
 }
 
 export function fileExists(filePath: string): boolean {
@@ -16,13 +16,13 @@ export function writeTextFile(filePath: string, content: string): void {
   fs.writeFileSync(filePath, content, "utf8");
 }
 
-export function listManuscriptOrderEntries(contentDir: string): ManuscriptOrderEntry[] {
-  if (!fs.existsSync(contentDir)) {
+export function listLeafOrderEntries(dirPath: string): LeafOrderEntry[] {
+  if (!fs.existsSync(dirPath)) {
     return [];
   }
 
   return fs
-    .readdirSync(contentDir, { withFileTypes: true })
+    .readdirSync(dirPath, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
     .map((entry) => {
       const match = entry.name.match(/^(\d+)[-_]/);
@@ -35,7 +35,7 @@ export function listManuscriptOrderEntries(contentDir: string): ManuscriptOrderE
         filename: entry.name
       };
     })
-    .filter((entry): entry is ManuscriptOrderEntry => entry !== null)
+    .filter((entry): entry is LeafOrderEntry => entry !== null)
     .sort((a, b) => {
       if (a.order === b.order) {
         return a.filename.localeCompare(b.filename);
@@ -44,14 +44,14 @@ export function listManuscriptOrderEntries(contentDir: string): ManuscriptOrderE
     });
 }
 
-export function listExistingLeafIds(contentDir: string): string[] {
-  if (!fs.existsSync(contentDir) || !fs.statSync(contentDir).isDirectory()) {
+export function listExistingLeafIds(contentRoot: string): string[] {
+  if (!fs.existsSync(contentRoot) || !fs.statSync(contentRoot).isDirectory()) {
     return [];
   }
 
   const ids: string[] = [];
   const seen = new Set<string>();
-  const stack = [contentDir];
+  const stack = [contentRoot];
 
   while (stack.length > 0) {
     const current = stack.pop();

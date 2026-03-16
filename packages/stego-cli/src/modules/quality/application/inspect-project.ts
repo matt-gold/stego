@@ -2,22 +2,26 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseCommentAppendix } from "@stego-labs/shared/domain/comments";
 import {
+  applyLeafPolicyDefaults,
+  type BranchLeafPolicy,
+  createEmptyEffectiveBranchLeafPolicy,
+  type EffectiveBranchLeafPolicy,
   isBranchFile,
   isSupportedLeafContentFile,
   isValidLeafId,
+  mergeBranchLeafPolicy,
   parseBranchDocument
 } from "@stego-labs/shared/domain/content";
-import { parseMarkdownDocument } from "@stego-labs/shared/domain/frontmatter";
+import { parseMarkdownDocument, type FrontmatterRecord } from "@stego-labs/shared/domain/frontmatter";
 import { isStageName } from "@stego-labs/shared/domain/stages";
 import type {
   ChapterEntry,
+  MetadataRecord,
   InspectProjectOptions,
   Issue,
   IssueLevel,
-  MetadataRecord,
   ParsedCommentThread,
-  ProjectInspection,
-  RequiredMetadataResult
+  ProjectInspection
 } from "../types.ts";
 import type { ProjectContext } from "../../project/index.ts";
 
@@ -27,9 +31,8 @@ export function inspectProject(
 ): ProjectInspection {
   const repoRoot = project.workspace.repoRoot;
   const issues: Issue[] = [];
-  const requiredMetadataState = resolveRequiredMetadata(project);
-  issues.push(...requiredMetadataState.issues);
   issues.push(...validateProjectImagesConfiguration(project));
+  const branchLeafPolicyByDir = new Map<string, BranchLeafPolicy>();
 
   if (project.meta.compileStructure !== undefined) {
     issues.push(
@@ -112,13 +115,26 @@ export function inspectProject(
 
   for (const branchPath of branchFiles) {
     issues.push(...validateBranchFile(branchPath, repoRoot));
+    try {
+      const raw = fs.readFileSync(branchPath, "utf8");
+      const parsed = parseBranchDocument(raw, path.relative(repoRoot, branchPath));
+      if (parsed.metadata.leafPolicy) {
+        branchLeafPolicyByDir.set(path.resolve(path.dirname(branchPath)), parsed.metadata.leafPolicy);
+      }
+    } catch {
+      // Branch parse/validation issues are already reported above.
+    }
   }
 
   const chapters = chapterFiles.map((chapterPath) =>
     parseChapter(
       chapterPath,
       project,
-      requiredMetadataState.requiredMetadata
+      resolveEffectiveLeafPolicyForPath(
+        chapterPath,
+        project.contentDir,
+        branchLeafPolicyByDir
+      )
     )
   );
 
@@ -145,27 +161,6 @@ export function inspectProject(
     }
 
     idMap.set(chapter.id, chapter.relativePath);
-  }
-
-  const orderMap = new Map<number, string>();
-  for (const chapter of chapters) {
-    if (chapter.order == null) {
-      continue;
-    }
-
-    if (orderMap.has(chapter.order)) {
-      issues.push(
-        makeIssue(
-          "error",
-          "ordering",
-          `Duplicate filename order prefix '${chapter.order}' in ${chapter.relativePath} and ${orderMap.get(chapter.order)}`,
-          chapter.relativePath
-        )
-      );
-      continue;
-    }
-
-    orderMap.set(chapter.order, chapter.relativePath);
   }
 
   chapters.sort((a, b) => {
@@ -240,68 +235,6 @@ function validateBranchFile(filePath: string, repoRoot: string): Issue[] {
   }
 }
 
-export function resolveRequiredMetadata(project: ProjectContext): RequiredMetadataResult {
-  const repoRoot = project.workspace.repoRoot;
-  const runtimeConfig = project.workspace.config;
-  const issues: Issue[] = [];
-  const projectFile = path.relative(repoRoot, path.join(project.root, "stego-project.json"));
-  const raw = project.meta.requiredMetadata;
-
-  if (raw == null) {
-    return { requiredMetadata: runtimeConfig.requiredMetadata, issues };
-  }
-
-  if (!Array.isArray(raw)) {
-    issues.push(
-      makeIssue(
-        "error",
-        "metadata",
-        "Project 'requiredMetadata' must be an array of metadata keys.",
-        projectFile
-      )
-    );
-    return { requiredMetadata: runtimeConfig.requiredMetadata, issues };
-  }
-
-  const requiredMetadata: string[] = [];
-  const seen = new Set<string>();
-
-  for (const [index, entry] of raw.entries()) {
-    if (typeof entry !== "string") {
-      issues.push(
-        makeIssue(
-          "error",
-          "metadata",
-          `Project 'requiredMetadata' entry at index ${index} must be a string.`,
-          projectFile
-        )
-      );
-      continue;
-    }
-
-    const key = entry.trim();
-    if (!key) {
-      issues.push(
-        makeIssue(
-          "error",
-          "metadata",
-          `Project 'requiredMetadata' entry at index ${index} cannot be empty.`,
-          projectFile
-        )
-      );
-      continue;
-    }
-
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    requiredMetadata.push(key);
-  }
-
-  return { requiredMetadata, issues };
-}
-
 export function issueHasErrors(issues: Issue[]): boolean {
   return issues.some((issue) => issue.level === "error");
 }
@@ -317,7 +250,7 @@ export function formatIssues(issues: Issue[]): string[] {
 function parseChapter(
   chapterPath: string,
   project: ProjectContext,
-  requiredMetadata: string[]
+  effectiveLeafPolicy: EffectiveBranchLeafPolicy
 ): ChapterEntry {
   const repoRoot = project.workspace.repoRoot;
   const runtimeConfig = project.workspace.config;
@@ -325,9 +258,10 @@ function parseChapter(
   const raw = fs.readFileSync(chapterPath, "utf8");
   const { metadata, body, comments, issues } = parseMetadata(raw, chapterPath, repoRoot, false);
   const chapterIssues = [...issues];
+  const effectiveMetadata = applyLeafPolicyDefaults(metadata as FrontmatterRecord, effectiveLeafPolicy);
 
-  for (const requiredKey of requiredMetadata) {
-    if (metadata[requiredKey] == null || metadata[requiredKey] === "") {
+  for (const requiredKey of effectiveLeafPolicy.requiredMetadata) {
+    if (effectiveMetadata[requiredKey] == null || effectiveMetadata[requiredKey] === "") {
       chapterIssues.push(
         makeIssue(
           "warning",
@@ -339,24 +273,31 @@ function parseChapter(
     }
   }
 
-  const title = deriveEntryTitle(metadata.title, chapterPath);
-  if (metadata.order != null && metadata.order !== "") {
-    chapterIssues.push(makeIssue("warning", "metadata", "Metadata 'order' is ignored. Ordering is derived from filename prefix.", relativePath));
+  const title = deriveEntryTitle(effectiveMetadata.title, chapterPath);
+  if (effectiveMetadata.order != null && effectiveMetadata.order !== "") {
+    chapterIssues.push(
+      makeIssue(
+        "warning",
+        "metadata",
+        "Metadata 'order' is ignored. Use template logic for ordering; numeric filename prefixes are optional ordering hints only.",
+        relativePath
+      )
+    );
   }
 
   const order = parseOrderFromFilename(chapterPath, relativePath, chapterIssues);
-  const status = String(metadata.status || "").trim();
+  const status = String(effectiveMetadata.status || "").trim();
   if (status && !isStageName(status)) {
     chapterIssues.push(makeIssue("error", "metadata", `Invalid file status '${status}'. Allowed: ${runtimeConfig.allowedStatuses.join(", ")}.`, relativePath));
   }
 
-  const leafId = typeof metadata.id === "string" ? metadata.id.trim() : "";
+  const leafId = typeof effectiveMetadata.id === "string" ? effectiveMetadata.id.trim() : "";
   if (!leafId) {
     chapterIssues.push(makeIssue("error", "metadata", "Missing required leaf id.", relativePath));
   } else if (!isValidLeafId(leafId)) {
     chapterIssues.push(makeIssue("error", "metadata", `Invalid leaf id '${leafId}'.`, relativePath));
   }
-  chapterIssues.push(...validateImagesMetadata(metadata, relativePath));
+  chapterIssues.push(...validateImagesMetadata(effectiveMetadata, relativePath));
   chapterIssues.push(...validateMarkdownBody(body, chapterPath, repoRoot, project.root));
 
   return {
@@ -366,11 +307,44 @@ function parseChapter(
     title,
     order,
     status,
-    metadata,
+    metadata: effectiveMetadata,
     body,
     comments,
     issues: chapterIssues
   };
+}
+
+function resolveEffectiveLeafPolicyForPath(
+  chapterPath: string,
+  contentDir: string,
+  branchLeafPolicyByDir: Map<string, BranchLeafPolicy>
+): EffectiveBranchLeafPolicy {
+  let effectiveLeafPolicy = createEmptyEffectiveBranchLeafPolicy();
+
+  const contentRoot = path.resolve(contentDir);
+  let currentDir = path.resolve(path.dirname(chapterPath));
+  const ancestorDirs: string[] = [];
+  while (true) {
+    const relative = path.relative(contentRoot, currentDir);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      break;
+    }
+    ancestorDirs.push(currentDir);
+    if (currentDir === contentRoot) {
+      break;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+
+  ancestorDirs.reverse();
+  for (const dirPath of ancestorDirs) {
+    effectiveLeafPolicy = mergeBranchLeafPolicy(
+      effectiveLeafPolicy,
+      branchLeafPolicyByDir.get(dirPath)
+    );
+  }
+
+  return effectiveLeafPolicy;
 }
 
 function deriveEntryTitle(rawTitle: unknown, chapterPath: string): string {
@@ -390,7 +364,6 @@ function parseOrderFromFilename(chapterPath: string, relativePath: string, issue
   const basename = path.basename(chapterPath, ".md");
   const match = basename.match(/^(\d+)[-_]/);
   if (!match) {
-    issues.push(makeIssue("error", "ordering", "Filename must start with a numeric prefix followed by '-' or '_' (for example '100-scene.md').", relativePath));
     return null;
   }
   if (match[1].length < 3) {

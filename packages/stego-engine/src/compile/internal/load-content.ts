@@ -1,16 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  applyLeafPolicyDefaults,
   BRANCH_FILENAME,
   buildBranchKey,
   buildBranchLabel,
   buildBranchName,
   buildBranchParentKey,
   collectLeafHeadingTargets,
+  createEmptyEffectiveBranchLeafPolicy,
+  type EffectiveBranchLeafPolicy,
   inferLeafFormat,
   isBranchFile,
   isSupportedLeafContentFile,
   isValidLeafId,
+  mergeBranchLeafPolicy,
   parseBranchDocument
 } from "@stego-labs/shared/domain/content";
 import { parseMarkdownDocument } from "@stego-labs/shared/domain/frontmatter";
@@ -37,7 +41,15 @@ export function loadContentGraph(
 
   const leaves: LeafRecord[] = [];
   const branches: BranchRecord[] = [];
-  collectDirectory(contentDir, projectRoot, contentDir, projectMeta, leaves, branches);
+  collectDirectory(
+    contentDir,
+    projectRoot,
+    contentDir,
+    projectMeta,
+    createEmptyEffectiveBranchLeafPolicy(),
+    leaves,
+    branches
+  );
   validateLeafIds(leaves);
   const sortedLeaves = leaves.sort((a, b) => compareOrders(a.order, b.order) || a.relativePath.localeCompare(b.relativePath));
   const sortedBranches = branches.sort((a, b) => a.depth - b.depth || a.id.localeCompare(b.id));
@@ -55,10 +67,16 @@ function collectDirectory(
   projectRoot: string,
   contentRoot: string,
   projectMeta: Record<string, unknown>,
+  inheritedLeafPolicy: EffectiveBranchLeafPolicy,
   leaves: LeafRecord[],
   branches: BranchRecord[]
 ): void {
-  const branch = loadBranch(projectRoot, contentRoot, dirPath);
+  const { branch, effectiveLeafPolicy } = loadBranchContext(
+    projectRoot,
+    contentRoot,
+    dirPath,
+    inheritedLeafPolicy
+  );
   branches.push(branch);
 
   const entries = fs.readdirSync(dirPath, { withFileTypes: true })
@@ -67,17 +85,22 @@ function collectDirectory(
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
-      collectDirectory(fullPath, projectRoot, contentRoot, projectMeta, leaves, branches);
+      collectDirectory(fullPath, projectRoot, contentRoot, projectMeta, effectiveLeafPolicy, leaves, branches);
       continue;
     }
     if (!entry.isFile() || isBranchFile(fullPath) || !isSupportedLeafContentFile(fullPath)) {
       continue;
     }
-    leaves.push(loadLeaf(projectRoot, contentRoot, fullPath, projectMeta));
+    leaves.push(loadLeaf(projectRoot, contentRoot, fullPath, projectMeta, effectiveLeafPolicy));
   }
 }
 
-function loadBranch(projectRoot: string, contentRoot: string, dirPath: string): BranchRecord {
+function loadBranchContext(
+  projectRoot: string,
+  contentRoot: string,
+  dirPath: string,
+  inheritedLeafPolicy: EffectiveBranchLeafPolicy
+): { branch: BranchRecord; effectiveLeafPolicy: EffectiveBranchLeafPolicy } {
   const branchFilePath = path.join(dirPath, BRANCH_FILENAME);
   const relativeDir = path.relative(projectRoot, dirPath).split(path.sep).join("/");
   const id = buildBranchKey(contentRoot, dirPath);
@@ -86,26 +109,32 @@ function loadBranch(projectRoot: string, contentRoot: string, dirPath: string): 
   const name = id ? buildBranchName(dirPath) : "content";
 
   if (!fs.existsSync(branchFilePath)) {
-    return createImplicitBranch(projectRoot, contentRoot, dirPath);
+    return {
+      branch: createImplicitBranch(projectRoot, contentRoot, dirPath),
+      effectiveLeafPolicy: inheritedLeafPolicy
+    };
   }
 
   const raw = fs.readFileSync(branchFilePath, "utf8");
   const parsed = parseBranchDocument(raw, path.relative(projectRoot, branchFilePath));
 
   return {
-    kind: "branch",
-    id,
-    name,
-    label: buildBranchLabel(name, parsed.metadata.label),
-    parentId,
-    depth,
-    relativeDir,
-    path: branchFilePath,
-    relativePath: path.relative(projectRoot, branchFilePath).split(path.sep).join("/"),
-    metadata: parsed.metadata,
-    body: parsed.body || undefined,
-    leaves: [],
-    branches: []
+    branch: {
+      kind: "branch",
+      id,
+      name,
+      label: buildBranchLabel(name, parsed.metadata.label),
+      parentId,
+      depth,
+      relativeDir,
+      path: branchFilePath,
+      relativePath: path.relative(projectRoot, branchFilePath).split(path.sep).join("/"),
+      metadata: parsed.metadata,
+      body: parsed.body || undefined,
+      leaves: [],
+      branches: []
+    },
+    effectiveLeafPolicy: mergeBranchLeafPolicy(inheritedLeafPolicy, parsed.metadata.leafPolicy)
   };
 }
 
@@ -146,10 +175,12 @@ function loadLeaf(
   projectRoot: string,
   contentRoot: string,
   filePath: string,
-  projectMeta: Record<string, unknown>
+  projectMeta: Record<string, unknown>,
+  effectiveLeafPolicy: EffectiveBranchLeafPolicy
 ): LeafRecord {
   const raw = fs.readFileSync(filePath, "utf8");
   const parsed = parseMarkdownDocument(raw);
+  const effectiveFrontmatter = applyLeafPolicyDefaults(parsed.frontmatter, effectiveLeafPolicy);
   const withoutComments = parseCommentAppendix(parsed.body).contentWithoutComments;
   const relativePath = path.relative(projectRoot, filePath).split(path.sep).join("/");
   const basename = path.basename(filePath).replace(/\.(md|markdown|txt|text)$/i, "");
@@ -160,10 +191,10 @@ function loadLeaf(
       chapterPath: filePath,
       projectRoot,
       projectMeta,
-      frontmatter: parsed.frontmatter
+      frontmatter: effectiveFrontmatter
     })
     : withoutComments.trim();
-  const id = typeof parsed.frontmatter.id === "string" ? parsed.frontmatter.id.trim() : "";
+  const id = typeof effectiveFrontmatter.id === "string" ? effectiveFrontmatter.id.trim() : "";
 
   return {
     kind: "leaf",
@@ -174,7 +205,7 @@ function loadLeaf(
     relativePath,
     titleFromFilename: toTitleFromFilename(basename),
     metadata: {
-      ...parsed.frontmatter,
+      ...effectiveFrontmatter,
       id
     },
     body,

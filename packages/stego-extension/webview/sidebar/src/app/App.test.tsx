@@ -150,4 +150,108 @@ describe('App', () => {
     root.remove();
     resetSidebarState();
   });
+
+  it('shows manuscript loading state immediately before overview data is ready', () => {
+    setWebviewApiForTest(undefined);
+    const root = document.createElement('div');
+    document.body.append(root);
+    updateSidebarState(createSidebarState({
+      activeTab: 'overview',
+      overviewLoading: true,
+      templates: [
+        {
+          name: 'book',
+          path: '/tmp/project/templates/book.template.tsx',
+          relativePath: 'templates/book.template.tsx',
+          supportedTargets: ['md', 'docx']
+        }
+      ]
+    }));
+
+    const dispose = render(() => <App />, root);
+
+    expect(root.textContent).toContain('Loading manuscript overview');
+    expect(root.textContent).toContain('Templates');
+    expect(root.textContent).toContain('book');
+
+    dispose();
+    root.remove();
+    resetSidebarState();
+  });
+
+  it('shows inherited metadata as read-only with an inherited badge', () => {
+    setWebviewApiForTest(undefined);
+    const root = document.createElement('div');
+    document.body.append(root);
+    updateSidebarState(createSidebarState({
+      activeTab: 'document',
+      metadataEditing: true,
+      metadataEntries: [
+        {
+          key: 'kind',
+          isStructural: false,
+          isBranch: true,
+          isInherited: true,
+          inheritedFrom: 'Characters',
+          isArray: false,
+          valueText: 'reference',
+          references: [],
+          arrayItems: []
+        }
+      ]
+    }));
+
+    const dispose = render(() => <App />, root);
+
+    expect(root.textContent).toContain('Inherited');
+    expect(root.textContent).toContain('kind');
+    expect(root.textContent).toContain('reference');
+    expect(root.textContent).not.toContain('Edit');
+    expect(root.textContent).not.toContain('Remove');
+
+    dispose();
+    root.remove();
+    resetSidebarState();
+  });
+
+  it('shows combined child counts for branch lists in explore', () => {
+    setWebviewApiForTest(undefined);
+    const root = document.createElement('div');
+    document.body.append(root);
+    updateSidebarState(createSidebarState({
+      activeTab: 'explore',
+      explorer: {
+        kind: 'branch',
+        branch: {
+          id: 'reference',
+          name: 'reference',
+          label: 'Reference',
+          directBranchCount: 2,
+          directLeafCount: 0,
+          directChildCount: 2
+        },
+        childBranches: [
+          {
+            id: 'reference/characters',
+            name: 'characters',
+            label: 'Characters',
+            parentId: 'reference',
+            directBranchCount: 3,
+            directLeafCount: 0,
+            directChildCount: 3
+          }
+        ],
+        leafItems: []
+      }
+    }));
+
+    const dispose = render(() => <App />, root);
+
+    const row = [...root.querySelectorAll('.explorer-list-row')].find((entry) => entry.textContent?.includes('Characters'));
+    expect(row?.textContent).toContain('3');
+
+    dispose();
+    root.remove();
+    resetSidebarState();
+  });
 });

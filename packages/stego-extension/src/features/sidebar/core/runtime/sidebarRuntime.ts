@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { promises as fs } from 'fs';
+import {
+  applyLeafPolicyDefaults,
+  isLeafFileInContent,
+  resolveLeafBranchId
+} from '@stego-labs/shared/domain/content';
+import type { FrontmatterRecord } from '@stego-labs/shared/domain/frontmatter';
 import { CONTENT_DIR, DEFAULT_IDENTIFIER_PATTERN } from '../../../../shared/constants';
 import { errorToMessage } from '../../../../shared/errors';
 import { asNumber } from '../../../../shared/value';
@@ -56,12 +62,10 @@ import {
   findNearestProjectConfig,
   getConfig,
   logProjectHealthIssue,
-  collectManuscriptMarkdownFiles,
   resolveCurrentBranchFile
 } from '../../../project';
-import { buildExplorerState, buildMetadataEntry, buildTocWithBacklinks, collectTocEntries, isManuscriptPath } from '../../tabs/document';
+import { buildExplorerState, buildMetadataEntry, buildTocWithBacklinks, collectTocEntries } from '../../tabs/document';
 import { normalizeExplorerRoute, isSameExplorerRoute } from '../../tabs/explore';
-import { compareOverviewStatus, countOverviewWords } from '../../tabs/overview';
 import { renderSidebarShellHtml } from '../../webview';
 import {
   parseSidebarInboundMessage,
@@ -73,13 +77,9 @@ import { SIDEBAR_ACTION_HANDLERS } from './actionHandlers';
 import { SidebarEventBus } from './bus';
 import type { SidebarRuntimeEvent } from './events';
 import { SidebarEffectRunner } from './effects/runner';
+import { OverviewSummaryCache } from './overview/overviewSummaryCache';
 import { projectSidebarState } from './projector/sidebarStateProjector';
-import type {
-  GateSnapshotByProject,
-  OverviewBuildResult,
-  OverviewFileCache,
-  RefreshMode
-} from '../sidebarProvider.types';
+import type { RefreshMode } from '../sidebarProvider.types';
 import {
   EXPLORER_PIN_LIMIT,
   type ActiveExplorerState,
@@ -101,7 +101,6 @@ import {
   normalizeAuthor,
   readCommentStateForFile,
   replyToComment,
-  stripStegoCommentsAppendix,
   toggleCommentResolved
 } from '../../../comments';
 
@@ -129,13 +128,14 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
   private explorerLoadToken = 0;
   private readonly pinnedByProject = new Map<string, PinnedExplorerEntryState[]>();
   private readonly expandedTocBacklinks = new Set<string>();
-  private readonly overviewFileCache = new Map<string, OverviewFileCache>();
-  private readonly gateSnapshotByProject: GateSnapshotByProject = new Map();
+  private readonly gateSnapshotByProject = new Map<string, SidebarOverviewGateSnapshot>();
+  private readonly overviewSummaryCache: OverviewSummaryCache;
   private readonly bus = new SidebarEventBus<SidebarRuntimeEvent>();
   private readonly effectRunner = new SidebarEffectRunner();
   private readonly stateSubscribers = new Set<(state: SidebarWebviewState) => void>();
   private lastRenderedState?: SidebarState;
   private lastDocumentTabSnapshot?: SidebarState;
+  private lastProjectContext?: ProjectScanContext;
   private refreshInFlight = false;
   private refreshNonce = 0;
   private queuedRefreshMode: RefreshMode | undefined;
@@ -147,7 +147,37 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     private readonly indexService: LeafIndexService,
     private readonly referenceUsageService: ReferenceUsageIndexService,
     private readonly diagnostics: vscode.DiagnosticCollection
-  ) {}
+  ) {
+    this.overviewSummaryCache = new OverviewSummaryCache({
+      getGateSnapshot: (projectDir) => this.getGateSnapshot(projectDir),
+      requestRefresh: () => {
+        const activeOverview = this.activeTab === 'overview'
+          || this.lastRenderedState?.activeTab === 'overview';
+        if (!activeOverview) {
+          return;
+        }
+        this.scheduleRefresh({ mode: 'full', debounceMs: 0 });
+      },
+      readCommentStateForFile,
+      logIssue: (headline, options) => logProjectHealthIssue('overview', headline, options)
+    });
+  }
+
+  public markOverviewFileDirty(filePath: string, options?: { commentsChanged?: boolean }): void {
+    this.overviewSummaryCache.markFileDirty(filePath, options);
+  }
+
+  public markOverviewProjectDirty(projectDir: string, options?: { commentsChanged?: boolean }): void {
+    this.overviewSummaryCache.markProjectDirty(projectDir, options);
+  }
+
+  public clearOverviewProject(projectDir: string): void {
+    this.overviewSummaryCache.clearProject(projectDir);
+  }
+
+  public async prewarmOverview(projectContext: ProjectScanContext): Promise<void> {
+    await this.overviewSummaryCache.getSnapshot(projectContext);
+  }
 
   public subscribe(listener: (state: SidebarWebviewState) => void): () => void {
     this.stateSubscribers.add(listener);
@@ -651,7 +681,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }
 
     const sameDocument = path.resolve(previous.documentPath) === path.resolve(document.uri.fsPath);
-    if (!sameDocument || previous.mode !== 'manuscript') {
+    if (!sameDocument || previous.documentKind !== 'leaf') {
       return undefined;
     }
 
@@ -696,15 +726,28 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     const canShowOverview = previous.canShowOverview;
     const effectiveTab = this.resolveEffectiveTab(this.activeTab, canShowOverview, previous.showExplorer);
     this.activeTab = effectiveTab;
+    const projectContext = previous.projectDir && this.lastProjectContext?.projectDir === previous.projectDir
+      ? this.lastProjectContext
+      : undefined;
+    const branchById = new Map<string, ProjectBranch>((projectContext?.branches ?? []).map((branch) => [branch.id, branch]));
+    const leafBranch = this.resolveLeafBranch(projectContext, branchById, document.uri.fsPath);
 
     try {
       const parsed = parseMarkdownDocument(document.getText());
-      const statusControl = await buildStatusControl(parsed.frontmatter, document);
-      const metadataEntries = this.buildFastMetadataEntries(parsed.frontmatter, previous.metadataEntries);
+      const effectiveFrontmatter = this.buildEffectiveMetadata(parsed.frontmatter, leafBranch);
+      const statusControl = Object.prototype.hasOwnProperty.call(effectiveFrontmatter, 'status')
+        ? await buildStatusControl(effectiveFrontmatter, document)
+        : undefined;
+      const metadataEntries = this.buildFastMetadataEntries(
+        parsed.frontmatter,
+        effectiveFrontmatter,
+        leafBranch,
+        previous.metadataEntries
+      );
       const projectDir = previous.projectDir ?? path.dirname(document.uri.fsPath);
       const imageEntries = buildSidebarImageEntries({
         body: parsed.body,
-        frontmatter: parsed.frontmatter,
+        frontmatter: effectiveFrontmatter,
         chapterPath: document.uri.fsPath,
         projectDir,
         projectDefaults: previous.projectImageDefaults
@@ -720,7 +763,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir,
         canShowOverview,
         activeTab: effectiveTab,
-        mode: 'manuscript',
+        documentKind: 'leaf',
         parseError: undefined,
         metadataCollapsed: this.metadataCollapsed,
         metadataEditing: this.metadataEditing,
@@ -738,6 +781,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         explorerLoadToken: this.explorerLoadToken,
         backlinkFilter: this.backlinkFilter,
         showToc: false,
+        isBranchNotesFile: false,
         comments
       };
     } catch (error) {
@@ -751,7 +795,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir: previous.projectDir,
         canShowOverview,
         activeTab: effectiveTab,
-        mode: 'manuscript',
+        documentKind: 'leaf',
         parseError: errorToMessage(error),
         metadataCollapsed: this.metadataCollapsed,
         metadataEditing: this.metadataEditing,
@@ -770,6 +814,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         explorerLoadToken: this.explorerLoadToken,
         backlinkFilter: this.backlinkFilter,
         showToc: false,
+        isBranchNotesFile: false,
         comments
       };
     }
@@ -777,6 +822,8 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
 
   private buildFastMetadataEntries(
     frontmatter: Record<string, unknown>,
+    effectiveFrontmatter: Record<string, unknown>,
+    branchForLeaf: ProjectBranch | undefined,
     previousEntries: SidebarState['metadataEntries']
   ): SidebarState['metadataEntries'] {
     const previousOrderByKey = new Map<string, number>();
@@ -787,7 +834,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       previousByKey.set(entry.key, entry);
     }
 
-    const keys = Object.keys(frontmatter)
+    const keys = Object.keys(effectiveFrontmatter)
       .filter((key) => key !== 'status')
       .sort((a, b) => {
         const aOrder = previousOrderByKey.get(a);
@@ -804,14 +851,17 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         return a.localeCompare(b);
       });
 
-    return keys.map((key) => {
-      const value = frontmatter[key];
-      const previous = previousByKey.get(key);
+    const nextEntries = keys.map((key) => {
+      const value = effectiveFrontmatter[key];
+      const isInherited = !(key in frontmatter);
+      const previousEntry = previousByKey.get(key);
       if (Array.isArray(value)) {
         return {
           key,
-          isStructural: previous?.isStructural ?? false,
-          isBranch: previous?.isBranch ?? false,
+          isStructural: false,
+          isBranch: isInherited,
+          isInherited,
+          inheritedFrom: isInherited ? (previousEntry?.inheritedFrom ?? branchForLeaf?.label) : undefined,
           isArray: true,
           valueText: '',
           references: [],
@@ -825,36 +875,95 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
 
       return {
         key,
-        isStructural: previous?.isStructural ?? false,
-        isBranch: previous?.isBranch ?? false,
+        isStructural: false,
+        isBranch: isInherited,
+        isInherited,
+        inheritedFrom: isInherited ? (previousEntry?.inheritedFrom ?? branchForLeaf?.label) : undefined,
         isArray: false,
         valueText: formatMetadataValue(value),
         references: [],
         arrayItems: []
       };
     });
+
+    return nextEntries.sort((a, b) => {
+      const aOrder = previousOrderByKey.get(a.key);
+      const bOrder = previousOrderByKey.get(b.key);
+      if (aOrder !== undefined && bOrder !== undefined) {
+        return aOrder - bOrder;
+      }
+      if (aOrder !== undefined) {
+        return -1;
+      }
+      if (bOrder !== undefined) {
+        return 1;
+      }
+      return a.key.localeCompare(b.key);
+    });
+  }
+
+  private resolveLeafBranch(
+    projectContext: ProjectScanContext | undefined,
+    branchById: Map<string, ProjectBranch>,
+    documentPath: string
+  ): ProjectBranch | undefined {
+    if (!projectContext) {
+      return undefined;
+    }
+
+    const contentRoot = path.join(projectContext.projectDir, CONTENT_DIR);
+    const branchId = resolveLeafBranchId(contentRoot, documentPath);
+    if (branchId == null) {
+      return undefined;
+    }
+
+    return branchById.get(branchId);
+  }
+
+  private buildEffectiveMetadata(
+    frontmatter: Record<string, unknown>,
+    branchForLeaf: ProjectBranch | undefined
+  ): Record<string, unknown> {
+    if (!branchForLeaf) {
+      return { ...frontmatter };
+    }
+
+    return applyLeafPolicyDefaults(frontmatter as FrontmatterRecord, branchForLeaf.effectiveLeafPolicy);
+  }
+
+  private buildEffectiveRequiredMetadata(branchForLeaf: ProjectBranch | undefined): string[] {
+    return [...(branchForLeaf?.effectiveLeafPolicy.requiredMetadata ?? [])];
   }
 
   private buildMetadataEntriesFromFrontmatter(
     frontmatter: Record<string, unknown>,
-    _branchById: Map<string, ProjectBranch>,
-    _branchOrderById: Map<string, number>,
+    effectiveFrontmatter: Record<string, unknown>,
+    branchForLeaf: ProjectBranch | undefined,
     index: Map<string, LeafTargetRecord>,
     document: vscode.TextDocument,
     pattern: string
   ): SidebarState['metadataEntries'] {
-    return Object.entries(frontmatter)
-      .filter(([key]) => key !== 'status')
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, value]) => buildMetadataEntry(
-        key,
-        value,
-        false,
-        undefined,
-        index,
-        document,
-        pattern
-      ));
+    return Object.keys(effectiveFrontmatter)
+      .filter((key) => key !== 'status')
+      .sort((a, b) => a.localeCompare(b))
+      .map((key) => {
+        const inherited = !(key in frontmatter);
+        return buildMetadataEntry(
+          key,
+          effectiveFrontmatter[key],
+          false,
+          inherited ? branchForLeaf : undefined,
+          index,
+          document,
+          pattern,
+          inherited
+            ? {
+              isInherited: true,
+              inheritedFrom: branchForLeaf?.label
+            }
+            : undefined
+        );
+      });
   }
 
   private buildSidebarTemplateEntries(projectContext: ProjectScanContext | undefined): SidebarState['templates'] {
@@ -866,19 +975,9 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }));
   }
 
-  private isReferenceLeafDocument(projectContext: ProjectScanContext | undefined, documentPath: string): boolean {
-    if (!projectContext) {
-      return false;
-    }
-
-    const resolved = path.resolve(documentPath);
-    if (path.basename(resolved).toLowerCase() === '_branch.md' || path.extname(resolved).toLowerCase() !== '.md') {
-      return false;
-    }
-
-    const contentRoot = path.resolve(projectContext.projectDir, CONTENT_DIR);
-    const relativeToContent = path.relative(contentRoot, resolved);
-    return relativeToContent.length > 0 && !relativeToContent.startsWith('..') && !path.isAbsolute(relativeToContent);
+  private getMetadataEntry(key: string): SidebarState['metadataEntries'][number] | undefined {
+    const source = this.lastRenderedState ?? this.lastDocumentTabSnapshot;
+    return source?.metadataEntries.find((entry) => entry.key === key);
   }
 
   private async getSidebarStateFull(): Promise<SidebarState> {
@@ -898,21 +997,26 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       const projectContext = activeDocument && workspaceFolder
         ? await findNearestProjectConfig(activeDocument.uri.fsPath, workspaceFolder.uri.fsPath)
         : undefined;
+      this.lastProjectContext = projectContext;
       const canShowOverview = !!projectContext;
       const showExplorer = (projectContext?.branches.length ?? 0) > 0;
-      let overview: SidebarOverviewState | undefined;
-      let overviewSkippedFiles = 0;
-      if (projectContext) {
-        const built = await this.buildOverviewState(projectContext);
-        overview = built.overview;
-        overviewSkippedFiles = built.skippedFiles;
-      }
-      const warnings = this.collectSidebarWarnings(projectContext, overviewSkippedFiles);
       let activeTab = this.resolveEffectiveTab(this.activeTab, canShowOverview, showExplorer);
       if (activeTab === 'document') {
         activeTab = canShowOverview ? 'overview' : (showExplorer ? 'explore' : 'document');
       }
       this.activeTab = activeTab;
+
+      let overview: SidebarOverviewState | undefined;
+      let overviewSkippedFiles = 0;
+      let overviewLoading = false;
+      if (projectContext && activeTab === 'overview') {
+        // overview requested -> stale/ready/loading snapshot -> webview refresh
+        const built = await this.overviewSummaryCache.getSnapshot(projectContext);
+        overview = built.overview;
+        overviewSkippedFiles = built.skippedFiles;
+        overviewLoading = built.loading;
+      }
+      const warnings = this.collectSidebarWarnings(projectContext, overviewSkippedFiles);
 
       let explorer = undefined;
       let pinnedExplorers: SidebarPinnedExplorerPanel[] = [];
@@ -947,6 +1051,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir: projectContext?.projectDir,
         warnings,
         canShowOverview,
+        overviewLoading,
         overview,
         activeTab,
         showExplorer,
@@ -1009,39 +1114,40 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     comments.currentAuthor = normalizeAuthor(getConfig('comments', document.uri).get<string>('author', '') ?? '');
     this.selectedCommentId = comments.selectedId;
 
-    const manuscriptMode = isManuscriptPath(document.uri.fsPath);
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
     const projectContext = workspaceFolder
       ? await findNearestProjectConfig(document.uri.fsPath, workspaceFolder.uri.fsPath)
       : undefined;
+    this.lastProjectContext = projectContext;
     const canShowOverview = !!projectContext;
     const showExplorer = (projectContext?.branches.length ?? 0) > 0;
     const effectiveTab = this.resolveEffectiveTab(this.activeTab, canShowOverview, showExplorer);
     this.activeTab = effectiveTab;
     let overview: SidebarOverviewState | undefined;
     let overviewSkippedFiles = 0;
+    let overviewLoading = false;
     if (projectContext && effectiveTab === 'overview') {
-      const built = await this.buildOverviewState(projectContext);
+      // overview requested -> stale/ready/loading snapshot -> webview refresh
+      const built = await this.overviewSummaryCache.getSnapshot(projectContext);
       overview = built.overview;
       overviewSkippedFiles = built.skippedFiles;
+      overviewLoading = built.loading;
     }
     const warnings = this.collectSidebarWarnings(projectContext, overviewSkippedFiles);
 
     const branchById = new Map<string, ProjectBranch>();
-    const branchOrderById = new Map<string, number>();
-    let branchOrder = 0;
     for (const branch of projectContext?.branches ?? []) {
       branchById.set(branch.id, branch);
-      branchOrderById.set(branch.id, branchOrder);
-      branchOrder += 1;
     }
 
-    let branchForFile: ProjectBranch | undefined;
-    if (!manuscriptMode && projectContext) {
-      branchForFile = await resolveCurrentBranchFile(projectContext.projectDir, projectContext.branches, document.uri.fsPath);
-    }
-    const leafEntryMode = this.isReferenceLeafDocument(projectContext, document.uri.fsPath);
-    const showTocPanel = !manuscriptMode && !leafEntryMode;
+    const branchForFile = projectContext
+      ? await resolveCurrentBranchFile(projectContext.projectDir, projectContext.branches, document.uri.fsPath)
+      : undefined;
+    const leafBranch = this.resolveLeafBranch(projectContext, branchById, document.uri.fsPath);
+    const contentRoot = projectContext ? path.join(projectContext.projectDir, CONTENT_DIR) : undefined;
+    const isLeafDocument = contentRoot ? isLeafFileInContent(contentRoot, document.uri.fsPath) : false;
+    const isBranchNotesFile = !!branchForFile;
+    const showTocPanel = isBranchNotesFile;
 
     const index = await this.indexService.loadForDocument(document);
     const pattern = getConfig('links', document.uri).get<string>('identifierPattern', DEFAULT_IDENTIFIER_PATTERN);
@@ -1077,25 +1183,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       )
       : [];
 
-    if (!manuscriptMode) {
-      let metadataEntries: SidebarState['metadataEntries'] = [];
-      let parseError: string | undefined;
-      if (leafEntryMode) {
-        try {
-          const parsed = parseMarkdownDocument(document.getText());
-          metadataEntries = this.buildMetadataEntriesFromFrontmatter(
-            parsed.frontmatter,
-            branchById,
-            branchOrderById,
-            index,
-            document,
-            pattern
-          );
-        } catch (error) {
-          parseError = errorToMessage(error);
-        }
-      }
-
+    if (!isLeafDocument) {
       return {
         hasActiveMarkdown: true,
         showDocumentTab: true,
@@ -1105,20 +1193,20 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir: projectContext?.projectDir,
         warnings,
         canShowOverview,
+        overviewLoading,
         overview,
         activeTab: effectiveTab,
-        mode: 'nonManuscript',
-        parseError,
+        documentKind: isBranchNotesFile ? 'branchNotes' : undefined,
         showExplorer,
-        metadataCollapsed: leafEntryMode ? this.metadataCollapsed : false,
-        metadataEditing: leafEntryMode ? this.metadataEditing : false,
+        metadataCollapsed: false,
+        metadataEditing: false,
         enableComments,
         statusControl: undefined,
         templates: this.buildSidebarTemplateEntries(projectContext),
-        metadataEntries,
+        metadataEntries: [],
         imageEntries: [],
         projectImageDefaults: projectContext?.imageDefaults ?? {},
-        showMetadataPanel: leafEntryMode,
+        showMetadataPanel: false,
         explorer,
         pinnedExplorers,
         canPinAllFromFile,
@@ -1131,7 +1219,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         explorerLoadToken: this.explorerLoadToken,
         tocEntries: tocWithBacklinks,
         showToc: showTocPanel,
-        isBranchNotesFile: !!branchForFile,
+        isBranchNotesFile,
         backlinkFilter: this.backlinkFilter,
         comments
       };
@@ -1141,18 +1229,21 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       const parsed = parseMarkdownDocument(document.getText());
       const projectDir = projectContext?.projectDir ?? path.dirname(document.uri.fsPath);
       const projectImageDefaults = projectContext?.imageDefaults ?? {};
-      const statusControl = await buildStatusControl(parsed.frontmatter, document);
+      const effectiveFrontmatter = this.buildEffectiveMetadata(parsed.frontmatter, leafBranch);
+      const statusControl = Object.prototype.hasOwnProperty.call(effectiveFrontmatter, 'status')
+        ? await buildStatusControl(effectiveFrontmatter, document)
+        : undefined;
       const metadataEntries = this.buildMetadataEntriesFromFrontmatter(
         parsed.frontmatter,
-        branchById,
-        branchOrderById,
+        effectiveFrontmatter,
+        leafBranch,
         index,
         document,
         pattern
       );
       const imageEntries = buildSidebarImageEntries({
         body: parsed.body,
-        frontmatter: parsed.frontmatter,
+        frontmatter: effectiveFrontmatter,
         chapterPath: document.uri.fsPath,
         projectDir,
         projectDefaults: projectImageDefaults
@@ -1167,9 +1258,10 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir,
         warnings,
         canShowOverview,
+        overviewLoading,
         overview,
         activeTab: effectiveTab,
-        mode: 'manuscript',
+        documentKind: 'leaf',
         showExplorer,
         metadataCollapsed: this.metadataCollapsed,
         metadataEditing: this.metadataEditing,
@@ -1206,9 +1298,10 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         projectDir: projectContext?.projectDir,
         warnings,
         canShowOverview,
+        overviewLoading,
         overview,
         activeTab: effectiveTab,
-        mode: 'manuscript',
+        documentKind: 'leaf',
         parseError: errorToMessage(error),
         showExplorer,
         metadataCollapsed: this.metadataCollapsed,
@@ -1237,27 +1330,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         comments
       };
     }
-  }
-
-  private compareManuscriptFiles(aPath: string, bPath: string): number {
-    const aName = path.basename(aPath, path.extname(aPath));
-    const bName = path.basename(bPath, path.extname(bPath));
-    const aMatch = aName.match(/^(\d+)[-_]/);
-    const bMatch = bName.match(/^(\d+)[-_]/);
-
-    if (aMatch && bMatch) {
-      const aOrder = Number(aMatch[1]);
-      const bOrder = Number(bMatch[1]);
-      if (aOrder !== bOrder) {
-        return aOrder - bOrder;
-      }
-    } else if (aMatch) {
-      return -1;
-    } else if (bMatch) {
-      return 1;
-    }
-
-    return aPath.localeCompare(bPath);
   }
 
   private collectReferencedLeafIdsInDocument(
@@ -1648,13 +1720,23 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       }
       case 'metadata.editField': {
         if (typeof payload.key === 'string' && payload.key.trim().length > 0) {
-          await promptAndEditMetadataField(payload.key.trim());
+          const key = payload.key.trim();
+          if (this.getMetadataEntry(key)?.isInherited) {
+            void vscode.window.showWarningMessage(`'${key}' is inherited metadata and cannot be edited here.`);
+            break;
+          }
+          await promptAndEditMetadataField(key);
         }
         break;
       }
       case 'metadata.removeField': {
         if (typeof payload.key === 'string' && payload.key.trim().length > 0) {
-          await removeMetadataField(payload.key.trim());
+          const key = payload.key.trim();
+          if (this.getMetadataEntry(key)?.isInherited) {
+            void vscode.window.showWarningMessage(`'${key}' is inherited metadata and cannot be removed here.`);
+            break;
+          }
+          await removeMetadataField(key);
         }
         break;
       }
@@ -1666,7 +1748,12 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       }
       case 'metadata.addArrayItem': {
         if (typeof payload.key === 'string' && payload.key.trim().length > 0) {
-          await promptAndAddMetadataArrayItem(payload.key.trim());
+          const key = payload.key.trim();
+          if (this.getMetadataEntry(key)?.isInherited) {
+            void vscode.window.showWarningMessage(`'${key}' is inherited metadata and cannot be edited here.`);
+            break;
+          }
+          await promptAndAddMetadataArrayItem(key);
         }
         break;
       }
@@ -1679,7 +1766,12 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           && Number.isInteger(index)
           && index >= 0
         ) {
-          await promptAndEditMetadataArrayItem(payload.key.trim(), index);
+          const key = payload.key.trim();
+          if (this.getMetadataEntry(key)?.isInherited) {
+            void vscode.window.showWarningMessage(`'${key}' is inherited metadata and cannot be edited here.`);
+            break;
+          }
+          await promptAndEditMetadataArrayItem(key, index);
         }
         break;
       }
@@ -1692,7 +1784,12 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           && Number.isInteger(index)
           && index >= 0
         ) {
-          await removeMetadataArrayItem(payload.key.trim(), index);
+          const key = payload.key.trim();
+          if (this.getMetadataEntry(key)?.isInherited) {
+            void vscode.window.showWarningMessage(`'${key}' is inherited metadata and cannot be removed here.`);
+            break;
+          }
+          await removeMetadataArrayItem(key, index);
         }
         break;
       }
@@ -1732,7 +1829,16 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage('Open a project leaf file first to fill required metadata.');
           break;
         }
-        await promptAndFillRequiredMetadata(projectContext.requiredMetadata);
+        const document = getActiveMarkdownDocument(false);
+        if (!document) {
+          void vscode.window.showWarningMessage('Open a project leaf file first to fill required metadata.');
+          break;
+        }
+        const branchById = new Map(projectContext.branches.map((branch) => [branch.id, branch]));
+        const leafBranch = this.resolveLeafBranch(projectContext, branchById, document.uri.fsPath);
+        await promptAndFillRequiredMetadata(
+          this.buildEffectiveRequiredMetadata(leafBranch)
+        );
         break;
       }
       case 'doc.openPreview': {
@@ -2051,6 +2157,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         this.selectedCommentId = result.id;
         break;
@@ -2085,6 +2192,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         this.selectedCommentId = result.id ?? payload.id.trim().toUpperCase();
         break;
@@ -2103,6 +2211,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         this.selectedCommentId = payload.id.trim().toUpperCase();
         break;
@@ -2136,6 +2245,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         if (this.selectedCommentId === payload.id.trim().toUpperCase()) {
           this.selectedCommentId = undefined;
@@ -2153,6 +2263,7 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           void vscode.window.showWarningMessage(result.warning);
           break;
         }
+        this.markOverviewFileDirty(document.uri.fsPath, { commentsChanged: true });
         this.setActiveTab('document');
         if (!this.selectedCommentId) {
           break;
@@ -2273,193 +2384,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
     }
 
     return warnings;
-  }
-
-  private async buildOverviewState(projectContext: {
-    projectDir: string;
-    projectTitle?: string;
-    requiredMetadata: string[];
-    issues: ProjectConfigIssue[];
-  }): Promise<OverviewBuildResult> {
-    const manuscriptFiles = (await collectManuscriptMarkdownFiles(projectContext.projectDir))
-      .sort((a, b) => this.compareManuscriptFiles(a, b));
-    const cache = this.getOverviewCache(projectContext.projectDir);
-    if (manuscriptFiles.length === 0) {
-      return {
-        overview: {
-          manuscriptTitle: projectContext.projectTitle?.trim() || path.basename(projectContext.projectDir),
-          generatedAt: new Date().toISOString(),
-          wordCount: 0,
-          manuscriptFileCount: 0,
-          missingRequiredMetadataCount: 0,
-          unresolvedCommentsCount: 0,
-          gateSnapshot: this.getGateSnapshot(projectContext.projectDir),
-          stageBreakdown: [],
-          mapRows: []
-        },
-        skippedFiles: 0
-      };
-    }
-
-    let wordCount = 0;
-    let missingRequiredMetadataCount = 0;
-    let unresolvedCommentsCount = 0;
-    let skippedFiles = 0;
-    const stageCounts = new Map<string, number>();
-    const mapRows: SidebarOverviewState['mapRows'] = [];
-    let firstUnresolvedComment: SidebarOverviewState['firstUnresolvedComment'];
-    let firstMissingMetadata: SidebarOverviewState['firstMissingMetadata'];
-
-    for (const filePath of manuscriptFiles) {
-      let stat: { mtimeMs: number };
-      try {
-        stat = await fs.stat(filePath);
-      } catch (error) {
-        skippedFiles += 1;
-        logProjectHealthIssue('overview', 'Skipped leaf file (stat failed).', {
-          projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
-          filePath,
-          detail: errorToMessage(error)
-        });
-        continue;
-      }
-
-      const cached = cache.get(filePath);
-      let frontmatter: Record<string, unknown>;
-      let unresolvedCount: number;
-      let firstUnresolvedCommentId: string | undefined;
-      let status: string;
-
-      if (cached && cached.mtimeMs === stat.mtimeMs) {
-        frontmatter = cached.frontmatter;
-        wordCount += cached.wordCount;
-        unresolvedCount = cached.unresolvedCount;
-        firstUnresolvedCommentId = cached.firstUnresolvedCommentId;
-        status = cached.status;
-      } else {
-        let text = '';
-        try {
-          text = await fs.readFile(filePath, 'utf8');
-        } catch (error) {
-          skippedFiles += 1;
-          cache.delete(filePath);
-          logProjectHealthIssue('overview', 'Skipped leaf file (read failed).', {
-            projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
-            filePath,
-            detail: errorToMessage(error)
-          });
-          continue;
-        }
-
-        try {
-          const commentState = await readCommentStateForFile(filePath, { showWarning: false });
-          const contentWithoutComments = commentState.state
-            ? commentState.state.contentWithoutComments
-            : stripStegoCommentsAppendix(text);
-          const parsed = parseMarkdownDocument(contentWithoutComments);
-          frontmatter = parsed.frontmatter;
-          const fileWordCount = countOverviewWords(parsed.body);
-          wordCount += fileWordCount;
-
-          unresolvedCount = commentState.state?.unresolvedCount ?? 0;
-          firstUnresolvedCommentId = commentState.state?.comments.find((comment) => comment.status === 'open')?.id;
-
-          const statusRaw = frontmatter.status;
-          status = statusRaw === null || statusRaw === undefined || String(statusRaw).trim().length === 0
-            ? '(missing)'
-            : String(statusRaw).trim().toLowerCase();
-
-          cache.set(filePath, {
-            mtimeMs: stat.mtimeMs,
-            frontmatter,
-            wordCount: fileWordCount,
-            unresolvedCount,
-            firstUnresolvedCommentId,
-            status
-          });
-        } catch (error) {
-          skippedFiles += 1;
-          cache.delete(filePath);
-          logProjectHealthIssue('overview', 'Skipped leaf file (parse failed).', {
-            projectFilePath: path.join(projectContext.projectDir, 'stego-project.json'),
-            filePath,
-            detail: errorToMessage(error)
-          });
-          continue;
-        }
-      }
-
-      let fileMissingMetadata = false;
-      for (const key of projectContext.requiredMetadata) {
-        const value = frontmatter[key];
-        if (value === null || value === undefined || String(value).trim().length === 0) {
-          missingRequiredMetadataCount += 1;
-          fileMissingMetadata = true;
-        }
-      }
-
-      if (!firstMissingMetadata && fileMissingMetadata) {
-        firstMissingMetadata = {
-          filePath,
-          fileLabel: path.basename(filePath)
-        };
-      }
-
-      stageCounts.set(status, (stageCounts.get(status) ?? 0) + 1);
-
-      mapRows.push({
-        kind: 'file',
-        filePath,
-        fileLabel: path.basename(filePath),
-        status
-      });
-
-      unresolvedCommentsCount += unresolvedCount;
-
-      if (!firstUnresolvedComment && firstUnresolvedCommentId) {
-        firstUnresolvedComment = {
-          filePath,
-          fileLabel: path.basename(filePath),
-          commentId: firstUnresolvedCommentId
-        };
-      }
-    }
-
-    for (const cachedPath of [...cache.keys()]) {
-      if (!manuscriptFiles.includes(cachedPath)) {
-        cache.delete(cachedPath);
-      }
-    }
-
-    const stageBreakdown = [...stageCounts.entries()]
-      .map(([status, count]) => ({ status, count }))
-      .sort((a, b) => compareOverviewStatus(a.status, b.status));
-
-    return {
-      overview: {
-        manuscriptTitle: projectContext.projectTitle?.trim() || path.basename(projectContext.projectDir),
-        generatedAt: new Date().toISOString(),
-        wordCount,
-        manuscriptFileCount: manuscriptFiles.length,
-        missingRequiredMetadataCount,
-        unresolvedCommentsCount,
-        gateSnapshot: this.getGateSnapshot(projectContext.projectDir),
-        stageBreakdown,
-        mapRows,
-        firstUnresolvedComment,
-        firstMissingMetadata
-      },
-      skippedFiles
-    };
-  }
-
-  private getOverviewCache(projectDir: string): OverviewFileCache {
-    let cache = this.overviewFileCache.get(projectDir);
-    if (!cache) {
-      cache = new Map();
-      this.overviewFileCache.set(projectDir, cache);
-    }
-    return cache;
   }
 
   private getGateSnapshot(projectDir: string): SidebarOverviewGateSnapshot {

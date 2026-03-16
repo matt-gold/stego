@@ -38,7 +38,7 @@ In the default lane, that means `templates/book.template.tsx`.
 
 In advanced template mode, Stego auto-discovers `templates/*.template.tsx`, compiles each discovered template once, and writes one markdown/render-plan artifact pair per template.
 
-The build is deterministic because leaf ordering comes from filename prefixes, while structure, headings, frontmatter, and backmatter come from template code.
+The build is deterministic because Stego sorts leaves by optional filename prefixes when present and otherwise falls back to stable path order, while structure, headings, frontmatter, and backmatter come from template code.
 
 Generated files in `dist/` should not be hand-edited.
 
