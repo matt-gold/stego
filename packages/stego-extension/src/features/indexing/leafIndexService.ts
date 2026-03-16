@@ -2,13 +2,16 @@ import * as path from 'path';
 import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import {
+  applyLeafPolicyDefaults,
   collectLeafHeadingTargets,
   findLeafHeadingTarget,
   isValidLeafId,
+  resolveLeafBranchId,
   type LeafHeadingTarget
 } from '@stego-labs/shared/domain/content';
+import type { FrontmatterRecord } from '@stego-labs/shared/domain/frontmatter';
 import { toWorkspacePath } from '../../shared/path';
-import type { LeafTargetRecord } from '../../shared/types';
+import type { LeafTargetRecord, ProjectScanContext } from '../../shared/types';
 import { parseMarkdownDocument } from '../metadata';
 import { buildProjectScanPlan, findNearestProjectConfig } from '../project';
 
@@ -49,7 +52,7 @@ export class LeafIndexService {
       return cached.index;
     }
 
-    const index = await buildIndexFromHeadingScan(scanPlan.files, folder.uri.fsPath);
+    const index = await buildIndexFromHeadingScan(scanPlan.files, folder.uri.fsPath, project);
     this.inferredCache.set(cacheKey, { stamp, index });
     return index;
   }
@@ -57,7 +60,8 @@ export class LeafIndexService {
 
 export async function buildIndexFromHeadingScan(
   files: string[],
-  workspaceRoot: string
+  workspaceRoot: string,
+  projectContext?: Pick<ProjectScanContext, 'projectDir' | 'branches'>
 ): Promise<Map<string, LeafTargetRecord>> {
   const index = new Map<string, LeafTargetRecord>();
 
@@ -76,8 +80,9 @@ export async function buildIndexFromHeadingScan(
       continue;
     }
 
-    const id = typeof parsed.frontmatter.id === 'string'
-      ? parsed.frontmatter.id.trim().toUpperCase()
+    const effectiveFrontmatter = buildEffectiveFrontmatter(parsed.frontmatter, projectContext, filePath);
+    const id = typeof effectiveFrontmatter.id === 'string'
+      ? effectiveFrontmatter.id.trim().toUpperCase()
       : '';
     if (!isValidLeafId(id) || index.has(id)) {
       continue;
@@ -87,8 +92,8 @@ export async function buildIndexFromHeadingScan(
     const headings = format === 'markdown'
       ? collectLeafHeadingTargets(parsed.body, id)
       : [];
-    const label = firstNonEmptyString(parsed.frontmatter.label);
-    const title = firstNonEmptyString(parsed.frontmatter.title)
+    const label = firstNonEmptyString(effectiveFrontmatter.label);
+    const title = firstNonEmptyString(effectiveFrontmatter.title)
       ?? label
       ?? headings[0]?.text
       ?? titleFromFilename(filePath);
@@ -103,6 +108,29 @@ export async function buildIndexFromHeadingScan(
   }
 
   return index;
+}
+
+function buildEffectiveFrontmatter(
+  frontmatter: Record<string, unknown>,
+  projectContext: Pick<ProjectScanContext, 'projectDir' | 'branches'> | undefined,
+  filePath: string
+): Record<string, unknown> {
+  if (!projectContext) {
+    return frontmatter;
+  }
+
+  const contentRoot = path.join(projectContext.projectDir, 'content');
+  const branchId = resolveLeafBranchId(contentRoot, filePath);
+  if (branchId == null) {
+    return frontmatter;
+  }
+
+  const branch = projectContext.branches.find((entry) => entry.id === branchId);
+  if (!branch) {
+    return frontmatter;
+  }
+
+  return applyLeafPolicyDefaults(frontmatter as FrontmatterRecord, branch.effectiveLeafPolicy);
 }
 
 function inferFormatFromPath(filePath: string): 'markdown' | 'plaintext' {

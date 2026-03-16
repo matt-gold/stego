@@ -7,7 +7,9 @@ import {
   buildBranchLabel,
   buildBranchName,
   buildBranchParentKey,
-  parseBranchDocument
+  createEmptyEffectiveBranchLeafPolicy,
+  parseBranchDocument,
+  resolveBranchLeafPolicy
 } from '@stego-labs/shared/domain/content';
 import {
   getTemplateNameFromFilename,
@@ -17,7 +19,6 @@ import {
 } from '@stego-labs/shared/domain/templates';
 import { CONTENT_DIR } from '../../shared/constants';
 import { normalizeFsPath } from '../../shared/path';
-import { isValidMetadataKey } from '@stego-labs/shared/domain/frontmatter';
 import type {
   ImageStyle,
   ProjectBranch,
@@ -34,7 +35,6 @@ const PROJECT_JSON_SCHEMA = {
   properties: {
     title: { type: 'string', optional: true },
     name: { type: 'string', optional: true },
-    requiredMetadata: { type: 'array<string>', optional: true },
     images: { type: 'object', optional: true }
   }
 } as const;
@@ -120,19 +120,6 @@ function validateProjectJsonSchema(parsed: unknown): { record?: Record<string, u
   const name = record.name;
   if (name !== undefined && typeof name !== 'string') {
     issues.push(issue('$.name', 'Expected string.'));
-  }
-
-  const requiredMetadata = record.requiredMetadata;
-  if (requiredMetadata !== undefined && !Array.isArray(requiredMetadata)) {
-    issues.push(issue('$.requiredMetadata', 'Expected array of strings.'));
-  }
-
-  if (Array.isArray(requiredMetadata)) {
-    for (let index = 0; index < requiredMetadata.length; index += 1) {
-      if (typeof requiredMetadata[index] !== 'string') {
-        issues.push(issue(`$.requiredMetadata[${index}]`, 'Expected string.'));
-      }
-    }
   }
 
   if (record.spineCategories !== undefined) {
@@ -262,7 +249,6 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
 
   const source = parsedRecord ?? {};
   const projectTitle = extractProjectTitle(source, issues);
-  const requiredMetadata = extractProjectRequiredMetadata(source, issues);
   const imageDefaults = extractProjectImageDefaults(source);
   const branches = await discoverProjectBranches(path.dirname(projectFilePath), issues);
   const templates = await discoverProjectTemplates(path.dirname(projectFilePath), issues);
@@ -274,7 +260,6 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
     projectDir: path.dirname(projectFilePath),
     projectMtimeMs: stat.mtimeMs,
     projectTitle,
-    requiredMetadata,
     imageDefaults,
     branches,
     templates,
@@ -314,56 +299,6 @@ export function extractProjectTitle(parsed: unknown, issues?: ProjectConfigIssue
   return undefined;
 }
 
-export function extractProjectRequiredMetadata(parsed: unknown, issues?: ProjectConfigIssue[]): string[] {
-  const record = asObject(parsed);
-  if (!record) {
-    return [];
-  }
-
-  const raw = record.requiredMetadata;
-  if (raw === undefined) {
-    return [];
-  }
-  if (!Array.isArray(raw)) {
-    if (issues) {
-      issues.push(issue('$.requiredMetadata', 'Ignored non-array requiredMetadata.'));
-    }
-    return [];
-  }
-
-  const result: string[] = [];
-  const seen = new Set<string>();
-  for (let index = 0; index < raw.length; index += 1) {
-    const entry = raw[index];
-    const key = asTrimmedString(entry);
-    if (!key) {
-      if (issues) {
-        issues.push(issue(`$.requiredMetadata[${index}]`, 'Ignored empty/non-string metadata key.'));
-      }
-      continue;
-    }
-
-    if (!isValidMetadataKey(key)) {
-      if (issues) {
-        issues.push(issue(`$.requiredMetadata[${index}]`, `Ignored invalid metadata key '${key}'.`));
-      }
-      continue;
-    }
-
-    if (seen.has(key)) {
-      if (issues) {
-        issues.push(issue(`$.requiredMetadata[${index}]`, `Ignored duplicate metadata key '${key}'.`));
-      }
-      continue;
-    }
-
-    seen.add(key);
-    result.push(key);
-  }
-
-  return result;
-}
-
 async function discoverProjectBranches(
   projectDir: string,
   issues?: ProjectConfigIssue[]
@@ -392,13 +327,13 @@ async function discoverProjectBranches(
     let label = id ? buildBranchLabel(name) : 'Content';
     let body: string | undefined;
     let notesFile: string | undefined;
-    let requiredLeafMetadata: string[] = [];
+    let leafPolicy = undefined;
 
     try {
       const raw = await fs.readFile(notesFilePath, 'utf8');
       const parsed = parseBranchDocument(raw, path.relative(projectDir, notesFilePath));
       label = buildBranchLabel(name, parsed.metadata.label);
-      requiredLeafMetadata = parsed.metadata.requiredLeafMetadata ?? [];
+      leafPolicy = parsed.metadata.leafPolicy;
       body = parsed.body || undefined;
       notesFile = path.relative(contentDir, notesFilePath).split(path.sep).join('/');
     } catch (error) {
@@ -415,7 +350,8 @@ async function discoverProjectBranches(
       parentId: buildBranchParentKey(id),
       relativeDir: path.relative(projectDir, currentDir).split(path.sep).join('/'),
       notesFile,
-      requiredLeafMetadata,
+      leafPolicy: leafPolicy ?? {},
+      effectiveLeafPolicy: createEmptyEffectiveBranchLeafPolicy(),
       body
     });
 
@@ -433,11 +369,17 @@ async function discoverProjectBranches(
     }
   }
 
-  return branches.sort((a, b) => {
+  const sorted = branches.sort((a, b) => {
     const depthA = a.id ? a.id.split('/').length : 0;
     const depthB = b.id ? b.id.split('/').length : 0;
     return depthA - depthB || a.id.localeCompare(b.id);
   });
+
+  for (const branch of sorted) {
+    branch.effectiveLeafPolicy = resolveBranchLeafPolicy(sorted, branch.id);
+  }
+
+  return sorted;
 }
 
 async function discoverProjectTemplates(

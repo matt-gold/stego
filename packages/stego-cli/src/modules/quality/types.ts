@@ -66,9 +66,4 @@ export interface LintResult {
   fileCount: number;
 }
 
-export type RequiredMetadataResult = {
-  requiredMetadata: string[];
-  issues: Issue[];
-};
-
 export type QualityProjectContext = ProjectContext;

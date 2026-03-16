@@ -39,12 +39,16 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
   }
 
   const contentDir = path.join(projectRoot, input.workspace.config.contentDir);
+  const manuscriptDir = path.join(contentDir, "manuscript");
+  const referenceDir = path.join(contentDir, "reference");
   const notesDir = path.join(projectRoot, input.workspace.config.notesDir);
   const assetsDir = path.join(projectRoot, "assets");
   const distDir = path.join(projectRoot, input.workspace.config.distDir);
   const templatesDir = path.join(projectRoot, "templates");
 
   ensureDirectory(contentDir);
+  ensureDirectory(manuscriptDir);
+  ensureDirectory(referenceDir);
   ensureDirectory(notesDir);
   ensureDirectory(assetsDir);
   ensureDirectory(distDir);
@@ -56,8 +60,7 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
     `${JSON.stringify(
       {
         id: projectId,
-        title: input.title?.trim() || toDisplayTitle(projectId),
-        requiredMetadata: ["status"]
+        title: input.title?.trim() || toDisplayTitle(projectId)
       },
       null,
       2
@@ -110,7 +113,32 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
     )}\n`
   );
 
-  const starterManuscriptPath = path.join(contentDir, "100-hello-world.md");
+  const manuscriptBranchPath = path.join(manuscriptDir, "_branch.md");
+  writeTextFile(
+    manuscriptBranchPath,
+    `---
+label: Manuscript
+leafPolicy:
+  requiredMetadata:
+    - status
+---
+
+Ordered draft leaves live here.
+`
+  );
+
+  const referenceBranchPath = path.join(referenceDir, "_branch.md");
+  writeTextFile(
+    referenceBranchPath,
+    `---
+label: Reference
+---
+
+Reference leaves live here.
+`
+  );
+
+  const starterManuscriptPath = path.join(manuscriptDir, "100-hello-world.md");
   writeTextFile(
     starterManuscriptPath,
     `---
@@ -283,6 +311,8 @@ Global defaults belong in \`stego-project.json\` under \`images\`.
       path.relative(input.workspace.repoRoot, projectJsonPath),
       path.relative(input.workspace.repoRoot, projectPackagePath),
       path.relative(input.workspace.repoRoot, projectTsconfigPath),
+      path.relative(input.workspace.repoRoot, manuscriptBranchPath),
+      path.relative(input.workspace.repoRoot, referenceBranchPath),
       path.relative(input.workspace.repoRoot, starterManuscriptPath),
       path.relative(input.workspace.repoRoot, starterTemplatePath),
       path.relative(input.workspace.repoRoot, assetsReadmePath),

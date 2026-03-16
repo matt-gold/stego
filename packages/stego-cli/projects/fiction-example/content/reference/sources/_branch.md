@@ -1,6 +1,7 @@
 ---
 label: Sources
-requiredLeafMetadata:
-  - kind
-  - label
+leafPolicy:
+  requiredMetadata:
+    - kind
+    - label
 ---

@@ -35,7 +35,14 @@ function createTempProject(projectId, projectJson, contentFiles = [], extraFiles
   fs.mkdirSync(path.join(projectRoot, "dist"), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, "templates"), { recursive: true });
 
-  writeFile(path.join(projectRoot, "stego-project.json"), `${JSON.stringify(projectJson, null, 2)}\n`);
+  const { requiredMetadata, ...projectMeta } = projectJson;
+  writeFile(path.join(projectRoot, "stego-project.json"), `${JSON.stringify(projectMeta, null, 2)}\n`);
+  if (Array.isArray(requiredMetadata) && requiredMetadata.length > 0) {
+    writeFile(
+      path.join(projectRoot, "content", "_branch.md"),
+      `---\nlabel: Content\nleafPolicy:\n  requiredMetadata:\n${requiredMetadata.map((key) => `    - ${key}`).join("\n")}\n---\n`
+    );
+  }
   writeFile(
     path.join(projectRoot, "templates", "book.template.tsx"),
     `import { defineTemplate, Stego } from "@stego-labs/engine";

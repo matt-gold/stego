@@ -2,7 +2,8 @@ import path from "node:path";
 import {
   isValidMetadataKey,
   parseMarkdownDocument,
-  type FrontmatterRecord
+  type FrontmatterRecord,
+  type FrontmatterValue
 } from "../frontmatter/index.ts";
 
 export type LeafFormat = "markdown" | "plaintext";
@@ -15,7 +16,18 @@ export type LeafHeadingTarget = {
 
 export type BranchMetadata = {
   label?: string;
-  requiredLeafMetadata?: string[];
+  leafPolicy?: BranchLeafPolicy;
+};
+
+export type BranchLeafPolicy = {
+  inherit?: boolean;
+  requiredMetadata?: string[];
+  defaults?: FrontmatterRecord;
+};
+
+export type EffectiveBranchLeafPolicy = {
+  requiredMetadata: string[];
+  defaults: FrontmatterRecord;
 };
 
 export type ParsedBranchDocument = {
@@ -84,19 +96,21 @@ export function buildBranchLabel(name: string, metadataLabel?: string): string {
   return toTitleCase(name);
 }
 
-export function isManuscriptContentPath(filePath: string): boolean {
-  const normalized = path.resolve(filePath);
-  if (isBranchFile(normalized)) {
+export function isLeafFileInContent(contentRoot: string, filePath: string): boolean {
+  const normalizedFilePath = path.resolve(filePath);
+  if (!isSupportedLeafContentFile(normalizedFilePath)) {
     return false;
   }
 
-  const parts = normalized.split(/[\\/]/).filter(Boolean);
-  const contentIndex = parts.lastIndexOf("content");
-  if (contentIndex >= 0) {
-    return parts[contentIndex + 1] !== "reference";
+  return isPathInsideDirectory(contentRoot, normalizedFilePath);
+}
+
+export function resolveLeafBranchId(contentRoot: string, filePath: string): string | undefined {
+  if (!isLeafFileInContent(contentRoot, filePath)) {
+    return undefined;
   }
 
-  return parts.includes("manuscript") || parts.includes("manuscripts");
+  return buildBranchKey(contentRoot, path.dirname(filePath));
 }
 
 export function parseBranchDocument(raw: string, filePath = BRANCH_FILENAME): ParsedBranchDocument {
@@ -119,36 +133,77 @@ export function validateBranchFrontmatter(
   frontmatter: FrontmatterRecord,
   filePath = BRANCH_FILENAME
 ): BranchMetadata {
-  const allowedKeys = new Set(["label", "requiredLeafMetadata"]);
+  const allowedKeys = new Set(["label", "leafPolicy"]);
   for (const key of Object.keys(frontmatter)) {
     if (!allowedKeys.has(key)) {
       throw new Error(
-        `Branch file '${filePath}' has unsupported frontmatter key '${key}'. Only 'label' and 'requiredLeafMetadata' are allowed.`
+        `Branch file '${filePath}' has unsupported frontmatter key '${key}'. Only 'label' and 'leafPolicy' are allowed.`
       );
     }
   }
 
   const rawLabel = frontmatter.label;
-  const rawRequiredLeafMetadata = frontmatter.requiredLeafMetadata;
-  const requiredLeafMetadata = validateBranchRequiredLeafMetadata(rawRequiredLeafMetadata, filePath);
+  const leafPolicy = validateBranchLeafPolicy(frontmatter.leafPolicy, filePath);
 
   if (rawLabel == null) {
-    return requiredLeafMetadata.length > 0 ? { requiredLeafMetadata } : {};
+    return leafPolicy ? { leafPolicy } : {};
   }
   if (typeof rawLabel !== "string" || rawLabel.trim().length === 0) {
     throw new Error(`Branch file '${filePath}' must define 'label' as a non-empty string.`);
   }
-  return requiredLeafMetadata.length > 0
-    ? { label: rawLabel.trim(), requiredLeafMetadata }
+  return leafPolicy
+    ? { label: rawLabel.trim(), leafPolicy }
     : { label: rawLabel.trim() };
 }
 
-function validateBranchRequiredLeafMetadata(value: unknown, filePath: string): string[] {
+function validateBranchLeafPolicy(value: unknown, filePath: string): BranchLeafPolicy | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  if (!isPlainObject(value)) {
+    throw new Error(`Branch file '${filePath}' must define 'leafPolicy' as an object.`);
+  }
+
+  const allowedKeys = new Set(["inherit", "requiredMetadata", "defaults"]);
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key)) {
+      throw new Error(
+        `Branch file '${filePath}' has unsupported leafPolicy key '${key}'. Only 'inherit', 'requiredMetadata', and 'defaults' are allowed.`
+      );
+    }
+  }
+
+  const inherit = value.inherit;
+  if (inherit != null && typeof inherit !== "boolean") {
+    throw new Error(`Branch file '${filePath}' must define 'leafPolicy.inherit' as a boolean.`);
+  }
+
+  const requiredMetadata = validateRequiredMetadataArray(
+    value.requiredMetadata,
+    filePath,
+    "leafPolicy.requiredMetadata"
+  );
+  const defaults = validateLeafPolicyDefaults(value.defaults, filePath);
+
+  const result: BranchLeafPolicy = {};
+  if (inherit != null) {
+    result.inherit = inherit;
+  }
+  if (requiredMetadata.length > 0) {
+    result.requiredMetadata = requiredMetadata;
+  }
+  if (Object.keys(defaults).length > 0) {
+    result.defaults = defaults;
+  }
+  return Object.keys(result).length > 0 ? result : {};
+}
+
+function validateRequiredMetadataArray(value: unknown, filePath: string, keyPath: string): string[] {
   if (value == null) {
     return [];
   }
   if (!Array.isArray(value)) {
-    throw new Error(`Branch file '${filePath}' must define 'requiredLeafMetadata' as an array of metadata keys.`);
+    throw new Error(`Branch file '${filePath}' must define '${keyPath}' as an array of metadata keys.`);
   }
 
   const result: string[] = [];
@@ -156,26 +211,26 @@ function validateBranchRequiredLeafMetadata(value: unknown, filePath: string): s
   for (const [index, entry] of value.entries()) {
     if (typeof entry !== "string") {
       throw new Error(
-        `Branch file '${filePath}' has non-string requiredLeafMetadata entry at index ${index}.`
+        `Branch file '${filePath}' has non-string ${keyPath} entry at index ${index}.`
       );
     }
 
     const key = entry.trim();
     if (!key) {
       throw new Error(
-        `Branch file '${filePath}' has empty requiredLeafMetadata entry at index ${index}.`
+        `Branch file '${filePath}' has empty ${keyPath} entry at index ${index}.`
       );
     }
 
     if (!isValidMetadataKey(key)) {
       throw new Error(
-        `Branch file '${filePath}' has invalid requiredLeafMetadata key '${key}'.`
+        `Branch file '${filePath}' has invalid ${keyPath} key '${key}'.`
       );
     }
 
     if (seen.has(key)) {
       throw new Error(
-        `Branch file '${filePath}' has duplicate requiredLeafMetadata key '${key}'.`
+        `Branch file '${filePath}' has duplicate ${keyPath} key '${key}'.`
       );
     }
 
@@ -184,6 +239,135 @@ function validateBranchRequiredLeafMetadata(value: unknown, filePath: string): s
   }
 
   return result;
+}
+
+function validateLeafPolicyDefaults(value: unknown, filePath: string): FrontmatterRecord {
+  if (value == null) {
+    return {};
+  }
+  if (!isPlainObject(value)) {
+    throw new Error(`Branch file '${filePath}' must define 'leafPolicy.defaults' as an object.`);
+  }
+
+  const defaults: FrontmatterRecord = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (!isValidMetadataKey(key)) {
+      throw new Error(
+        `Branch file '${filePath}' has invalid leafPolicy.defaults key '${key}'.`
+      );
+    }
+    defaults[key] = cloneMetadataValue(entry as FrontmatterValue);
+  }
+  return defaults;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPathInsideDirectory(rootPath: string, candidatePath: string): boolean {
+  const relative = path.relative(path.resolve(rootPath), path.resolve(candidatePath));
+  return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function cloneMetadataValue(value: FrontmatterValue): FrontmatterValue {
+  if (Array.isArray(value)) {
+    return value.map((entry) => cloneMetadataValue(entry));
+  }
+  if (isPlainObject(value)) {
+    const result: Record<string, FrontmatterValue> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      result[key] = cloneMetadataValue(entry as FrontmatterValue);
+    }
+    return result;
+  }
+  return value;
+}
+
+export function createEmptyEffectiveBranchLeafPolicy(): EffectiveBranchLeafPolicy {
+  return {
+    requiredMetadata: [],
+    defaults: {}
+  };
+}
+
+export function mergeBranchLeafPolicy(
+  parent: EffectiveBranchLeafPolicy,
+  leafPolicy?: BranchLeafPolicy
+): EffectiveBranchLeafPolicy {
+  const base = leafPolicy?.inherit === false ? createEmptyEffectiveBranchLeafPolicy() : parent;
+  const requiredMetadata = [...base.requiredMetadata];
+  for (const key of leafPolicy?.requiredMetadata ?? []) {
+    if (!requiredMetadata.includes(key)) {
+      requiredMetadata.push(key);
+    }
+  }
+
+  return {
+    requiredMetadata,
+    defaults: {
+      ...base.defaults,
+      ...cloneMetadataValue(leafPolicy?.defaults ?? {}) as FrontmatterRecord
+    }
+  };
+}
+
+export function resolveBranchLeafPolicy<
+  TBranch extends {
+    id: string;
+    parentId?: string;
+    leafPolicy?: BranchLeafPolicy;
+    metadata?: BranchMetadata;
+  }
+>(branches: Iterable<TBranch>, branchId: string | undefined): EffectiveBranchLeafPolicy {
+  if (branchId == null) {
+    return createEmptyEffectiveBranchLeafPolicy();
+  }
+
+  const branchById = new Map<string, TBranch>();
+  for (const branch of branches) {
+    branchById.set(branch.id, branch);
+  }
+
+  const cache = new Map<string, EffectiveBranchLeafPolicy>();
+  const resolving = new Set<string>();
+
+  const resolveOne = (id: string | undefined): EffectiveBranchLeafPolicy => {
+    if (id == null) {
+      return createEmptyEffectiveBranchLeafPolicy();
+    }
+    if (cache.has(id)) {
+      return cache.get(id)!;
+    }
+    if (resolving.has(id)) {
+      throw new Error(`Circular branch leaf policy inheritance detected at branch '${id}'.`);
+    }
+
+    const branch = branchById.get(id);
+    if (!branch) {
+      return createEmptyEffectiveBranchLeafPolicy();
+    }
+
+    resolving.add(id);
+    const parent = resolveOne(branch.parentId);
+    const rawLeafPolicy = branch.leafPolicy ?? branch.metadata?.leafPolicy;
+    const effective = mergeBranchLeafPolicy(parent, rawLeafPolicy);
+    resolving.delete(id);
+    cache.set(id, effective);
+    return effective;
+  };
+
+  return resolveOne(branchId);
+}
+
+export function applyLeafPolicyDefaults(
+  frontmatter: FrontmatterRecord,
+  leafPolicy: EffectiveBranchLeafPolicy
+): FrontmatterRecord {
+  return {
+    ...cloneMetadataValue(leafPolicy.defaults) as FrontmatterRecord,
+    ...frontmatter
+  };
 }
 
 export function slugifyLeafHeading(value: string): string {

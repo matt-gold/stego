@@ -179,6 +179,41 @@ describe('App', () => {
     resetSidebarState();
   });
 
+  it('shows inherited metadata as read-only with an inherited badge', () => {
+    setWebviewApiForTest(undefined);
+    const root = document.createElement('div');
+    document.body.append(root);
+    updateSidebarState(createSidebarState({
+      activeTab: 'document',
+      metadataEditing: true,
+      metadataEntries: [
+        {
+          key: 'kind',
+          isStructural: false,
+          isBranch: true,
+          isInherited: true,
+          inheritedFrom: 'Characters',
+          isArray: false,
+          valueText: 'reference',
+          references: [],
+          arrayItems: []
+        }
+      ]
+    }));
+
+    const dispose = render(() => <App />, root);
+
+    expect(root.textContent).toContain('Inherited');
+    expect(root.textContent).toContain('kind');
+    expect(root.textContent).toContain('reference');
+    expect(root.textContent).not.toContain('Edit');
+    expect(root.textContent).not.toContain('Remove');
+
+    dispose();
+    root.remove();
+    resetSidebarState();
+  });
+
   it('shows combined child counts for branch lists in explore', () => {
     setWebviewApiForTest(undefined);
     const root = document.createElement('div');

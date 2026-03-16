@@ -1,11 +1,12 @@
 ---
-label: Advisory list of frontmatter keys expected in manuscript files.
+label: Branch leafPolicy can require specific frontmatter keys for descendant leaves.
 id: CFG-REQUIRED-METADATA
 kind: reference
 ---
 
-# Advisory list of frontmatter keys expected in manuscript files.
+# Branch leafPolicy can require specific frontmatter keys for descendant leaves.
 
-- Advisory list of frontmatter keys expected in manuscript files.
+- Define required metadata on `_branch.md` with `leafPolicy.requiredMetadata`.
+- A common convention is putting manuscript requirements on `content/manuscript/_branch.md`.
 - Related concepts: CON-METADATA.
 - Related commands: CMD-VALIDATE.

@@ -1,8 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { isManuscriptContentPath } from '@stego-labs/shared/domain/content';
 import { MINOR_TITLE_WORDS } from '../../../../shared/constants';
-import { normalizeFsPath } from '../../../../shared/path';
 import { slugifyHeading } from '../../../../shared/markdown';
 import type { SidebarBacklink, SidebarTocEntry } from '../../../../shared/types';
 
@@ -30,10 +28,6 @@ export function collectTocEntries(document: vscode.TextDocument): SidebarTocEntr
   }
 
   return entries;
-}
-
-export function isManuscriptPath(filePath: string): boolean {
-  return isManuscriptContentPath(normalizeFsPath(path.resolve(filePath)));
 }
 
 export function applyBacklinkFilter(backlinks: SidebarBacklink[], filter: string): SidebarBacklink[] {

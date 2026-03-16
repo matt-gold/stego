@@ -30,7 +30,14 @@ function createTempProject(projectId, projectJson, manuscriptFiles, templateCont
   fs.mkdirSync(path.join(projectRoot, 'dist'), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, 'templates'), { recursive: true });
 
-  writeFile(path.join(projectRoot, 'stego-project.json'), `${JSON.stringify(projectJson, null, 2)}\n`);
+  const { requiredMetadata, ...projectMeta } = projectJson;
+  writeFile(path.join(projectRoot, 'stego-project.json'), `${JSON.stringify(projectMeta, null, 2)}\n`);
+  if (Array.isArray(requiredMetadata) && requiredMetadata.length > 0) {
+    writeFile(
+      path.join(projectRoot, 'content', '_branch.md'),
+      `---\nlabel: Content\nleafPolicy:\n  requiredMetadata:\n${requiredMetadata.map((key) => `    - ${key}`).join('\n')}\n---\n`
+    );
+  }
   writeFile(
     path.join(projectRoot, 'templates', 'book.template.tsx'),
     templateContent || `import { defineTemplate, Stego } from "@stego-labs/engine";
@@ -196,6 +203,38 @@ test('new infers next leaf prefix from the last two leaves', () => {
   }
 });
 
+test('new prefers content/manuscript as the default target when that convention exists', () => {
+  const projectId = `new-leaf-manuscript-fallback-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'New Leaf Manuscript Fallback Test'
+    },
+    []
+  );
+
+  try {
+    writeFile(
+      path.join(projectRoot, 'content', 'manuscript', '_branch.md'),
+      '---\nlabel: Manuscript\nleafPolicy:\n  requiredMetadata:\n    - status\n---\n'
+    );
+
+    const result = runCli(['new', '--project', projectId]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+
+    const createdPath = path.join(projectRoot, 'content', 'manuscript', '100-new-leaf.md');
+    assert.equal(fs.existsSync(createdPath), true, `Expected leaf file at ${createdPath}`);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'content', '100-new-leaf.md')), false);
+    assert.match(
+      fs.readFileSync(createdPath, 'utf8'),
+      /^---\nid: NEW-LEAF\nstatus: draft\n---\n\n$/m
+    );
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
 test('new supports explicit prefix via -i and --i', () => {
   const projectId = `new-leaf-explicit-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(
@@ -311,6 +350,82 @@ test('new rejects using --filename with --i', () => {
     const result = runCli(['new', '--project', projectId, '--i', '300', '--filename', '400-custom-scene.md']);
     assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
     assert.match(`${result.stdout}\n${result.stderr}`, /--filename and --i\/-i cannot be used together/);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test('new creates in an explicit content directory and infers order from local siblings only', () => {
+  const projectId = `new-leaf-dir-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'New Leaf Directory Test',
+      requiredMetadata: ['status']
+    },
+    [
+      ['100-root.md', '---\nid: ROOT-ONE\nstatus: draft\n---\n\nRoot\n'],
+      ['manuscript/101-first.md', '---\nid: CH-FIRST\nstatus: draft\n---\n\nA\n'],
+      ['manuscript/103-second.md', '---\nid: CH-SECOND\nstatus: draft\n---\n\nB\n']
+    ]
+  );
+
+  try {
+    const result = runCli(['new', '--project', projectId, '--dir', 'manuscript']);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+
+    const createdPath = path.join(projectRoot, 'content', 'manuscript', '105-new-leaf.md');
+    assert.equal(fs.existsSync(createdPath), true, `Expected leaf file at ${createdPath}`);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'content', '101-new-leaf.md')), false);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test('new scopes explicit filename prefix collisions to the target directory', () => {
+  const projectId = `new-leaf-dir-collision-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'New Leaf Directory Collision Test',
+      requiredMetadata: ['status']
+    },
+    [
+      ['200-root-existing.md', '---\nid: ROOT-EXISTING\nstatus: draft\n---\n\nRoot\n'],
+      ['manuscript/100-first.md', '---\nid: CH-FIRST\nstatus: draft\n---\n\nA\n']
+    ]
+  );
+
+  try {
+    const result = runCli(['new', '--project', projectId, '--dir', 'manuscript', '--filename', '200-custom-scene.md']);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.equal(
+      fs.existsSync(path.join(projectRoot, 'content', 'manuscript', '200-custom-scene.md')),
+      true
+    );
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test('new rejects target directories outside content', () => {
+  const projectId = `new-leaf-dir-invalid-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'New Leaf Invalid Directory Test',
+      requiredMetadata: ['status']
+    },
+    []
+  );
+
+  try {
+    const result = runCli(['new', '--project', projectId, '--dir', '../escape']);
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(`${result.stdout}\n${result.stderr}`, /stay within content\//i);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }

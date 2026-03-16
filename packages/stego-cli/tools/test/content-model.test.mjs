@@ -28,7 +28,9 @@ function createTempProject(projectId, projectJson) {
   fs.mkdirSync(path.join(projectRoot, 'content'), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, 'notes'), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, 'dist'), { recursive: true });
-  writeFile(path.join(projectRoot, 'stego-project.json'), `${JSON.stringify(projectJson, null, 2)}\n`);
+  const { requiredMetadata, ...projectMeta } = projectJson;
+  void requiredMetadata;
+  writeFile(path.join(projectRoot, 'stego-project.json'), `${JSON.stringify(projectMeta, null, 2)}\n`);
   return projectRoot;
 }
 
@@ -36,8 +38,7 @@ test('content read lists leaves with ids and headings', () => {
   const projectId = `content-read-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId, {
     id: projectId,
-    title: 'Content Read Test',
-    requiredMetadata: ['status']
+    title: 'Content Read Test'
   });
 
   try {
@@ -76,8 +77,7 @@ test('validate treats _branch.md as branch metadata, not a leaf', () => {
   const projectId = `branch-validate-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId, {
     id: projectId,
-    title: 'Branch Validate Test',
-    requiredMetadata: ['status']
+    title: 'Branch Validate Test'
   });
 
   try {
@@ -95,8 +95,7 @@ test('validate allows leaves without numeric filename prefixes', () => {
   const projectId = `leaf-no-prefix-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId, {
     id: projectId,
-    title: 'Leaf Without Prefix Test',
-    requiredMetadata: ['status']
+    title: 'Leaf Without Prefix Test'
   });
 
   try {
@@ -114,8 +113,7 @@ test('validate rejects invalid _branch.md metadata', () => {
   const projectId = `branch-invalid-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId, {
     id: projectId,
-    title: 'Invalid Branch Test',
-    requiredMetadata: ['status']
+    title: 'Invalid Branch Test'
   });
 
   try {
@@ -130,22 +128,29 @@ test('validate rejects invalid _branch.md metadata', () => {
   }
 });
 
-test('project requiredMetadata applies only to manuscript leaves and branch requiredLeafMetadata applies to branch leaves', () => {
+test('branch leafPolicy applies independently across sibling branches', () => {
   const projectId = `branch-required-metadata-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId, {
     id: projectId,
-    title: 'Branch Required Metadata Test',
-    requiredMetadata: ['status']
+    title: 'Branch Required Metadata Test'
   });
 
   try {
     writeFile(
-      path.join(projectRoot, 'content', '100-one.md'),
+      path.join(projectRoot, 'content', 'manuscript', '_branch.md'),
+      '---\nlabel: Manuscript\nleafPolicy:\n  requiredMetadata:\n    - status\n---\n\nManuscript notes.\n'
+    );
+    writeFile(
+      path.join(projectRoot, 'content', 'manuscript', '100-one.md'),
       '---\nid: CH-ONE\nstatus: draft\n---\n\nOne.\n'
     );
     writeFile(
+      path.join(projectRoot, 'content', 'reference', '_branch.md'),
+      '---\nlabel: Reference\n---\n\nReference notes.\n'
+    );
+    writeFile(
       path.join(projectRoot, 'content', 'reference', 'characters', '_branch.md'),
-      '---\nlabel: Characters\nrequiredLeafMetadata:\n  - kind\n  - label\n---\n\nReference notes.\n'
+      '---\nlabel: Characters\nleafPolicy:\n  requiredMetadata:\n    - kind\n    - label\n---\n\nReference notes.\n'
     );
     writeFile(
       path.join(projectRoot, 'content', 'reference', 'characters', 'CHAR-ONE.md'),
@@ -167,12 +172,52 @@ test('project requiredMetadata applies only to manuscript leaves and branch requ
   }
 });
 
+test('branch leafPolicy inherits required metadata and defaults unless inherit is false', () => {
+  const projectId = `branch-leaf-policy-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(projectId, {
+    id: projectId,
+    title: 'Branch Leaf Policy Test'
+  });
+
+  try {
+    writeFile(
+      path.join(projectRoot, 'content', 'reference', '_branch.md'),
+      '---\nlabel: Reference\nleafPolicy:\n  requiredMetadata:\n    - kind\n  defaults:\n    kind: reference\n---\n'
+    );
+    writeFile(
+      path.join(projectRoot, 'content', 'reference', 'characters', '_branch.md'),
+      '---\nlabel: Characters\nleafPolicy:\n  requiredMetadata:\n    - label\n---\n'
+    );
+    writeFile(
+      path.join(projectRoot, 'content', 'reference', 'characters', 'CHAR-ONE.md'),
+      '---\nid: CHAR-ONE\nlabel: Character One\n---\n\nReference.\n'
+    );
+    writeFile(
+      path.join(projectRoot, 'content', 'reference', 'notes', '_branch.md'),
+      '---\nlabel: Notes\nleafPolicy:\n  inherit: false\n  defaults:\n    kind: note\n---\n'
+    );
+    writeFile(
+      path.join(projectRoot, 'content', 'reference', 'notes', 'NOTE-ONE.md'),
+      '---\nid: NOTE-ONE\n---\n\nNote.\n'
+    );
+
+    const validate = runCli(['validate', '--project', projectId]);
+    assert.equal(validate.status, 0, `${validate.stdout}\n${validate.stderr}`);
+
+    const output = `${validate.stdout}\n${validate.stderr}`;
+    assert.doesNotMatch(output, /CHAR-ONE\.md[\s\S]*Missing required metadata key 'kind'/);
+    assert.doesNotMatch(output, /CHAR-ONE\.md[\s\S]*Missing required metadata key 'label'/);
+    assert.doesNotMatch(output, /NOTE-ONE\.md[\s\S]*Missing required metadata key 'kind'/);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
 test('validate rejects missing and duplicate leaf ids', () => {
   const projectId = `leaf-validate-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId, {
     id: projectId,
-    title: 'Leaf Validate Test',
-    requiredMetadata: ['status']
+    title: 'Leaf Validate Test'
   });
 
   try {

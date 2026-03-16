@@ -7,7 +7,6 @@ export type WorkspaceConfig = {
   contentDir: string;
   notesDir: string;
   distDir: string;
-  requiredMetadata: string[];
   allowedStatuses: string[];
   stagePolicies: Record<string, unknown>;
 };

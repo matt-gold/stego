@@ -1,6 +1,7 @@
 ---
 label: Characters
-requiredLeafMetadata:
-  - kind
-  - label
+leafPolicy:
+  requiredMetadata:
+    - kind
+    - label
 ---

@@ -5,6 +5,7 @@ This is the canonical Stego documentation project.
 It demonstrates:
 
 - the leaf model (`content/` contains authored leaves)
+- scaffolded manuscript leaves under `content/manuscript/`
 - branch notes with `_branch.md`
 - manuscript build/export through TSX templates
 - `ctx.content` / `ctx.allLeaves` / `ctx.allBranches` in real templates
@@ -13,7 +14,7 @@ It demonstrates:
 
 ## Read the docs
 
-Open `content/` in order, or build the compiled manual:
+Open `content/manuscript/` in order, or build the compiled manual:
 
 ```bash
 stego build --project stego-docs

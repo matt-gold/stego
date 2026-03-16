@@ -4,7 +4,7 @@ A full-configuration demo built on the leaf model.
 
 It demonstrates:
 
-- ordered chapter leaves under `content/`
+- ordered chapter leaves under `content/manuscript/`
 - this example stores reference leaves under `content/reference/`
 - rich metadata (`status`, `chapter`, `pov`, `timeline`)
 - inline cross-references through leaf ids such as `SRC-GALEN`

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatTitleWords, getSidebarFileTitle, isManuscriptPath } from '../../features/sidebar/tabs/document/sidebarToc';
+import { isLeafFileInContent } from '@stego-labs/shared/domain/content';
+import { formatTitleWords, getSidebarFileTitle } from '../../features/sidebar/tabs/document/sidebarToc';
 
 test('getSidebarFileTitle converts numbered kebab case filenames', () => {
   const parsed = getSidebarFileTitle('/tmp/200-the-fall-of-rome.md');
@@ -29,8 +30,8 @@ test('formatTitleWords keeps minor words lowercase except edges', () => {
   assert.equal(formatTitleWords(['war', 'and', 'peace']), 'War and Peace');
 });
 
-test('isManuscriptPath excludes branch notes and reference leaves', () => {
-  assert.equal(isManuscriptPath('/tmp/project/content/100-scene.md'), true);
-  assert.equal(isManuscriptPath('/tmp/project/content/_branch.md'), false);
-  assert.equal(isManuscriptPath('/tmp/project/content/reference/characters/CHAR-AGNES.md'), false);
+test('isLeafFileInContent recognizes generic leaf files under content', () => {
+  assert.equal(isLeafFileInContent('/tmp/project/content', '/tmp/project/content/100-scene.md'), true);
+  assert.equal(isLeafFileInContent('/tmp/project/content', '/tmp/project/content/_branch.md'), false);
+  assert.equal(isLeafFileInContent('/tmp/project/content', '/tmp/project/content/reference/characters/CHAR-AGNES.md'), true);
 });

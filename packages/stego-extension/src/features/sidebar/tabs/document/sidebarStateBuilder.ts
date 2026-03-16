@@ -31,7 +31,11 @@ export function buildMetadataEntry(
   branch: ProjectBranch | undefined,
   index: Map<string, LeafTargetRecord>,
   document: vscode.TextDocument,
-  pattern: string
+  pattern: string,
+  options?: {
+    isInherited?: boolean;
+    inheritedFrom?: string;
+  }
 ): SidebarMetadataEntry {
   if (Array.isArray(value)) {
     const arrayItems = value.map((item, itemIndex) => ({
@@ -44,6 +48,8 @@ export function buildMetadataEntry(
       key,
       isStructural,
       isBranch: !!branch,
+      isInherited: options?.isInherited === true,
+      inheritedFrom: options?.inheritedFrom,
       isArray: true,
       valueText: '',
       references: [],
@@ -55,6 +61,8 @@ export function buildMetadataEntry(
     key,
     isStructural,
     isBranch: !!branch,
+    isInherited: options?.isInherited === true,
+    inheritedFrom: options?.inheritedFrom,
     isArray: false,
     valueText: formatMetadataValue(value),
     references: buildIdentifierLinksForValue(value, branch, index, document, pattern),

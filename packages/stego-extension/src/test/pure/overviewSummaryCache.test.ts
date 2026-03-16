@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { SerializedCommentDocumentState } from '@stego-labs/shared/domain/comments';
 import { OverviewSummaryCache } from '../../features/sidebar/core/runtime/overview/overviewSummaryCache';
-import type { ProjectScanContext, SidebarOverviewGateSnapshot } from '../../shared/types';
+import type { ProjectBranch, ProjectScanContext, SidebarOverviewGateSnapshot } from '../../shared/types';
 
 function createTempProject(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'stego-extension-overview-cache-'));
@@ -16,6 +16,27 @@ function writeFile(filePath: string, content: string): void {
   fs.writeFileSync(filePath, content, 'utf8');
 }
 
+function createBranch(
+  id: string,
+  overrides: Partial<ProjectBranch> = {}
+): ProjectBranch {
+  return {
+    id,
+    name: id || 'content',
+    label: id || 'Content',
+    parentId: id ? id.split('/').slice(0, -1).join('/') || '' : undefined,
+    relativeDir: id,
+    notesFile: id ? path.join('content', id, '_branch.md') : path.join('content', '_branch.md'),
+    leafPolicy: {},
+    effectiveLeafPolicy: {
+      requiredMetadata: [],
+      defaults: {}
+    },
+    body: '',
+    ...overrides
+  };
+}
+
 function createProjectContext(
   projectDir: string,
   overrides: Partial<ProjectScanContext> = {}
@@ -24,7 +45,6 @@ function createProjectContext(
     projectDir,
     projectMtimeMs: Date.now(),
     projectTitle: 'Test Project',
-    requiredMetadata: [],
     imageDefaults: {},
     branches: [],
     templates: [],
@@ -145,12 +165,19 @@ test('overview cache handles invalidation and reuse scenarios', async () => {
   // 3. single dirty leaf
   // 4. added leaf via scan drift
   // 5. deleted leaf via scan drift
-  // 6. requiredMetadata change
+  // 6. branch leaf policy change
   // 7. project title change
   // 8. comment dependency change
   // 9. branch file change does not inflate leaf count
   const baseContext = createProjectContext(projectDir, {
-    requiredMetadata: ['category']
+    branches: [
+      createBranch('', {
+        effectiveLeafPolicy: {
+          requiredMetadata: ['category'],
+          defaults: {}
+        }
+      })
+    ]
   });
 
   const cold = await loadReadySnapshot(cache, baseContext);
@@ -193,19 +220,34 @@ test('overview cache handles invalidation and reuse scenarios', async () => {
   assert.equal(deletedReady.loading, false);
   assert.equal(deletedReady.overview?.manuscriptFileCount, 2);
 
-  const requiredMetadataContext = createProjectContext(projectDir, {
-    requiredMetadata: ['category', 'concepts']
+  cache.markProjectDirty(projectDir);
+  const branchPolicyContext = createProjectContext(projectDir, {
+    branches: [
+      createBranch('', {
+        effectiveLeafPolicy: {
+          requiredMetadata: ['category', 'concepts'],
+          defaults: {}
+        }
+      })
+    ]
   });
-  const metadataStale = await cache.getSnapshot(requiredMetadataContext);
+  const metadataStale = await cache.getSnapshot(branchPolicyContext);
   assert.equal(metadataStale.loading, true);
-  const metadataReady = await waitForReadySnapshot(cache, requiredMetadataContext);
+  const metadataReady = await waitForReadySnapshot(cache, branchPolicyContext);
   assert.equal(metadataReady.loading, false);
   assert.equal(metadataReady.overview?.missingRequiredMetadataCount, 2);
   assert.equal(metadataReady.overview?.firstMissingMetadata?.filePath, chapterA);
 
   const renamedTitleContext = createProjectContext(projectDir, {
     projectTitle: 'Renamed Project',
-    requiredMetadata: ['category', 'concepts']
+    branches: [
+      createBranch('', {
+        effectiveLeafPolicy: {
+          requiredMetadata: ['category', 'concepts'],
+          defaults: {}
+        }
+      })
+    ]
   });
   const titleStale = await cache.getSnapshot(renamedTitleContext);
   assert.equal(titleStale.loading, true);

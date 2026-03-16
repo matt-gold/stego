@@ -98,7 +98,6 @@ function isWorkspaceConfig(value: unknown): value is WorkspaceConfig {
     && typeof value.contentDir === "string"
     && typeof value.notesDir === "string"
     && typeof value.distDir === "string"
-    && Array.isArray(value.requiredMetadata)
     && Array.isArray(value.allowedStatuses)
     && isPlainObject(value.stagePolicies);
 }

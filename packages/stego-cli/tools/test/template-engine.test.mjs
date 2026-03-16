@@ -114,6 +114,47 @@ test("template build writes markdown and render-plan artifacts", () => {
   }
 });
 
+test("template build applies branch leafPolicy defaults to loaded leaf metadata", () => {
+  const projectId = `template-branch-defaults-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(projectId);
+
+  writeFile(path.join(projectRoot, "content", "reference", "_branch.md"), `---
+label: Reference
+leafPolicy:
+  defaults:
+    kind: reference
+---
+`);
+  writeFile(path.join(projectRoot, "content", "reference", "SRC-ONE.md"), "---\nid: SRC-ONE\nlabel: Source One\n---\n\n# Source One\n\nA note.\n");
+  writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego-labs/engine";
+export default defineTemplate((ctx) => (
+  <Stego.Document>
+    {ctx.allLeaves.map((leaf) => (
+      <Stego.Paragraph>{asString(leaf.metadata.kind) ?? "missing"}</Stego.Paragraph>
+    ))}
+  </Stego.Document>
+));
+
+function asString(value) {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return undefined;
+}
+`);
+
+  try {
+    const result = runCli(["template", "build", "--project", projectId]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+
+    const markdownPath = path.join(projectRoot, "dist", `${projectId}.template.md`);
+    const markdown = fs.readFileSync(markdownPath, "utf8");
+    assert.match(markdown, /\breference\b/);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
 test("template build fails with missing template guidance", () => {
   const projectId = `template-missing-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId);

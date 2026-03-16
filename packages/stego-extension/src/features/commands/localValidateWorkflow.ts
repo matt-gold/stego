@@ -1,6 +1,15 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
+import {
+  applyLeafPolicyDefaults,
+  isLeafFileInContent,
+  resolveBranchLeafPolicy,
+  resolveLeafBranchId
+} from '@stego-labs/shared/domain/content';
+import type { FrontmatterRecord } from '@stego-labs/shared/domain/frontmatter';
 import { errorToMessage } from '../../shared/errors';
 import { asString } from '../../shared/value';
+import { CONTENT_DIR } from '../../shared/constants';
 import type { ScriptRunResult } from '../../shared/types';
 import { parseMarkdownDocument } from '../metadata';
 import { getStageCheckDetails } from './stageCheckWorkflow';
@@ -36,8 +45,20 @@ export async function runLocalValidateWorkflow(): Promise<WorkflowRunResult> {
 
   let stage: string | undefined;
   try {
+    const contentRoot = path.join(context.projectDir, CONTENT_DIR);
+    if (!isLeafFileInContent(contentRoot, context.document.uri.fsPath)) {
+      void vscode.window.showWarningMessage('Validate requires an active leaf inside content/.');
+      return { ok: false, cancelled: true, projectDir: context.projectDir };
+    }
+
     const parsed = parseMarkdownDocument(context.document.getText());
-    stage = asString(parsed.frontmatter.status)?.toLowerCase();
+    const branchId = resolveLeafBranchId(contentRoot, context.document.uri.fsPath);
+    const effectiveLeafPolicy = resolveBranchLeafPolicy(context.project.branches, branchId);
+    const effectiveFrontmatter = applyLeafPolicyDefaults(
+      parsed.frontmatter as FrontmatterRecord,
+      effectiveLeafPolicy
+    );
+    stage = asString(effectiveFrontmatter.status)?.toLowerCase();
   } catch (error) {
     void vscode.window.showErrorMessage(`Validate failed: could not parse frontmatter status (${errorToMessage(error)}).`);
     return {

@@ -1,6 +1,7 @@
 ---
 label: Locations
-requiredLeafMetadata:
-  - kind
-  - label
+leafPolicy:
+  requiredMetadata:
+    - kind
+    - label
 ---

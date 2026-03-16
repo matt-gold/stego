@@ -2,23 +2,26 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseCommentAppendix } from "@stego-labs/shared/domain/comments";
 import {
+  applyLeafPolicyDefaults,
+  type BranchLeafPolicy,
+  createEmptyEffectiveBranchLeafPolicy,
+  type EffectiveBranchLeafPolicy,
   isBranchFile,
-  isManuscriptContentPath,
   isSupportedLeafContentFile,
   isValidLeafId,
+  mergeBranchLeafPolicy,
   parseBranchDocument
 } from "@stego-labs/shared/domain/content";
-import { parseMarkdownDocument } from "@stego-labs/shared/domain/frontmatter";
+import { parseMarkdownDocument, type FrontmatterRecord } from "@stego-labs/shared/domain/frontmatter";
 import { isStageName } from "@stego-labs/shared/domain/stages";
 import type {
   ChapterEntry,
+  MetadataRecord,
   InspectProjectOptions,
   Issue,
   IssueLevel,
-  MetadataRecord,
   ParsedCommentThread,
-  ProjectInspection,
-  RequiredMetadataResult
+  ProjectInspection
 } from "../types.ts";
 import type { ProjectContext } from "../../project/index.ts";
 
@@ -28,10 +31,8 @@ export function inspectProject(
 ): ProjectInspection {
   const repoRoot = project.workspace.repoRoot;
   const issues: Issue[] = [];
-  const requiredMetadataState = resolveRequiredMetadata(project);
-  issues.push(...requiredMetadataState.issues);
   issues.push(...validateProjectImagesConfiguration(project));
-  const branchRequiredMetadataByDir = new Map<string, string[]>();
+  const branchLeafPolicyByDir = new Map<string, BranchLeafPolicy>();
 
   if (project.meta.compileStructure !== undefined) {
     issues.push(
@@ -117,7 +118,9 @@ export function inspectProject(
     try {
       const raw = fs.readFileSync(branchPath, "utf8");
       const parsed = parseBranchDocument(raw, path.relative(repoRoot, branchPath));
-      branchRequiredMetadataByDir.set(path.resolve(path.dirname(branchPath)), parsed.metadata.requiredLeafMetadata ?? []);
+      if (parsed.metadata.leafPolicy) {
+        branchLeafPolicyByDir.set(path.resolve(path.dirname(branchPath)), parsed.metadata.leafPolicy);
+      }
     } catch {
       // Branch parse/validation issues are already reported above.
     }
@@ -127,10 +130,10 @@ export function inspectProject(
     parseChapter(
       chapterPath,
       project,
-      resolveEffectiveRequiredMetadataForLeaf(
-      chapterPath,
-        requiredMetadataState.requiredMetadata,
-        branchRequiredMetadataByDir
+      resolveEffectiveLeafPolicyForPath(
+        chapterPath,
+        project.contentDir,
+        branchLeafPolicyByDir
       )
     )
   );
@@ -232,68 +235,6 @@ function validateBranchFile(filePath: string, repoRoot: string): Issue[] {
   }
 }
 
-export function resolveRequiredMetadata(project: ProjectContext): RequiredMetadataResult {
-  const repoRoot = project.workspace.repoRoot;
-  const runtimeConfig = project.workspace.config;
-  const issues: Issue[] = [];
-  const projectFile = path.relative(repoRoot, path.join(project.root, "stego-project.json"));
-  const raw = project.meta.requiredMetadata;
-
-  if (raw == null) {
-    return { requiredMetadata: runtimeConfig.requiredMetadata, issues };
-  }
-
-  if (!Array.isArray(raw)) {
-    issues.push(
-      makeIssue(
-        "error",
-        "metadata",
-        "Project 'requiredMetadata' must be an array of metadata keys.",
-        projectFile
-      )
-    );
-    return { requiredMetadata: runtimeConfig.requiredMetadata, issues };
-  }
-
-  const requiredMetadata: string[] = [];
-  const seen = new Set<string>();
-
-  for (const [index, entry] of raw.entries()) {
-    if (typeof entry !== "string") {
-      issues.push(
-        makeIssue(
-          "error",
-          "metadata",
-          `Project 'requiredMetadata' entry at index ${index} must be a string.`,
-          projectFile
-        )
-      );
-      continue;
-    }
-
-    const key = entry.trim();
-    if (!key) {
-      issues.push(
-        makeIssue(
-          "error",
-          "metadata",
-          `Project 'requiredMetadata' entry at index ${index} cannot be empty.`,
-          projectFile
-        )
-      );
-      continue;
-    }
-
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    requiredMetadata.push(key);
-  }
-
-  return { requiredMetadata, issues };
-}
-
 export function issueHasErrors(issues: Issue[]): boolean {
   return issues.some((issue) => issue.level === "error");
 }
@@ -309,7 +250,7 @@ export function formatIssues(issues: Issue[]): string[] {
 function parseChapter(
   chapterPath: string,
   project: ProjectContext,
-  requiredMetadata: string[]
+  effectiveLeafPolicy: EffectiveBranchLeafPolicy
 ): ChapterEntry {
   const repoRoot = project.workspace.repoRoot;
   const runtimeConfig = project.workspace.config;
@@ -317,9 +258,10 @@ function parseChapter(
   const raw = fs.readFileSync(chapterPath, "utf8");
   const { metadata, body, comments, issues } = parseMetadata(raw, chapterPath, repoRoot, false);
   const chapterIssues = [...issues];
+  const effectiveMetadata = applyLeafPolicyDefaults(metadata as FrontmatterRecord, effectiveLeafPolicy);
 
-  for (const requiredKey of requiredMetadata) {
-    if (metadata[requiredKey] == null || metadata[requiredKey] === "") {
+  for (const requiredKey of effectiveLeafPolicy.requiredMetadata) {
+    if (effectiveMetadata[requiredKey] == null || effectiveMetadata[requiredKey] === "") {
       chapterIssues.push(
         makeIssue(
           "warning",
@@ -331,8 +273,8 @@ function parseChapter(
     }
   }
 
-  const title = deriveEntryTitle(metadata.title, chapterPath);
-  if (metadata.order != null && metadata.order !== "") {
+  const title = deriveEntryTitle(effectiveMetadata.title, chapterPath);
+  if (effectiveMetadata.order != null && effectiveMetadata.order !== "") {
     chapterIssues.push(
       makeIssue(
         "warning",
@@ -344,18 +286,18 @@ function parseChapter(
   }
 
   const order = parseOrderFromFilename(chapterPath, relativePath, chapterIssues);
-  const status = String(metadata.status || "").trim();
+  const status = String(effectiveMetadata.status || "").trim();
   if (status && !isStageName(status)) {
     chapterIssues.push(makeIssue("error", "metadata", `Invalid file status '${status}'. Allowed: ${runtimeConfig.allowedStatuses.join(", ")}.`, relativePath));
   }
 
-  const leafId = typeof metadata.id === "string" ? metadata.id.trim() : "";
+  const leafId = typeof effectiveMetadata.id === "string" ? effectiveMetadata.id.trim() : "";
   if (!leafId) {
     chapterIssues.push(makeIssue("error", "metadata", "Missing required leaf id.", relativePath));
   } else if (!isValidLeafId(leafId)) {
     chapterIssues.push(makeIssue("error", "metadata", `Invalid leaf id '${leafId}'.`, relativePath));
   }
-  chapterIssues.push(...validateImagesMetadata(metadata, relativePath));
+  chapterIssues.push(...validateImagesMetadata(effectiveMetadata, relativePath));
   chapterIssues.push(...validateMarkdownBody(body, chapterPath, repoRoot, project.root));
 
   return {
@@ -365,30 +307,44 @@ function parseChapter(
     title,
     order,
     status,
-    metadata,
+    metadata: effectiveMetadata,
     body,
     comments,
     issues: chapterIssues
   };
 }
 
-function resolveEffectiveRequiredMetadataForLeaf(
+function resolveEffectiveLeafPolicyForPath(
   chapterPath: string,
-  projectRequiredMetadata: string[],
-  branchRequiredMetadataByDir: Map<string, string[]>
-): string[] {
-  const requiredMetadata = isManuscriptContentPath(chapterPath)
-    ? [...projectRequiredMetadata]
-    : [];
-  const branchRequiredMetadata = branchRequiredMetadataByDir.get(path.resolve(path.dirname(chapterPath))) ?? [];
+  contentDir: string,
+  branchLeafPolicyByDir: Map<string, BranchLeafPolicy>
+): EffectiveBranchLeafPolicy {
+  let effectiveLeafPolicy = createEmptyEffectiveBranchLeafPolicy();
 
-  for (const key of branchRequiredMetadata) {
-    if (!requiredMetadata.includes(key)) {
-      requiredMetadata.push(key);
+  const contentRoot = path.resolve(contentDir);
+  let currentDir = path.resolve(path.dirname(chapterPath));
+  const ancestorDirs: string[] = [];
+  while (true) {
+    const relative = path.relative(contentRoot, currentDir);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      break;
     }
+    ancestorDirs.push(currentDir);
+    if (currentDir === contentRoot) {
+      break;
+    }
+    currentDir = path.dirname(currentDir);
   }
 
-  return requiredMetadata;
+  ancestorDirs.reverse();
+  for (const dirPath of ancestorDirs) {
+    effectiveLeafPolicy = mergeBranchLeafPolicy(
+      effectiveLeafPolicy,
+      branchLeafPolicyByDir.get(dirPath)
+    );
+  }
+
+  return effectiveLeafPolicy;
 }
 
 function deriveEntryTitle(rawTitle: unknown, chapterPath: string): string {

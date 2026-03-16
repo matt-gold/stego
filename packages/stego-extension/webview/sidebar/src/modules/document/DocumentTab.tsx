@@ -18,7 +18,7 @@ import { dispatchSidebarAction } from '../../actions/dispatch';
 
 function StatusControl(props: { state: SidebarWebviewState }): JSX.Element {
   return (
-    <Show when={props.state.mode === 'manuscript' && props.state.statusControl}>
+    <Show when={props.state.statusControl}>
       <div class="status-editor">
         <div class="status-options">
           <For each={props.state.statusControl?.options ?? []}>{(option) => (
@@ -49,10 +49,7 @@ function StatusControl(props: { state: SidebarWebviewState }): JSX.Element {
 }
 
 function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
-  const isManuscript = () => props.state.mode === 'manuscript';
-  const visibleEntries = () => isManuscript()
-    ? props.state.metadataEntries.filter((entry) => entry.key !== 'images')
-    : props.state.metadataEntries;
+  const visibleEntries = () => props.state.metadataEntries.filter((entry) => entry.key !== 'images');
   const showMetadataEditingControls = () => props.state.showMetadataPanel && props.state.metadataEditing;
 
   return (
@@ -96,6 +93,11 @@ function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
                           <code>{entry.key}</code>
                           <Show when={entry.isStructural}><span class="badge structural">Structural</span></Show>
                           <Show when={entry.isBranch}><span class="badge branch">Branch</span></Show>
+                          <Show when={entry.isInherited}>
+                            <span class="badge inherited" title={entry.inheritedFrom ? `Inherited from ${entry.inheritedFrom}` : 'Inherited metadata'}>
+                              Inherited
+                            </span>
+                          </Show>
                           <span class="badge">{entry.arrayItems.length} items</span>
                         </div>
                         <Show
@@ -109,7 +111,7 @@ function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
                                   <div class="item-subtext metadata-value">{item.valueText}</div>
                                   <ReferenceCards references={item.references} />
                                 </div>
-                                <Show when={showMetadataEditingControls()}>
+                                <Show when={showMetadataEditingControls() && !entry.isInherited}>
                                   <div class="item-actions">
                                     <button class="btn subtle" onClick={() => dispatchSidebarAction(sidebarActions.editMetadataArrayItem(entry.key, item.index))}>Edit</button>
                                     <button class="btn danger" onClick={() => dispatchSidebarAction(sidebarActions.removeMetadataArrayItem(entry.key, item.index))}>Remove</button>
@@ -119,7 +121,7 @@ function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
                             )}</For>
                           </div>
                         </Show>
-                        <Show when={showMetadataEditingControls()}>
+                        <Show when={showMetadataEditingControls() && !entry.isInherited}>
                           <div class="array-field-actions">
                             <button class="btn subtle" onClick={() => dispatchSidebarAction(sidebarActions.addMetadataArrayItem(entry.key))}>Add Item</button>
                           </div>
@@ -134,11 +136,16 @@ function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
                         <code>{entry.key}</code>
                         <Show when={entry.isStructural}><span class="badge structural">Structural</span></Show>
                         <Show when={entry.isBranch}><span class="badge branch">Branch</span></Show>
+                        <Show when={entry.isInherited}>
+                          <span class="badge inherited" title={entry.inheritedFrom ? `Inherited from ${entry.inheritedFrom}` : 'Inherited metadata'}>
+                            Inherited
+                          </span>
+                        </Show>
                       </div>
                       <div class="item-subtext metadata-value">{entry.valueText}</div>
                       <ReferenceCards references={entry.references} />
                     </div>
-                    <Show when={showMetadataEditingControls()}>
+                    <Show when={showMetadataEditingControls() && !entry.isInherited}>
                       <div class="item-actions">
                         <button class="btn subtle" onClick={() => dispatchSidebarAction(sidebarActions.editMetadataField(entry.key))}>Edit</button>
                         <button class="btn danger" onClick={() => dispatchSidebarAction(sidebarActions.removeMetadataField(entry.key))}>Remove</button>
@@ -150,7 +157,7 @@ function MetadataPanel(props: { state: SidebarWebviewState }): JSX.Element {
             </Show>
           </div>
 
-          <Show when={props.state.mode === 'manuscript' && props.state.imageEntries.length > 0}>
+          <Show when={props.state.imageEntries.length > 0}>
             <section class="images-widget">
               <div class="images-widget-head">
                 <h3>Images</h3>
@@ -352,7 +359,8 @@ function CommentsPanel(props: { state: SidebarWebviewState }): JSX.Element {
 
 export function DocumentTab(props: { state: SidebarWebviewState }): JSX.Element {
   const showDocumentTab = () => props.state.showDocumentTab ?? props.state.hasActiveMarkdown;
-  const isExploreDocument = () => props.state.mode === 'nonManuscript' && props.state.showMetadataPanel;
+  const isLeafDocument = () => props.state.documentKind === 'leaf';
+  const canRunStageCheck = () => !!props.state.statusControl;
   const runLocalChecksLabel = () => `Run ${statusSummaryLabel(props.state)} check`;
   const copyCleanLabel = () => 'Copy leaf text';
 
@@ -372,18 +380,15 @@ export function DocumentTab(props: { state: SidebarWebviewState }): JSX.Element 
           <div class="panel-heading">
             <div class="title-heading-block">
               <h2>{props.state.documentTitle}</h2>
-              <Show when={props.state.showReferenceFilenameSubtitle && props.state.documentFileStem}>
-                <div class="title-structure">{props.state.documentFileStem}</div>
-              </Show>
             </div>
             <div class="actions">
               <RunMenu
                 summaryLabel="Actions"
                 items={[
-                  ...(!isExploreDocument() ? [{ label: 'Run Stage Check', title: runLocalChecksLabel(), icon: <CheckIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runValidateCurrentFile()) }] : []),
+                  ...(canRunStageCheck() ? [{ label: 'Run Stage Check', title: runLocalChecksLabel(), icon: <CheckIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.runValidateCurrentFile()) }] : []),
                   { label: 'Open Markdown Preview', title: 'Open Markdown Preview', icon: <PreviewIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.openPreview()) },
                   { label: 'Insert Image', title: 'Insert Image', icon: <ImageIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.insertImage()) },
-                  ...(!isExploreDocument() ? [{ label: 'Fill required metadata', title: 'Fill required metadata', icon: <ListIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.fillRequiredMetadata()) }] : []),
+                  ...(isLeafDocument() ? [{ label: 'Fill required metadata', title: 'Fill required metadata', icon: <ListIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.fillRequiredMetadata()) }] : []),
                   { label: copyCleanLabel(), title: copyCleanLabel(), icon: <CopyIcon />, onSelect: () => dispatchSidebarAction(sidebarActions.copyCleanText()) }
                 ]}
               />

@@ -79,7 +79,7 @@ Markdown is a special-case export artifact. It is still useful for debug, diff, 
 
 `ctx.allLeaves` is the full ordered flat leaf list.
 
-`ctx.allBranches` is the flat list of discovered branches under `content/`, including the root branch with `id === ""`. Every directory is a branch, and `_branch.md` enriches it with `label`, optional `requiredLeafMetadata`, and branch notes.
+`ctx.allBranches` is the flat list of discovered branches under `content/`, including the root branch with `id === ""`. Every directory is a branch, and `_branch.md` enriches it with `label`, optional inheritable `leafPolicy`, and branch notes.
 
 Branch and leaf relationships are exposed directly:
 

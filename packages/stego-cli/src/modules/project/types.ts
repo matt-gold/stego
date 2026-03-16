@@ -7,7 +7,6 @@ export type ProjectMeta = {
   title?: string;
   subtitle?: string;
   author?: string;
-  requiredMetadata?: unknown;
   [key: string]: unknown;
 };
 

@@ -246,6 +246,7 @@ export async function resolveProjectScriptContext(
 
   return {
     document,
+    project,
     projectDir: project.projectDir,
     projectId: path.basename(project.projectDir),
     packagePath,

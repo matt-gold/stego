@@ -1,6 +1,10 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
-import { isBranchFile } from '@stego-labs/shared/domain/content';
+import {
+  applyLeafPolicyDefaults,
+  isBranchFile,
+  resolveLeafBranchId
+} from '@stego-labs/shared/domain/content';
 import { parseCommentAppendix, type SerializedCommentDocumentState } from '@stego-labs/shared/domain/comments';
 import { parseMarkdownDocument as parseSharedMarkdownDocument } from '@stego-labs/shared/domain/frontmatter';
 import type {
@@ -55,7 +59,6 @@ type OverviewProjectCacheState = {
   inFlight?: Promise<void>;
   dirtyFiles: Set<string>;
   dirtyProject: boolean;
-  requiredMetadataKey?: string;
   projectTitleKey?: string;
   commentStamp?: string;
   commentVersion: number;
@@ -96,10 +99,6 @@ function compareOverviewFiles(aPath: string, bPath: string): number {
   return aPath.localeCompare(bPath);
 }
 
-function buildMetadataKey(requiredMetadata: string[]): string {
-  return [...requiredMetadata].sort((a, b) => a.localeCompare(b)).join('|');
-}
-
 function buildScanStamp(stampParts: string[]): string {
   return [...stampParts].sort((a, b) => a.localeCompare(b)).join('|');
 }
@@ -127,6 +126,23 @@ function parseMtimeByPath(stampParts: string[]): Map<string, number> {
 
 function isMissingValue(value: unknown): boolean {
   return value === null || value === undefined || String(value).trim().length === 0;
+}
+
+function resolveLeafBranch(projectContext: Pick<ProjectScanContext, 'projectDir' | 'branches'>, filePath: string) {
+  const contentRoot = path.join(projectContext.projectDir, 'content');
+  const branchId = resolveLeafBranchId(contentRoot, filePath);
+  if (branchId === undefined) {
+    return undefined;
+  }
+  return projectContext.branches.find((branch) => branch.id === branchId);
+}
+
+function buildEffectiveRequiredMetadata(
+  projectContext: Pick<ProjectScanContext, 'projectDir' | 'branches'>,
+  filePath: string
+): string[] {
+  const branch = resolveLeafBranch(projectContext, filePath);
+  return [...(branch?.effectiveLeafPolicy.requiredMetadata ?? [])];
 }
 
 function createProjectCacheState(): OverviewProjectCacheState {
@@ -212,7 +228,6 @@ export class OverviewSummaryCache {
     this.consumePendingFileDirtiness(state, scanFileSet);
 
     const scanStamp = buildScanStamp(scanPlan.stampParts);
-    const requiredMetadataKey = buildMetadataKey(projectContext.requiredMetadata);
     const manuscriptTitle = projectContext.projectTitle?.trim() || path.basename(projectDir);
     const commentStamp = String(state.commentVersion);
 
@@ -220,7 +235,6 @@ export class OverviewSummaryCache {
       && !state.dirtyProject
       && state.dirtyFiles.size === 0
       && state.scanStamp === scanStamp
-      && state.requiredMetadataKey === requiredMetadataKey
       && state.projectTitleKey === manuscriptTitle
       && state.commentStamp === commentStamp;
 
@@ -240,7 +254,6 @@ export class OverviewSummaryCache {
         scanFiles,
         scanPlan.stampParts,
         scanStamp,
-        requiredMetadataKey,
         manuscriptTitle,
         commentStamp
       ).finally(() => {
@@ -307,7 +320,6 @@ export class OverviewSummaryCache {
     scanFiles: string[],
     stampParts: string[],
     scanStamp: string,
-    requiredMetadataKey: string,
     manuscriptTitle: string,
     commentStamp: string
   ): Promise<void> {
@@ -356,7 +368,6 @@ export class OverviewSummaryCache {
     state.knownFiles = new Set(scanFiles);
     state.aggregateCore = aggregateCore;
     state.scanStamp = scanStamp;
-    state.requiredMetadataKey = requiredMetadataKey;
     state.projectTitleKey = manuscriptTitle;
     state.commentStamp = commentStamp;
     state.dirtyProject = false;
@@ -364,7 +375,7 @@ export class OverviewSummaryCache {
   }
 
   private async buildFileSummary(
-    projectContext: Pick<ProjectScanContext, 'projectDir'>,
+    projectContext: Pick<ProjectScanContext, 'projectDir' | 'branches'>,
     filePath: string,
     mtimeMs: number | undefined
   ): Promise<OverviewFileSummary | undefined> {
@@ -395,9 +406,13 @@ export class OverviewSummaryCache {
         ? commentState.state.contentWithoutComments
         : parseCommentAppendix(text).contentWithoutComments;
       const parsed = parseSharedMarkdownDocument(contentWithoutComments);
+      const branch = resolveLeafBranch(projectContext, filePath);
+      const effectiveFrontmatter = branch
+        ? applyLeafPolicyDefaults(parsed.frontmatter, branch.effectiveLeafPolicy)
+        : parsed.frontmatter;
       const unresolvedCount = commentState.state?.unresolvedCount ?? 0;
       const firstUnresolvedCommentId = commentState.state?.comments.find((comment) => comment.status === 'open')?.id;
-      const statusRaw = parsed.frontmatter.status;
+      const statusRaw = effectiveFrontmatter.status;
       const status = isMissingValue(statusRaw)
         ? '(missing)'
         : String(statusRaw).trim().toLowerCase();
@@ -405,7 +420,7 @@ export class OverviewSummaryCache {
       return {
         filePath,
         mtimeMs: mtimeMs!,
-        frontmatter: parsed.frontmatter,
+        frontmatter: effectiveFrontmatter,
         wordCount: countOverviewWords(parsed.body),
         unresolvedCount,
         firstUnresolvedCommentId,
@@ -447,7 +462,8 @@ export class OverviewSummaryCache {
       unresolvedCommentsCount += summary.unresolvedCount;
 
       let fileMissingMetadata = false;
-      for (const key of projectContext.requiredMetadata) {
+      const requiredMetadata = buildEffectiveRequiredMetadata(projectContext, filePath);
+      for (const key of requiredMetadata) {
         if (isMissingValue(summary.frontmatter[key])) {
           missingRequiredMetadataCount += 1;
           fileMissingMetadata = true;

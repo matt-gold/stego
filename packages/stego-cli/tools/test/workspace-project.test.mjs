@@ -27,7 +27,6 @@ function writeWorkspaceConfig(workspaceRoot) {
         contentDir: "content",
         notesDir: "notes",
         distDir: "dist",
-        requiredMetadata: ["status"],
         allowedStatuses: ["draft", "revise", "line-edit", "proof", "final"],
         stagePolicies: {
           draft: {
@@ -102,9 +101,11 @@ test("new-project creates scaffold and returns JSON envelope", () => {
     assert.equal(fs.existsSync(path.join(projectRoot, "stego-project.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "package.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "tsconfig.json")), true);
-    assert.equal(fs.existsSync(path.join(projectRoot, "content", "100-hello-world.md")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "content", "manuscript", "_branch.md")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "content", "reference", "_branch.md")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "content", "manuscript", "100-hello-world.md")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "templates", "book.template.tsx")), true);
-    assert.equal(fs.existsSync(path.join(projectRoot, "content", "reference")), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, "content", "reference")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, ".vscode", "extensions.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, ".vscode", "settings.json")), false);
 
@@ -114,6 +115,7 @@ test("new-project creates scaffold and returns JSON envelope", () => {
 
     const projectJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "stego-project.json"), "utf8"));
     assert.equal("compileStructure" in projectJson, false);
+    assert.equal("requiredMetadata" in projectJson, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

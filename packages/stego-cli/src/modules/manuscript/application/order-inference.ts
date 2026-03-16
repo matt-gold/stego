@@ -1,6 +1,6 @@
-import type { ManuscriptOrderEntry } from "../types.ts";
+import type { LeafOrderEntry } from "../types.ts";
 
-export function parseManuscriptPrefix(raw: string | undefined): number | undefined {
+export function parseLeafPrefix(raw: string | undefined): number | undefined {
   if (raw == null) {
     return undefined;
   }
@@ -22,7 +22,7 @@ export function parseManuscriptPrefix(raw: string | undefined): number | undefin
   return parsed;
 }
 
-export function parseRequestedManuscriptFilename(raw: string | undefined): string | undefined {
+export function parseRequestedLeafFilename(raw: string | undefined): string | undefined {
   if (raw == null) {
     return undefined;
   }
@@ -47,7 +47,7 @@ export function parseRequestedManuscriptFilename(raw: string | undefined): strin
   return withExtension;
 }
 
-export function parseOrderFromManuscriptFilename(filename: string): number | undefined {
+export function parseOrderFromLeafFilename(filename: string): number | undefined {
   const match = filename.match(/^(\d+)[-_]/);
   if (!match) {
     return undefined;
@@ -56,7 +56,7 @@ export function parseOrderFromManuscriptFilename(filename: string): number | und
   return Number(match[1]);
 }
 
-export function inferNextManuscriptPrefix(entries: ManuscriptOrderEntry[]): number {
+export function inferNextLeafPrefix(entries: LeafOrderEntry[]): number {
   if (entries.length === 0) {
     return 100;
   }

@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import type { ImageStyle } from '@stego-labs/shared/domain/images';
 import type { ExportTarget, PresentationTarget } from '@stego-labs/shared/domain/templates';
+import type {
+  BranchLeafPolicy,
+  EffectiveBranchLeafPolicy
+} from '@stego-labs/shared/domain/content';
 
 export type { ImageStyle };
 
@@ -57,7 +61,7 @@ export type SidebarState = {
   activeTab: SidebarViewTab;
   overviewLoading: boolean;
   overview?: SidebarOverviewState;
-  mode?: 'manuscript' | 'nonManuscript';
+  documentKind?: 'leaf' | 'branchNotes';
   parseError?: string;
   showExplorer: boolean;
   metadataCollapsed: boolean;
@@ -147,6 +151,8 @@ export type SidebarMetadataEntry = {
   key: string;
   isStructural: boolean;
   isBranch: boolean;
+  isInherited: boolean;
+  inheritedFrom?: string;
   isArray: boolean;
   valueText: string;
   references: SidebarIdentifierLink[];
@@ -304,7 +310,8 @@ export type ProjectBranch = {
   parentId?: string;
   relativeDir: string;
   notesFile?: string;
-  requiredLeafMetadata: string[];
+  leafPolicy: BranchLeafPolicy;
+  effectiveLeafPolicy: EffectiveBranchLeafPolicy;
   body?: string;
 };
 
@@ -325,7 +332,6 @@ export type ProjectScanContext = {
   projectDir: string;
   projectMtimeMs: number;
   projectTitle?: string;
-  requiredMetadata: string[];
   imageDefaults: ImageStyle;
   branches: ProjectBranch[];
   templates: ProjectTemplate[];
@@ -357,6 +363,7 @@ export type ScriptRunResult = {
 
 export type ProjectScriptContext = {
   document: vscode.TextDocument;
+  project: ProjectScanContext;
   projectDir: string;
   projectId: string;
   packagePath: string;
