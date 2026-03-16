@@ -17,6 +17,7 @@ import type {
   SidebarOverviewState
 } from '../../../../../shared/types';
 import { errorToMessage } from '../../../../../shared/errors';
+import { normalizeFsPath } from '../../../../../shared/path';
 import { buildProjectScanPlan } from '../../../../project/fileScan';
 import { compareOverviewStatus, countOverviewWords } from '../../../tabs/overview';
 
@@ -75,7 +76,7 @@ type OverviewSummaryCacheDeps = {
 };
 
 function normalizeFilePath(filePath: string): string {
-  return path.resolve(filePath);
+  return normalizeFsPath(path.resolve(filePath));
 }
 
 function compareOverviewFiles(aPath: string, bPath: string): number {
@@ -216,11 +217,11 @@ export class OverviewSummaryCache {
   }
 
   public clearProject(projectDir: string): void {
-    this.projectStates.delete(path.resolve(projectDir));
+    this.projectStates.delete(normalizeFsPath(path.resolve(projectDir)));
   }
 
   public async getSnapshot(projectContext: ProjectScanContext): Promise<OverviewSnapshotResult> {
-    const projectDir = path.resolve(projectContext.projectDir);
+    const projectDir = normalizeFsPath(path.resolve(projectContext.projectDir));
     const state = this.getProjectState(projectDir);
     const scanPlan = await this.buildProjectScanPlanImpl(projectDir);
     const scanFiles = scanPlan.files.map((filePath) => normalizeFilePath(filePath));
@@ -280,7 +281,7 @@ export class OverviewSummaryCache {
   }
 
   private getProjectState(projectDir: string): OverviewProjectCacheState {
-    const normalized = path.resolve(projectDir);
+    const normalized = normalizeFsPath(path.resolve(projectDir));
     let state = this.projectStates.get(normalized);
     if (!state) {
       state = createProjectCacheState();
