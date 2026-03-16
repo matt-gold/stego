@@ -1,5 +1,11 @@
 # @stego-labs/shared
 
+## 1.0.5
+
+### Patch Changes
+
+- c0d590b: Improve branch-scoped metadata requirements, fix example project defaults, and refine extension sidebar behavior with faster manuscript loading and cleaner Explore details.
+
 ## 1.0.4
 
 ### Patch Changes
