@@ -6,7 +6,6 @@ import { CONTENT_DIR } from '../../shared/constants';
 import type { ScriptRunResult } from '../../shared/types';
 import { pickToastDetails, resolveProjectScriptContext, resolveWorkflowCommandInvocation, runCommand } from './workflowUtils';
 import type { WorkflowRunResult } from './workflowUtils';
-import { suppressAutoFoldFrontmatterForDocument } from './frontmatterFold';
 
 const DEFAULT_NEW_LEAF_SLUG = 'new-leaf';
 const DEFAULT_MANUSCRIPT_BRANCH_DIR = 'manuscript';
@@ -103,7 +102,6 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
 
   if (finalPath) {
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(finalPath));
-    suppressAutoFoldFrontmatterForDocument(document.uri);
     await vscode.window.showTextDocument(document, { preview: false });
     void vscode.window.showInformationMessage(`Created leaf: ${finalPath}`);
     return {

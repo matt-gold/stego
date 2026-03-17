@@ -32,7 +32,6 @@ import {
   runNewManuscriptWorkflow,
   runProjectBuildWorkflow,
   runProjectGateStageWorkflow,
-  suppressAutoFoldFrontmatterForDocument,
   toggleFrontmatterFold,
   type WorkflowRunResult
 } from '../../../commands';
@@ -966,6 +965,34 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
       });
   }
 
+  private buildBranchMetadataEntries(
+    frontmatter: Record<string, unknown>,
+    branchForFile: ProjectBranch | undefined,
+    index: Map<string, LeafTargetRecord>,
+    document: vscode.TextDocument,
+    pattern: string
+  ): SidebarState['metadataEntries'] {
+    return Object.keys(frontmatter)
+      .sort((a, b) => {
+        if (a === 'label') {
+          return -1;
+        }
+        if (b === 'label') {
+          return 1;
+        }
+        return a.localeCompare(b);
+      })
+      .map((key) => buildMetadataEntry(
+        key,
+        frontmatter[key],
+        false,
+        branchForFile,
+        index,
+        document,
+        pattern
+      ));
+  }
+
   private buildSidebarTemplateEntries(projectContext: ProjectScanContext | undefined): SidebarState['templates'] {
     return (projectContext?.templates ?? []).map((template) => ({
       name: template.name,
@@ -1182,6 +1209,100 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
         this.referenceUsageService
       )
       : [];
+
+    if (isBranchNotesFile) {
+      try {
+        const parsed = parseMarkdownDocument(document.getText());
+        const metadataEntries = this.buildBranchMetadataEntries(
+          parsed.frontmatter,
+          branchForFile,
+          index,
+          document,
+          pattern
+        );
+
+        return {
+          hasActiveMarkdown: true,
+          showDocumentTab: true,
+          activeEditorPath: document.uri.fsPath,
+          documentTabDetached: false,
+          documentPath: document.uri.fsPath,
+          projectDir: projectContext?.projectDir,
+          warnings,
+          canShowOverview,
+          overviewLoading,
+          overview,
+          activeTab: effectiveTab,
+          documentKind: 'branchNotes',
+          showExplorer,
+          metadataCollapsed: this.metadataCollapsed,
+          metadataEditing: this.metadataEditing,
+          enableComments,
+          statusControl: undefined,
+          templates: this.buildSidebarTemplateEntries(projectContext),
+          metadataEntries,
+          imageEntries: [],
+          projectImageDefaults: projectContext?.imageDefaults ?? {},
+          showMetadataPanel: true,
+          explorer,
+          pinnedExplorers,
+          canPinAllFromFile,
+          explorerCollapsed: this.explorerCollapsed,
+          explorerCanGoBack: this.canExplorerGoBack(),
+          explorerCanGoForward: this.canExplorerGoForward(),
+          globalCanGoBack: this.canGlobalGoBack(),
+          globalCanGoForward: this.canGlobalGoForward(),
+          explorerCanGoHome: this.canExplorerGoHome(),
+          explorerLoadToken: this.explorerLoadToken,
+          tocEntries: tocWithBacklinks,
+          showToc: showTocPanel,
+          isBranchNotesFile,
+          backlinkFilter: this.backlinkFilter,
+          comments
+        };
+      } catch (error) {
+        return {
+          hasActiveMarkdown: true,
+          showDocumentTab: true,
+          activeEditorPath: document.uri.fsPath,
+          documentTabDetached: false,
+          documentPath: document.uri.fsPath,
+          projectDir: projectContext?.projectDir,
+          warnings,
+          canShowOverview,
+          overviewLoading,
+          overview,
+          activeTab: effectiveTab,
+          documentKind: 'branchNotes',
+          parseError: errorToMessage(error),
+          showExplorer,
+          metadataCollapsed: this.metadataCollapsed,
+          metadataEditing: this.metadataEditing,
+          enableComments,
+          statusControl: undefined,
+          templates: this.buildSidebarTemplateEntries(projectContext),
+          metadataEntries: [],
+          imageEntries: [],
+          projectImageDefaults: projectContext?.imageDefaults ?? {},
+          showMetadataPanel: true,
+          explorer,
+          pinnedExplorers,
+          canPinAllFromFile,
+          explorerCollapsed: this.explorerCollapsed,
+          explorerCanGoBack: this.canExplorerGoBack(),
+          explorerCanGoForward: this.canExplorerGoForward(),
+          globalCanGoBack: this.canGlobalGoBack(),
+          globalCanGoForward: this.canGlobalGoForward(),
+          explorerCanGoHome: this.canExplorerGoHome(),
+          explorerLoadToken: this.explorerLoadToken,
+          tocEntries: tocWithBacklinks,
+          showToc: showTocPanel,
+          isBranchNotesFile,
+          backlinkFilter: this.backlinkFilter,
+          comments
+        };
+      }
+    }
 
     if (!isLeafDocument) {
       return {
@@ -1708,7 +1829,6 @@ export class SidebarRuntime implements vscode.WebviewViewProvider {
           break;
         }
 
-        suppressAutoFoldFrontmatterForDocument(vscode.Uri.file(payload.filePath));
         await openBacklinkFile(payload.filePath, 1);
         this.expandMetadataPanel();
         this.setActiveTab('document');

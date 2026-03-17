@@ -1,7 +1,5 @@
 export { runProjectBuildWorkflow } from './buildWorkflow';
 export {
-  suppressAutoFoldFrontmatterForDocument,
-  maybeAutoFoldFrontmatter,
   toggleFrontmatterFold
 } from './frontmatterFold';
 export { runInsertImageWorkflow } from './insertImageWorkflow';
