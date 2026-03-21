@@ -1,10 +1,23 @@
-import type { PageRegionSpec, StegoDocumentNode, StegoNode } from "../../ir/index.ts";
+import type {
+  BodyStyle,
+  HeadingStyle,
+  HeadingStyleMap,
+  PageRegionSpec,
+  StegoDocumentNode,
+  StegoNode,
+} from "../../ir/index.ts";
 import {
   TARGET_CAPABILITIES,
   isPresentationTarget,
   type PresentationTarget,
   type TemplateCapability
 } from "@stego-labs/shared/domain/templates";
+import {
+  BODY_STYLE_CAPABILITIES,
+  HEADING_LEVELS,
+  HEADING_STYLE_CAPABILITIES,
+  normalizeHexColor,
+} from "../../style/index.ts";
 import type {
   BranchMetadata,
   LeafMetadata,
@@ -17,6 +30,7 @@ export type TemplateContractErrorReason =
   | "invalid-module"
   | "invalid-targets"
   | "invalid-render-result"
+  | "invalid-style-value"
   | "unsupported-target-capability";
 
 export class TemplateContractError extends Error {
@@ -126,7 +140,14 @@ function resolveSupportedCapabilities(targets: readonly PresentationTarget[]): R
     inset: targets.every((target) => TARGET_CAPABILITIES[target].inset),
     indent: targets.every((target) => TARGET_CAPABILITIES[target].indent),
     align: targets.every((target) => TARGET_CAPABILITIES[target].align),
-    typography: targets.every((target) => TARGET_CAPABILITIES[target].typography),
+    fontFamily: targets.every((target) => TARGET_CAPABILITIES[target].fontFamily),
+    fontSize: targets.every((target) => TARGET_CAPABILITIES[target].fontSize),
+    lineSpacing: targets.every((target) => TARGET_CAPABILITIES[target].lineSpacing),
+    fontWeight: targets.every((target) => TARGET_CAPABILITIES[target].fontWeight),
+    italic: targets.every((target) => TARGET_CAPABILITIES[target].italic),
+    underline: targets.every((target) => TARGET_CAPABILITIES[target].underline),
+    smallCaps: targets.every((target) => TARGET_CAPABILITIES[target].smallCaps),
+    textColor: targets.every((target) => TARGET_CAPABILITIES[target].textColor),
     imageAlign: targets.every((target) => TARGET_CAPABILITIES[target].imageAlign),
     imageLayout: targets.every((target) => TARGET_CAPABILITIES[target].imageLayout)
   };
@@ -142,10 +163,9 @@ function visitNode(
       if (node.page) {
         assertCapability("pageLayout", "Document", targets, capabilities);
       }
-      if (node.parSpaceBefore !== undefined || node.parSpaceAfter !== undefined) {
-        assertCapability("spacing", "Document", targets, capabilities);
-      }
-      validateTypographyCapabilities("Document", node, targets, capabilities);
+      validateBodyStyle("Document.bodyStyle", node.bodyStyle, targets, capabilities);
+      validateHeadingStyle("Document.headingStyle", node.headingStyle, targets, capabilities);
+      validateHeadingStyleMap("Document.headingStyles", node.headingStyles, targets, capabilities);
       for (const child of node.children) {
         visitNode(child, targets, capabilities);
       }
@@ -162,29 +182,27 @@ function visitNode(
       }
       return;
     case "section":
-      validateSharedBlockCapabilities("Section", node, targets, capabilities);
-      if (node.parSpaceBefore !== undefined || node.parSpaceAfter !== undefined) {
-        assertCapability("spacing", "Section", targets, capabilities);
-      }
-      validateTypographyCapabilities("Section", node, targets, capabilities);
+      validateBodyStyle("Section.bodyStyle", node.bodyStyle, targets, capabilities);
+      validateHeadingStyle("Section.headingStyle", node.headingStyle, targets, capabilities);
+      validateHeadingStyleMap("Section.headingStyles", node.headingStyles, targets, capabilities);
       for (const child of node.children) {
         visitNode(child, targets, capabilities);
       }
       return;
     case "heading":
-      validateSharedBlockCapabilities("Heading", node, targets, capabilities);
-      validateTypographyCapabilities("Heading", node, targets, capabilities);
+      validateFlatBodyStyle("Heading", node, targets, capabilities);
+      validateFlatHeadingStyle("Heading", node, targets, capabilities);
       return;
     case "paragraph":
-      validateSharedBlockCapabilities("Paragraph", node, targets, capabilities);
-      validateTypographyCapabilities("Paragraph", node, targets, capabilities);
+      validateFlatBodyStyle("Paragraph", node, targets, capabilities);
       return;
     case "markdownParagraph":
-      if (node.spaceBefore !== undefined || node.spaceAfter !== undefined) {
-        assertCapability("spacing", "MarkdownParagraph", targets, capabilities);
-      }
+      validateFlatBodyStyle("MarkdownParagraph", node, targets, capabilities);
       return;
     case "markdownHeading":
+      validateFlatBodyStyle("MarkdownHeading", node, targets, capabilities);
+      validateFlatHeadingStyle("MarkdownHeading", node, targets, capabilities);
+      return;
     case "markdownBlock":
       return;
     case "image":
@@ -232,45 +250,100 @@ function visitRegion(
   }
 }
 
-function validateSharedBlockCapabilities(
-  componentName: "Section" | "Heading" | "Paragraph",
-  node: {
-    spaceBefore?: unknown;
-    spaceAfter?: unknown;
-    insetLeft?: unknown;
-    insetRight?: unknown;
-    firstLineIndent?: unknown;
-    align?: unknown;
-  },
+function validateFlatBodyStyle(
+  componentName: "Heading" | "Paragraph" | "MarkdownParagraph" | "MarkdownHeading",
+  node: Partial<BodyStyle>,
   targets: readonly PresentationTarget[],
   capabilities: Record<TemplateCapability, boolean>
 ): void {
-  if (node.spaceBefore !== undefined || node.spaceAfter !== undefined) {
-    assertCapability("spacing", componentName, targets, capabilities);
+  validateStyleFields(componentName, node, BODY_STYLE_CAPABILITIES, targets, capabilities);
+}
+
+function validateFlatHeadingStyle(
+  componentName: "Heading" | "MarkdownHeading",
+  node: Partial<HeadingStyle>,
+  targets: readonly PresentationTarget[],
+  capabilities: Record<TemplateCapability, boolean>
+): void {
+  validateStyleFields(componentName, node, HEADING_STYLE_CAPABILITIES, targets, capabilities);
+}
+
+function validateBodyStyle(
+  componentName: "Document.bodyStyle" | "Section.bodyStyle",
+  style: BodyStyle | undefined,
+  targets: readonly PresentationTarget[],
+  capabilities: Record<TemplateCapability, boolean>
+): void {
+  validateStyleFields(componentName, style, BODY_STYLE_CAPABILITIES, targets, capabilities);
+}
+
+function validateHeadingStyle(
+  componentName: "Document.headingStyle" | "Section.headingStyle",
+  style: HeadingStyle | undefined,
+  targets: readonly PresentationTarget[],
+  capabilities: Record<TemplateCapability, boolean>
+): void {
+  validateStyleFields(componentName, style, HEADING_STYLE_CAPABILITIES, targets, capabilities);
+}
+
+function validateHeadingStyleMap(
+  componentName: "Document.headingStyles" | "Section.headingStyles",
+  styles: HeadingStyleMap | undefined,
+  targets: readonly PresentationTarget[],
+  capabilities: Record<TemplateCapability, boolean>
+): void {
+  if (!styles) {
+    return;
   }
-  if (node.insetLeft !== undefined || node.insetRight !== undefined) {
-    assertCapability("inset", componentName, targets, capabilities);
-  }
-  if (node.firstLineIndent !== undefined) {
-    assertCapability("indent", componentName, targets, capabilities);
-  }
-  if (node.align !== undefined) {
-    assertCapability("align", componentName, targets, capabilities);
+
+  const allowed = new Set(HEADING_LEVELS.map(String));
+  for (const [rawLevel, style] of Object.entries(styles)) {
+    if (!allowed.has(rawLevel)) {
+      throw new TemplateContractError(
+        "invalid-style-value",
+        `${componentName} may only define keys 1 through 6.`,
+        { componentName, level: rawLevel, targets: [...targets] }
+      );
+    }
+    validateStyleFields(
+      `${componentName}.${rawLevel}` as string,
+      style,
+      HEADING_STYLE_CAPABILITIES,
+      targets,
+      capabilities
+    );
   }
 }
 
-function validateTypographyCapabilities(
-  componentName: "Document" | "Section" | "Heading" | "Paragraph",
-  node: {
-    fontFamily?: unknown;
-    fontSize?: unknown;
-    lineSpacing?: unknown;
-  },
+function validateStyleFields<TStyle extends object>(
+  componentName: string,
+  style: TStyle | undefined,
+  fieldCapabilities: Partial<Record<keyof TStyle, TemplateCapability>>,
   targets: readonly PresentationTarget[],
   capabilities: Record<TemplateCapability, boolean>
 ): void {
-  if (node.fontFamily !== undefined || node.fontSize !== undefined || node.lineSpacing !== undefined) {
-    assertCapability("typography", componentName, targets, capabilities);
+  if (!style) {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(style) as Array<[keyof TStyle & string, unknown]>) {
+    if (value === undefined) {
+      continue;
+    }
+
+    if (key === "color" && normalizeHexColor(typeof value === "string" ? value : undefined) === undefined) {
+      throw new TemplateContractError(
+        "invalid-style-value",
+        `${componentName}.${key} must be a hex color like '#333' or '#333333'.`,
+        { componentName, key, value }
+      );
+    }
+
+    const capability = fieldCapabilities[key as keyof TStyle];
+    if (!capability) {
+      continue;
+    }
+    assertCapability(capability, componentName, targets, capabilities);
   }
 }
 

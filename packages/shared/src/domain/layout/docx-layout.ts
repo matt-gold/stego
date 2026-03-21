@@ -4,8 +4,8 @@ export type DocxDocumentStyleSpec = {
   fontFamily?: string;
   fontSizePt?: number;
   lineSpacing?: number;
-  parSpaceBefore?: string;
-  parSpaceAfter?: string;
+  spaceBefore?: string;
+  spaceAfter?: string;
 };
 
 export type DocxBlockLayoutSpec = {
@@ -20,6 +20,11 @@ export type DocxBlockLayoutSpec = {
   fontFamily?: string;
   fontSizePt?: number;
   lineSpacing?: number;
+  fontWeight?: "normal" | "bold";
+  italic?: boolean;
+  underline?: boolean;
+  smallCaps?: boolean;
+  color?: string;
   keepTogether?: boolean;
 };
 

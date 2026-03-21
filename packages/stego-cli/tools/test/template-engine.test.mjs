@@ -270,9 +270,12 @@ test("template export requires xelatex when the template requests a font family"
 
   writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
-  <Stego.Document page={{ size: "letter", margin: "1in" }} fontFamily="Times New Roman" fontSize="12pt" lineSpacing={2}>
+  <Stego.Document
+    page={{ size: "letter", margin: "1in" }}
+    bodyStyle={{ fontFamily: "Times New Roman", fontSize: "12pt", lineSpacing: 2 }}
+  >
     {ctx.allLeaves.map((leaf) => (
-      <Stego.Section firstLineIndent="0.5in">
+      <Stego.Section bodyStyle={{ firstLineIndent: "0.5in" }}>
         <Stego.Markdown leaf={leaf} />
       </Stego.Section>
     ))}
@@ -328,7 +331,7 @@ test("template export fails clearly when xelatex is missing for font-aware pdf e
 
   writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
-  <Stego.Document page={{ size: "letter", margin: "1in" }} fontFamily="Times New Roman">
+  <Stego.Document page={{ size: "letter", margin: "1in" }} bodyStyle={{ fontFamily: "Times New Roman" }}>
     {ctx.allLeaves.map((leaf) => (
       <Stego.Markdown leaf={leaf} />
     ))}

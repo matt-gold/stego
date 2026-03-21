@@ -10,28 +10,30 @@ import {
   createMarkdownParagraphNode,
   createParagraphNode,
   createSectionNode,
-  type FontFamilyValue,
-  type FontSizeValue,
-  type LineSpacingValue,
-  type SpacingValue,
+  type BodyStyle,
+  type HeadingStyle,
+  type HeadingStyleMap,
   type StegoDocumentNode,
+  type StegoHeadingNode,
   type StegoMarkdownNode,
   type StegoNode,
+  type StegoParagraphNode,
   type StegoPlainTextNode,
 } from "../../../ir/index.ts";
+import { mergeBodyStyle, mergeHeadingStyle, mergeHeadingStyleMap, resolveHeadingDefaults } from "../../../style/index.ts";
 import type { TemplateContext } from "../../../template/index.ts";
 
 type MarkdownToken = ReturnType<MarkdownIt["parse"]>[number];
 
-type ParagraphDefaults = {
-  parSpaceBefore: SpacingValue | 0;
-  parSpaceAfter: SpacingValue | 0;
+type StyleDefaults = {
+  bodyStyle?: BodyStyle;
+  headingStyle?: HeadingStyle;
+  headingStyles?: HeadingStyleMap;
 };
 
-type TypographyDefaults = {
-  fontFamily?: FontFamilyValue;
-  fontSize?: FontSizeValue;
-  lineSpacing?: LineSpacingValue;
+const ROOT_BODY_STYLE: BodyStyle = {
+  spaceBefore: 0,
+  spaceAfter: 0,
 };
 
 const markdownParser = new MarkdownIt({
@@ -42,25 +44,19 @@ export function expandOpaqueContentNodes(
   document: StegoDocumentNode,
   context: TemplateContext,
 ): StegoDocumentNode {
-  const paragraphDefaults: ParagraphDefaults = {
-    parSpaceBefore: document.parSpaceBefore ?? 0,
-    parSpaceAfter: document.parSpaceAfter ?? 0,
-  };
-  const typographyDefaults: TypographyDefaults = {
-    fontFamily: document.fontFamily,
-    fontSize: document.fontSize,
-    lineSpacing: document.lineSpacing,
+  const defaults: StyleDefaults = {
+    bodyStyle: mergeBodyStyle(ROOT_BODY_STYLE, document.bodyStyle),
+    headingStyle: document.headingStyle,
+    headingStyles: document.headingStyles,
   };
 
   return createDocumentNode(
     document.page,
-    expandChildren(document.children, context, paragraphDefaults, typographyDefaults),
+    expandChildren(document.children, context, defaults),
     {
-      fontFamily: typographyDefaults.fontFamily,
-      fontSize: typographyDefaults.fontSize,
-      lineSpacing: typographyDefaults.lineSpacing,
-      parSpaceBefore: paragraphDefaults.parSpaceBefore,
-      parSpaceAfter: paragraphDefaults.parSpaceAfter,
+      bodyStyle: defaults.bodyStyle,
+      headingStyle: document.headingStyle,
+      headingStyles: document.headingStyles,
     },
   );
 }
@@ -68,12 +64,11 @@ export function expandOpaqueContentNodes(
 function expandChildren(
   nodes: StegoNode[],
   context: TemplateContext,
-  paragraphDefaults: ParagraphDefaults,
-  typographyDefaults: TypographyDefaults,
+  defaults: StyleDefaults,
 ): StegoNode[] {
   const expanded: StegoNode[] = [];
   for (const node of nodes) {
-    expanded.push(...expandNode(node, context, paragraphDefaults, typographyDefaults));
+    expanded.push(...expandNode(node, context, defaults));
   }
   return expanded;
 }
@@ -81,35 +76,49 @@ function expandChildren(
 function expandNode(
   node: StegoNode,
   context: TemplateContext,
-  paragraphDefaults: ParagraphDefaults,
-  typographyDefaults: TypographyDefaults,
+  defaults: StyleDefaults,
 ): StegoNode[] {
   switch (node.kind) {
     case "document":
       return [expandOpaqueContentNodes(node, context)];
     case "fragment":
-      return [createFragmentNode(expandChildren(node.children, context, paragraphDefaults, typographyDefaults))];
+      return [createFragmentNode(expandChildren(node.children, context, defaults))];
     case "keepTogether":
-      return [createKeepTogetherNode(expandChildren(node.children, context, paragraphDefaults, typographyDefaults))];
+      return [createKeepTogetherNode(expandChildren(node.children, context, defaults))];
     case "section": {
-      const nextDefaults: ParagraphDefaults = {
-        parSpaceBefore: node.parSpaceBefore ?? paragraphDefaults.parSpaceBefore,
-        parSpaceAfter: node.parSpaceAfter ?? paragraphDefaults.parSpaceAfter,
-      };
-      const nextTypographyDefaults: TypographyDefaults = {
-        fontFamily: node.fontFamily ?? typographyDefaults.fontFamily,
-        fontSize: node.fontSize ?? typographyDefaults.fontSize,
-        lineSpacing: node.lineSpacing ?? typographyDefaults.lineSpacing,
+      const nextDefaults: StyleDefaults = {
+        bodyStyle: mergeBodyStyle(defaults.bodyStyle, node.bodyStyle),
+        headingStyle: mergeHeadingStyle(defaults.headingStyle, node.headingStyle),
+        headingStyles: mergeHeadingStyleMap(defaults.headingStyles, node.headingStyles),
       };
       return [
         createSectionNode(
           {
             role: node.role,
             id: node.id,
+            bodyStyle: node.bodyStyle,
+            headingStyle: node.headingStyle,
+            headingStyles: node.headingStyles,
+          },
+          expandChildren(node.children, context, nextDefaults),
+        ),
+      ];
+    }
+    case "heading":
+      return [createResolvedHeadingNode(node, defaults)];
+    case "paragraph":
+      return [createResolvedParagraphNode(node, defaults.bodyStyle)];
+    case "markdown":
+      return expandMarkdownNode(node, context, defaults);
+    case "plainText":
+      return expandPlainTextNode(node, defaults.bodyStyle);
+    case "markdownParagraph":
+      return [
+        createMarkdownParagraphNode(
+          node.source,
+          mergeBodyStyle(defaults.bodyStyle, {
             spaceBefore: node.spaceBefore,
             spaceAfter: node.spaceAfter,
-            parSpaceBefore: node.parSpaceBefore,
-            parSpaceAfter: node.parSpaceAfter,
             insetLeft: node.insetLeft,
             insetRight: node.insetRight,
             firstLineIndent: node.firstLineIndent,
@@ -117,66 +126,32 @@ function expandNode(
             fontFamily: node.fontFamily,
             fontSize: node.fontSize,
             lineSpacing: node.lineSpacing,
-          },
-          expandChildren(node.children, context, nextDefaults, nextTypographyDefaults),
+          }) || {},
         ),
       ];
-    }
-    case "heading":
+    case "markdownHeading":
       return [
-        createHeadingNode(
+        createResolvedMarkdownHeadingNode(
           node.level,
+          node.source,
+          node.anchorId,
+          defaults,
           {
             spaceBefore: node.spaceBefore,
             spaceAfter: node.spaceAfter,
             insetLeft: node.insetLeft,
             insetRight: node.insetRight,
             align: node.align,
-            fontFamily: node.fontFamily ?? typographyDefaults.fontFamily,
+            fontFamily: node.fontFamily,
             fontSize: node.fontSize,
             lineSpacing: node.lineSpacing,
+            fontWeight: node.fontWeight,
+            italic: node.italic,
+            underline: node.underline,
+            smallCaps: node.smallCaps,
+            color: node.color,
           },
-          node.children,
         ),
-      ];
-    case "paragraph":
-      return [
-        createParagraphNode(
-          {
-            spaceBefore: node.spaceBefore ?? paragraphDefaults.parSpaceBefore,
-            spaceAfter: node.spaceAfter ?? paragraphDefaults.parSpaceAfter,
-            insetLeft: node.insetLeft,
-            insetRight: node.insetRight,
-            firstLineIndent: node.firstLineIndent,
-            align: node.align,
-            fontFamily: node.fontFamily ?? typographyDefaults.fontFamily,
-            fontSize: node.fontSize ?? typographyDefaults.fontSize,
-            lineSpacing: node.lineSpacing ?? typographyDefaults.lineSpacing,
-          },
-          node.children,
-        ),
-      ];
-    case "markdown":
-      return expandMarkdownNode(node, context, paragraphDefaults, typographyDefaults);
-    case "plainText":
-      return expandPlainTextNode(node, paragraphDefaults, typographyDefaults);
-    case "markdownParagraph":
-      return [
-        createMarkdownParagraphNode(node.source, {
-          spaceBefore: node.spaceBefore ?? paragraphDefaults.parSpaceBefore,
-          spaceAfter: node.spaceAfter ?? paragraphDefaults.parSpaceAfter,
-          fontFamily: node.fontFamily ?? typographyDefaults.fontFamily,
-          fontSize: node.fontSize ?? typographyDefaults.fontSize,
-          lineSpacing: node.lineSpacing ?? typographyDefaults.lineSpacing,
-        }),
-      ];
-    case "markdownHeading":
-      return [
-        createMarkdownHeadingNode(node.level, node.source, node.anchorId, {
-          fontFamily: node.fontFamily ?? typographyDefaults.fontFamily,
-          fontSize: node.fontSize,
-          lineSpacing: node.lineSpacing,
-        }),
       ];
     case "markdownBlock":
     case "image":
@@ -194,11 +169,10 @@ function expandNode(
 function expandMarkdownNode(
   node: StegoMarkdownNode,
   context: TemplateContext,
-  paragraphDefaults: ParagraphDefaults,
-  typographyDefaults: TypographyDefaults,
+  defaults: StyleDefaults,
 ): StegoNode[] {
   const source = node.leaf?.body ?? node.source ?? "";
-  const blocks = splitMarkdownIntoBlocks(source, resolveLeafHeadings(node, context), paragraphDefaults, typographyDefaults);
+  const blocks = splitMarkdownIntoBlocks(source, resolveLeafHeadings(node, context), defaults);
   if (!node.leaf) {
     return blocks;
   }
@@ -207,8 +181,7 @@ function expandMarkdownNode(
 
 function expandPlainTextNode(
   node: StegoPlainTextNode,
-  paragraphDefaults: ParagraphDefaults,
-  typographyDefaults: TypographyDefaults,
+  bodyStyle: BodyStyle | undefined,
 ): StegoNode[] {
   const source = node.leaf?.body ?? node.source ?? "";
   const paragraphs = source
@@ -217,15 +190,9 @@ function expandPlainTextNode(
     .filter(Boolean)
     .map((paragraph) =>
       createParagraphNode(
-        {
-          spaceBefore: paragraphDefaults.parSpaceBefore,
-          spaceAfter: paragraphDefaults.parSpaceAfter,
-          fontFamily: typographyDefaults.fontFamily,
-          fontSize: typographyDefaults.fontSize,
-          lineSpacing: typographyDefaults.lineSpacing,
-        },
+        bodyStyle || {},
         [{ kind: "text", value: paragraph }],
-      )
+      ),
     );
 
   if (!node.leaf) {
@@ -235,11 +202,74 @@ function expandPlainTextNode(
   return [createSectionNode({ id: buildLeafRootAnchor(node.leaf.id) }, paragraphs)];
 }
 
+function createResolvedHeadingNode(
+  node: StegoHeadingNode,
+  defaults: StyleDefaults,
+): StegoHeadingNode {
+  const resolved = mergeHeadingStyle(
+    resolveHeadingDefaults(node.level, defaults.bodyStyle, defaults.headingStyle, defaults.headingStyles),
+    {
+      spaceBefore: node.spaceBefore,
+      spaceAfter: node.spaceAfter,
+      insetLeft: node.insetLeft,
+      insetRight: node.insetRight,
+      align: node.align,
+      fontFamily: node.fontFamily,
+      fontSize: node.fontSize,
+      lineSpacing: node.lineSpacing,
+      fontWeight: node.fontWeight,
+      italic: node.italic,
+      underline: node.underline,
+      smallCaps: node.smallCaps,
+      color: node.color,
+    },
+  );
+
+  return createHeadingNode(node.level, resolved || {}, node.children);
+}
+
+function createResolvedMarkdownHeadingNode(
+  level: StegoHeadingNode["level"],
+  source: string,
+  anchorId: string | undefined,
+  defaults: StyleDefaults,
+  explicit?: HeadingStyle,
+): StegoNode {
+  return createMarkdownHeadingNode(
+    level,
+    source,
+    anchorId,
+    mergeHeadingStyle(
+      resolveHeadingDefaults(level, defaults.bodyStyle, defaults.headingStyle, defaults.headingStyles),
+      explicit,
+    ) || {},
+  );
+}
+
+function createResolvedParagraphNode(
+  node: StegoParagraphNode,
+  bodyStyle: BodyStyle | undefined,
+): StegoParagraphNode {
+  return createParagraphNode(
+    mergeBodyStyle(bodyStyle, {
+      spaceBefore: node.spaceBefore,
+      spaceAfter: node.spaceAfter,
+      insetLeft: node.insetLeft,
+      insetRight: node.insetRight,
+      firstLineIndent: node.firstLineIndent,
+      align: node.align,
+      fontFamily: node.fontFamily,
+      fontSize: node.fontSize,
+      lineSpacing: node.lineSpacing,
+    }) || {},
+    node.children,
+  );
+}
+
 function splitMarkdownIntoBlocks(
   source: string,
   headings: Map<number, string>,
-  paragraphDefaults: ParagraphDefaults,
-  typographyDefaults: TypographyDefaults,
+  defaults: StyleDefaults,
 ): StegoNode[] {
   if (!source.trim()) {
     return [];
@@ -261,15 +291,7 @@ function splitMarkdownIntoBlocks(
       const map = token.map || tokens[index + 1]?.map;
       const paragraphSource = sliceSourceByMap(lines, map);
       if (paragraphSource) {
-        blocks.push(
-          createMarkdownParagraphNode(paragraphSource, {
-            spaceBefore: paragraphDefaults.parSpaceBefore,
-            spaceAfter: paragraphDefaults.parSpaceAfter,
-            fontFamily: typographyDefaults.fontFamily,
-            fontSize: typographyDefaults.fontSize,
-            lineSpacing: typographyDefaults.lineSpacing,
-          }),
-        );
+        blocks.push(createMarkdownParagraphNode(paragraphSource, defaults.bodyStyle || {}));
       }
       index = closeIndex + 1;
       continue;
@@ -283,13 +305,11 @@ function splitMarkdownIntoBlocks(
         const lineNumber = (map?.[0] ?? -1) + 1;
         const level = Number.parseInt(token.tag.slice(1), 10);
         blocks.push(
-          createMarkdownHeadingNode(
-            Number.isFinite(level) ? (level as 1 | 2 | 3 | 4 | 5 | 6) : 1,
+          createResolvedMarkdownHeadingNode(
+            Number.isFinite(level) ? (level as StegoHeadingNode["level"]) : 1,
             headingSource,
             headings.get(lineNumber),
-            {
-              fontFamily: typographyDefaults.fontFamily,
-            }
+            defaults,
           ),
         );
       } else if (headingSource) {

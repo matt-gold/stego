@@ -38,9 +38,6 @@ export function createPdfExporter(): Exporter {
       if (!capability.ok) {
         return capability;
       }
-      if (!resolvePdfEngine()) {
-        return { ok: false, reason: getMissingPdfEngineReason() };
-      }
       return { ok: true };
     },
     async run(args) {

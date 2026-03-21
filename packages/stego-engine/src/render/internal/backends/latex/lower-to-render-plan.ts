@@ -13,15 +13,15 @@ export function lowerToLatexRenderPlan(
 ): RenderDocumentResult {
   const layout = normalizePageLayout(document);
   const markdown = writePandocMarkdown(document.children, context.allLeaves, {
-    parSpaceBefore: layout.parSpaceBefore,
-    parSpaceAfter: layout.parSpaceAfter,
+    spaceBefore: layout.spaceBefore,
+    spaceAfter: layout.spaceAfter,
   });
   const documentStyle = {
     fontFamily: typeof layout.fontFamily === "string" && layout.fontFamily.trim().length > 0 ? layout.fontFamily.trim() : undefined,
     fontSizePt: toFontSizePoints(layout.fontSize),
     lineSpacing: layout.lineSpacing,
-    parSpaceBefore: formatSpacingValue(layout.parSpaceBefore),
-    parSpaceAfter: formatSpacingValue(layout.parSpaceAfter)
+    spaceBefore: formatSpacingValue(layout.spaceBefore),
+    spaceAfter: formatSpacingValue(layout.spaceAfter)
   };
   return {
     backend: "pandoc-latex",
@@ -29,7 +29,9 @@ export function lowerToLatexRenderPlan(
     markdown: markdown.markdown,
     metadata: buildLatexMetadata(layout, {
       usesBlockFontFamily: markdown.usesBlockFontFamily,
-      usesBlockLineSpacing: markdown.usesBlockLineSpacing
+      usesBlockLineSpacing: markdown.usesBlockLineSpacing,
+      usesBlockUnderline: markdown.usesBlockUnderline,
+      usesBlockTextColor: markdown.usesBlockTextColor
     }),
     resourcePaths: [projectRoot, path.join(projectRoot, "assets")],
     requiredFilters: ["image-layout", "block-layout"],

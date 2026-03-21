@@ -1,9 +1,8 @@
 import type {
-  FontFamilyValue,
-  FontSizeValue,
-  LineSpacingValue,
+  BodyStyle,
+  HeadingStyle,
+  HeadingStyleMap,
   PageSpec,
-  SpacingValue,
   StegoDocumentNode,
   StegoNode
 } from "../types.ts";
@@ -11,22 +10,18 @@ import type {
 export function createDocumentNode(
   page: PageSpec | undefined,
   children: StegoNode[],
-  typography?: {
-    fontFamily?: FontFamilyValue;
-    fontSize?: FontSizeValue;
-    lineSpacing?: LineSpacingValue;
-    parSpaceBefore?: SpacingValue;
-    parSpaceAfter?: SpacingValue;
+  styles?: {
+    bodyStyle?: BodyStyle;
+    headingStyle?: HeadingStyle;
+    headingStyles?: HeadingStyleMap;
   }
 ): StegoDocumentNode {
   return {
     kind: "document",
     page,
-    fontFamily: typography?.fontFamily,
-    fontSize: typography?.fontSize,
-    lineSpacing: typography?.lineSpacing,
-    parSpaceBefore: typography?.parSpaceBefore,
-    parSpaceAfter: typography?.parSpaceAfter,
+    bodyStyle: styles?.bodyStyle,
+    headingStyle: styles?.headingStyle,
+    headingStyles: styles?.headingStyles,
     children
   };
 }

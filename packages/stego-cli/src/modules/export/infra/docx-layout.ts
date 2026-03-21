@@ -141,8 +141,8 @@ export function applyDocxDocumentStyleToStylesXml(
       !style.fontFamily
       && style.fontSizePt === undefined
       && style.lineSpacing === undefined
-      && style.parSpaceBefore === undefined
-      && style.parSpaceAfter === undefined
+      && style.spaceBefore === undefined
+      && style.spaceAfter === undefined
     )
   ) {
     return source;
@@ -162,7 +162,7 @@ export function applyDocxDocumentStyleToStylesXml(
   if (setStyleLineSpacing(paragraphProperties, style.lineSpacing, document)) {
     changed = true;
   }
-  if (setStyleParagraphSpacing(paragraphProperties, style.parSpaceBefore, style.parSpaceAfter, document)) {
+  if (setStyleParagraphSpacing(paragraphProperties, style.spaceBefore, style.spaceAfter, document)) {
     changed = true;
   }
   if (setRunFontFamily(runProperties, style.fontFamily, document)) {
@@ -387,7 +387,15 @@ function setParagraphAlignment(paragraph: XmlElement, align: DocxBlockLayoutSpec
 }
 
 function setParagraphRunTypography(paragraph: XmlElement, spec: DocxBlockLayoutSpec): boolean {
-  if (!spec.fontFamily && spec.fontSizePt === undefined) {
+  if (
+    !spec.fontFamily
+    && spec.fontSizePt === undefined
+    && spec.fontWeight === undefined
+    && spec.italic === undefined
+    && spec.underline === undefined
+    && spec.smallCaps === undefined
+    && spec.color === undefined
+  ) {
     return false;
   }
 
@@ -406,6 +414,21 @@ function setParagraphRunTypography(paragraph: XmlElement, spec: DocxBlockLayoutS
       changed = true;
     }
     if (setRunFontSize(runProperties, spec.fontSizePt, document)) {
+      changed = true;
+    }
+    if (setRunFontWeight(runProperties, spec.fontWeight, document)) {
+      changed = true;
+    }
+    if (setRunItalic(runProperties, spec.italic, document)) {
+      changed = true;
+    }
+    if (setRunUnderline(runProperties, spec.underline, document)) {
+      changed = true;
+    }
+    if (setRunSmallCaps(runProperties, spec.smallCaps, document)) {
+      changed = true;
+    }
+    if (setRunColor(runProperties, spec.color, document)) {
       changed = true;
     }
   }
@@ -485,6 +508,103 @@ function setRunFontSize(runProperties: XmlElement, fontSizePt: number | undefine
   return changed;
 }
 
+function setRunFontWeight(
+  runProperties: XmlElement,
+  fontWeight: DocxBlockLayoutSpec["fontWeight"],
+  document: XmlDocument
+): boolean {
+  if (fontWeight === undefined) {
+    return false;
+  }
+  let changed = false;
+  if (setBooleanRunProperty(runProperties, "w:b", fontWeight === "bold", document)) {
+    changed = true;
+  }
+  if (setBooleanRunProperty(runProperties, "w:bCs", fontWeight === "bold", document)) {
+    changed = true;
+  }
+  return changed;
+}
+
+function setRunItalic(
+  runProperties: XmlElement,
+  italic: DocxBlockLayoutSpec["italic"],
+  document: XmlDocument
+): boolean {
+  if (italic === undefined) {
+    return false;
+  }
+  let changed = false;
+  if (setBooleanRunProperty(runProperties, "w:i", italic, document)) {
+    changed = true;
+  }
+  if (setBooleanRunProperty(runProperties, "w:iCs", italic, document)) {
+    changed = true;
+  }
+  return changed;
+}
+
+function setRunUnderline(
+  runProperties: XmlElement,
+  underline: DocxBlockLayoutSpec["underline"],
+  document: XmlDocument
+): boolean {
+  if (underline === undefined) {
+    return false;
+  }
+  const property = findOrCreateChild(runProperties, "w:u", document);
+  return setAttributeValue(property, "w:val", underline ? "single" : "none");
+}
+
+function setRunSmallCaps(
+  runProperties: XmlElement,
+  smallCaps: DocxBlockLayoutSpec["smallCaps"],
+  document: XmlDocument
+): boolean {
+  if (smallCaps === undefined) {
+    return false;
+  }
+  return setBooleanRunProperty(runProperties, "w:smallCaps", smallCaps, document);
+}
+
+function setRunColor(
+  runProperties: XmlElement,
+  color: DocxBlockLayoutSpec["color"],
+  document: XmlDocument
+): boolean {
+  if (!color) {
+    return false;
+  }
+  const property = findOrCreateChild(runProperties, "w:color", document);
+  let changed = false;
+  if (setAttributeValue(property, "w:val", color)) {
+    changed = true;
+  }
+  if (property.hasAttribute("w:themeColor")) {
+    property.removeAttribute("w:themeColor");
+    changed = true;
+  }
+  if (property.hasAttribute("w:themeTint")) {
+    property.removeAttribute("w:themeTint");
+    changed = true;
+  }
+  if (property.hasAttribute("w:themeShade")) {
+    property.removeAttribute("w:themeShade");
+    changed = true;
+  }
+  return changed;
+}
+
+function setBooleanRunProperty(
+  runProperties: XmlElement,
+  propertyName: string,
+  enabled: boolean,
+  document: XmlDocument
+): boolean {
+  const property = findOrCreateChild(runProperties, propertyName, document);
+  return setAttributeValue(property, "w:val", enabled ? "1" : "0");
+}
+
 function clearRunColor(runProperties: XmlElement): boolean {
   let changed = false;
   for (const child of [...elementChildren(runProperties)]) {
@@ -527,7 +647,7 @@ function applyPandocBodyParagraphStyleDefaults(
   style: DocxDocumentStyleSpec,
   document: XmlDocument
 ): boolean {
-  if (style.parSpaceBefore === undefined && style.parSpaceAfter === undefined) {
+  if (style.spaceBefore === undefined && style.spaceAfter === undefined) {
     return false;
   }
 
@@ -538,7 +658,7 @@ function applyPandocBodyParagraphStyleDefaults(
       continue;
     }
     const paragraphProperties = findOrCreateChild(paragraphStyle, "w:pPr", document);
-    if (setStyleParagraphSpacing(paragraphProperties, style.parSpaceBefore, style.parSpaceAfter, document)) {
+    if (setStyleParagraphSpacing(paragraphProperties, style.spaceBefore, style.spaceAfter, document)) {
       changed = true;
     }
   }
@@ -551,10 +671,6 @@ function applyPandocHeadingStyleDefaults(
   style: DocxDocumentStyleSpec,
   document: XmlDocument
 ): boolean {
-  if (!style.fontFamily) {
-    return false;
-  }
-
   let changed = false;
   for (const styleId of PANDOC_HEADING_STYLE_IDS) {
     const paragraphStyle = findParagraphStyleById(root, styleId);
@@ -578,10 +694,6 @@ function applyPandocHeadingCharacterStyleDefaults(
   style: DocxDocumentStyleSpec,
   document: XmlDocument
 ): boolean {
-  if (!style.fontFamily) {
-    return false;
-  }
-
   let changed = false;
 
   for (const styleId of PANDOC_HEADING_CHARACTER_STYLE_IDS) {

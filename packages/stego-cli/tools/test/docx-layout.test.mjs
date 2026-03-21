@@ -143,8 +143,8 @@ test("docx styles postprocessor patches Normal style with typography defaults", 
     fontFamily: "Times New Roman",
     fontSizePt: 12,
     lineSpacing: 2,
-    parSpaceBefore: "0pt",
-    parSpaceAfter: "0pt"
+    spaceBefore: "0pt",
+    spaceAfter: "0pt"
   });
 
   assert.match(rewritten, /<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"\/>/);
@@ -162,8 +162,8 @@ test("docx styles postprocessor applies paragraph spacing defaults to Normal sty
 </w:styles>`;
 
   const rewritten = applyDocxDocumentStyleToStylesXml(source, {
-    parSpaceBefore: "6pt",
-    parSpaceAfter: "12pt"
+    spaceBefore: "6pt",
+    spaceAfter: "12pt"
   });
 
   assert.match(rewritten, /w:before="120"/);
@@ -190,8 +190,8 @@ test("docx styles postprocessor overrides Pandoc body paragraph styles that woul
 </w:styles>`;
 
   const rewritten = applyDocxDocumentStyleToStylesXml(source, {
-    parSpaceBefore: "0pt",
-    parSpaceAfter: "0pt"
+    spaceBefore: "0pt",
+    spaceAfter: "0pt"
   });
 
   assert.match(rewritten, /<w:style w:type="paragraph" w:styleId="BodyText">[\s\S]*<w:spacing[^>]*w:before="0"[^>]*w:after="0"\/>/);
@@ -241,4 +241,32 @@ test("docx styles postprocessor neutralizes Pandoc heading colors and applies th
   assert.match(rewritten, /<w:style w:type="character" w:styleId="Heading1Char">[\s\S]*<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"\/>/);
   assert.match(rewritten, /<w:style w:type="character" w:styleId="Heading2Char">[\s\S]*<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"\/>/);
   assert.doesNotMatch(rewritten, /<w:color /);
+});
+
+test("docx layout postprocessor applies heading run emphasis and color overrides", () => {
+  const source = `<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:bookmarkStart w:id="10" w:name="stego-layout-1"/>
+    <w:p><w:pPr><w:pStyle w:val="Heading1" /></w:pPr><w:r><w:t>Heading</w:t></w:r></w:p>
+    <w:bookmarkEnd w:id="10"/>
+  </w:body>
+</w:document>`;
+
+  const rewritten = applyDocxLayoutToDocumentXml(source, [{
+    bookmarkName: "stego-layout-1",
+    fontWeight: "normal",
+    italic: true,
+    underline: true,
+    smallCaps: true,
+    color: "333333"
+  }]);
+
+  assert.match(rewritten, /<w:b w:val="0"\/>/);
+  assert.match(rewritten, /<w:bCs w:val="0"\/>/);
+  assert.match(rewritten, /<w:i w:val="1"\/>/);
+  assert.match(rewritten, /<w:iCs w:val="1"\/>/);
+  assert.match(rewritten, /<w:u w:val="single"\/>/);
+  assert.match(rewritten, /<w:smallCaps w:val="1"\/>/);
+  assert.match(rewritten, /<w:color w:val="333333"\/>/);
 });

@@ -1,6 +1,9 @@
 import type {
+  BodyStyle,
   FontFamilyValue,
   FontSizeValue,
+  HeadingStyle,
+  HeadingStyleMap,
   LineSpacingValue,
   PageRegionSpec,
   PageSizeValue,
@@ -17,8 +20,11 @@ export type NormalizedPageLayout = {
   fontFamily?: FontFamilyValue;
   fontSize?: FontSizeValue;
   lineSpacing?: LineSpacingValue;
-  parSpaceBefore: SpacingValue | 0;
-  parSpaceAfter: SpacingValue | 0;
+  spaceBefore: SpacingValue | 0;
+  spaceAfter: SpacingValue | 0;
+  bodyStyle?: BodyStyle;
+  headingStyle?: HeadingStyle;
+  headingStyles?: HeadingStyleMap;
 };
 
 export function normalizePageLayout(document: StegoDocumentNode): NormalizedPageLayout {
@@ -38,11 +44,14 @@ export function normalizePageLayout(document: StegoDocumentNode): NormalizedPage
     geometry,
     header: pageTemplate?.header,
     footer: pageTemplate?.footer,
-    fontFamily: document.fontFamily,
-    fontSize: document.fontSize,
-    lineSpacing: document.lineSpacing,
-    parSpaceBefore: document.parSpaceBefore ?? 0,
-    parSpaceAfter: document.parSpaceAfter ?? 0
+    fontFamily: document.bodyStyle?.fontFamily,
+    fontSize: document.bodyStyle?.fontSize,
+    lineSpacing: document.bodyStyle?.lineSpacing,
+    spaceBefore: document.bodyStyle?.spaceBefore ?? 0,
+    spaceAfter: document.bodyStyle?.spaceAfter ?? 0,
+    bodyStyle: document.bodyStyle,
+    headingStyle: document.headingStyle,
+    headingStyles: document.headingStyles
   };
 }
 

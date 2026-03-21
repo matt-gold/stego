@@ -9,8 +9,8 @@ kind: reference
 - Target-aware templates are the advanced template mode for Stego.
 - They use `defineTemplate({ targets: [...] }, (ctx: TemplateContext<...>, Stego) => ...)` so the template can declare the presentation targets it supports.
 - The `Stego` value inside that callback is a narrowed Stego API based on the strict intersection of the declared presentation targets.
-- This is the right place to build print-only templates such as standard manuscript DOCX/PDF layouts that use `fontFamily`, `fontSize`, `lineSpacing`, and `page.size = "letter"`.
-- Print templates can also set `parSpaceBefore` and `parSpaceAfter` on `Stego.Document` or `Stego.Section` to control inherited paragraph spacing for both explicit `Stego.Paragraph` nodes and markdown-authored paragraphs.
+- This is the right place to build print-only templates such as standard manuscript DOCX/PDF layouts that use `bodyStyle`, `headingStyle`, `headingStyles`, and `page.size = "letter"`.
+- Print templates can set `bodyStyle.spaceBefore` and `bodyStyle.spaceAfter` on `Stego.Document` or `Stego.Section` to control inherited paragraph spacing for both explicit `Stego.Paragraph` nodes and markdown-authored paragraphs.
 - `fontFamily` in PDF exports requires `xelatex` so Stego can honor the requested named font reliably. `latex` exports share the same print backend but emit `.tex` directly.
 - Multiple templates per project are discovered from `templates/*.template.tsx`.
 - `stego build` compiles every discovered template and writes per-template markdown and render-plan artifacts.

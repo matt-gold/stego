@@ -481,11 +481,13 @@ export default defineTemplate(
     return (
       <Stego.Document
         page={{ size: "letter", margin: "1in" }}
-        fontFamily="Times New Roman"
-        fontSize="12pt"
-        lineSpacing={2}
-        parSpaceBefore={0}
-        parSpaceAfter={0}
+        bodyStyle={{
+          fontFamily: "Times New Roman",
+          fontSize: "12pt",
+          lineSpacing: 2,
+          spaceBefore: 0,
+          spaceAfter: 0,
+        }}
       >
         <Stego.Section>
           <Stego.Paragraph align="center" fontSize="12pt" spaceBefore="216pt" spaceAfter="24pt">
@@ -508,7 +510,7 @@ export default defineTemplate(
         {chapterGroups.length > 0 ? <Stego.PageBreak /> : null}
 
         {chapterGroups.map((group, index) => (
-          <Stego.Section role="chapter" firstLineIndent="0.5in">
+          <Stego.Section role="chapter" bodyStyle={{ firstLineIndent: "0.5in" }}>
             {index > 0 ? <Stego.PageBreak /> : null}
             {group.value ? (
               <>

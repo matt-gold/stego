@@ -46,13 +46,17 @@ export default defineTemplate(
   (ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, Stego) => (
     <Stego.Document
       page={{ size: "letter", margin: "1in" }}
-      fontFamily="Times New Roman"
-      fontSize="12pt"
-      lineSpacing={2}
+      bodyStyle={{
+        fontFamily: "Times New Roman",
+        fontSize: "12pt",
+        lineSpacing: 2,
+        spaceBefore: 0,
+        spaceAfter: 0,
+      }}
     >
       <Stego.Heading level={1}>{ctx.project.metadata.title}</Stego.Heading>
       {ctx.allLeaves.map((leaf) => (
-        <Stego.Section firstLineIndent="0.5in">
+        <Stego.Section bodyStyle={{ firstLineIndent: "0.5in" }}>
           <Stego.Markdown leaf={leaf} />
         </Stego.Section>
       ))}
@@ -153,28 +157,30 @@ const chapters = Stego.splitBy(
 Stego currently exposes portable layout controls such as:
 
 - `spaceBefore` / `spaceAfter`
-- `parSpaceBefore` / `parSpaceAfter`
 - `insetLeft` / `insetRight`
 - `firstLineIndent`
 - `align`
 - `fontFamily`
 - `fontSize`
 - `lineSpacing`
+- `headingStyle` / `headingStyles`
+- `bodyStyle`
 - `Stego.KeepTogether`
 - `Stego.PageBreak`
 
-Typography controls are print-only in V1:
+Style support is target-aware in V1:
 
-- `docx`: yes
-- `pdf`: yes
-- `epub`: no
+- `docx`: full block styling
+- `pdf`: full block styling
+- `latex`: full block styling
+- `epub`: safe subset, including spacing, indent, align, font size, line spacing, and heading emphasis/color
 
 PDF exports that request `fontFamily` require `xelatex` so named fonts can be honored reliably.
 
 Paragraph spacing defaults are inherited:
 
-- `Document.parSpaceBefore` / `Document.parSpaceAfter` set defaults for descendant paragraphs
-- `Section.parSpaceBefore` / `Section.parSpaceAfter` override those defaults for that subtree
+- `Document.bodyStyle.spaceBefore` / `Document.bodyStyle.spaceAfter` set defaults for descendant paragraphs
+- `Section.bodyStyle.spaceBefore` / `Section.bodyStyle.spaceAfter` override those defaults for that subtree
 - `Paragraph.spaceBefore` / `Paragraph.spaceAfter` are explicit per-paragraph overrides
 
 When omitted, Stego treats paragraph spacing defaults as `0` before and `0` after. This keeps manuscript-style DOCX output from inheriting Word's built-in paragraph gap unless the template asks for one.

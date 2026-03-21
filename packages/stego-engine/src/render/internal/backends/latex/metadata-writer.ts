@@ -6,6 +6,8 @@ export function buildLatexMetadata(
   options: {
     usesBlockFontFamily?: boolean;
     usesBlockLineSpacing?: boolean;
+    usesBlockUnderline?: boolean;
+    usesBlockTextColor?: boolean;
   } = {}
 ): Record<string, unknown> {
   const metadata: Record<string, unknown> = {};
@@ -28,6 +30,12 @@ export function buildLatexMetadata(
   }
   if (lineSpacing !== undefined || options.usesBlockLineSpacing) {
     headerIncludes.push("\\usepackage{setspace}");
+  }
+  if (options.usesBlockTextColor) {
+    headerIncludes.push("\\usepackage{xcolor}");
+  }
+  if (options.usesBlockUnderline) {
+    headerIncludes.push("\\usepackage[normalem]{ulem}");
   }
   if (lineSpacing !== undefined) {
     headerIncludes.push(`\\setstretch{${lineSpacing}}`);

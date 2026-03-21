@@ -36,10 +36,15 @@ local function apply_html_styles(el)
   local font_family = get_layout_value(el, "font-family")
   local font_size = get_layout_value(el, "font-size")
   local line_spacing = get_layout_value(el, "line-spacing")
+  local font_weight = get_layout_value(el, "font-weight")
+  local italic = get_layout_value(el, "italic")
+  local underline = get_layout_value(el, "underline")
+  local small_caps = get_layout_value(el, "small-caps")
+  local color = get_layout_value(el, "color")
   local keep_together = get_layout_value(el, "keep-together")
   local page_break = get_layout_value(el, "page-break")
 
-  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not font_family and not font_size and not line_spacing and not keep_together and not page_break then
+  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not font_family and not font_size and not line_spacing and not font_weight and not italic and not underline and not small_caps and not color and not keep_together and not page_break then
     return nil
   end
 
@@ -70,6 +75,21 @@ local function apply_html_styles(el)
   end
   if line_spacing then
     style = append_css_rule(style, "line-height:" .. line_spacing .. ";")
+  end
+  if font_weight then
+    style = append_css_rule(style, "font-weight:" .. font_weight .. ";")
+  end
+  if italic == "true" then
+    style = append_css_rule(style, "font-style:italic;")
+  end
+  if underline == "true" then
+    style = append_css_rule(style, "text-decoration:underline;")
+  end
+  if small_caps == "true" then
+    style = append_css_rule(style, "font-variant-caps:small-caps;")
+  end
+  if color then
+    style = append_css_rule(style, "color:" .. color .. ";")
   end
   if keep_together == "true" then
     style = append_css_rule(style, "break-inside:avoid;")
@@ -130,10 +150,15 @@ local function apply_latex_layout(block)
   local font_family = get_layout_value(block, "font-family")
   local font_size = get_layout_value(block, "font-size")
   local line_spacing = get_layout_value(block, "line-spacing")
+  local font_weight = get_layout_value(block, "font-weight")
+  local italic = get_layout_value(block, "italic")
+  local underline = get_layout_value(block, "underline")
+  local small_caps = get_layout_value(block, "small-caps")
+  local color = get_layout_value(block, "color")
   local keep_together = get_layout_value(block, "keep-together")
   local page_break = get_layout_value(block, "page-break")
 
-  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not font_family and not font_size and not line_spacing and not keep_together and not page_break then
+  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not font_family and not font_size and not line_spacing and not font_weight and not italic and not underline and not small_caps and not color and not keep_together and not page_break then
     return nil
   end
 
@@ -172,13 +197,35 @@ local function apply_latex_layout(block)
   if line_spacing then
     table.insert(wrapper, "\\setstretch{" .. line_spacing .. "}")
   end
+  if font_weight == "bold" then
+    table.insert(wrapper, "\\bfseries")
+  elseif font_weight == "normal" then
+    table.insert(wrapper, "\\mdseries")
+  end
+  if italic == "true" then
+    table.insert(wrapper, "\\itshape")
+  end
+  if small_caps == "true" then
+    table.insert(wrapper, "\\scshape")
+  end
+  if color then
+    table.insert(wrapper, "\\color[HTML]{" .. color:gsub("#", "") .. "}")
+  end
 
   local needs_wrapper = #wrapper > 1
   if needs_wrapper then
     table.insert(blocks, pandoc.RawBlock("latex", table.concat(wrapper, "\n")))
   end
 
+  if underline == "true" then
+    table.insert(blocks, pandoc.RawBlock("latex", "\\ULon"))
+  end
+
   table.insert(blocks, block)
+
+  if underline == "true" then
+    table.insert(blocks, pandoc.RawBlock("latex", "\\ULoff"))
+  end
 
   if needs_wrapper then
     if keep_together == "true" then
