@@ -11,25 +11,6 @@ function hasPandoc(): boolean {
   return result.status === 0;
 }
 
-function hasCommand(command: string): boolean {
-  const result = spawnSync("which", [command], { stdio: "ignore" });
-  return result.status === 0;
-}
-
-function resolvePdfEngine(): string | null {
-  const preferredEngines = ["tectonic", "xelatex", "lualatex", "pdflatex", "wkhtmltopdf", "weasyprint", "prince", "typst"];
-  for (const engine of preferredEngines) {
-    if (hasCommand(engine)) {
-      return engine;
-    }
-  }
-  return null;
-}
-
-function getMissingPdfEngineReason(): string {
-  return "No PDF engine found. Install one of: tectonic, xelatex, lualatex, pdflatex, wkhtmltopdf, weasyprint, prince, or typst.";
-}
-
 function resolveBundledFile(relativePathFromPackageRoot: string): string | undefined {
   let current = path.dirname(fileURLToPath(import.meta.url));
   while (true) {
@@ -45,7 +26,12 @@ function resolveBundledFile(relativePathFromPackageRoot: string): string | undef
   }
 }
 
-export function createPandocExporter(format: Exclude<ExportFormat, "md">): Exporter {
+function resolveRequiredFilters(requiredFilters: string[] | undefined): string[] {
+  const resolved = requiredFilters && requiredFilters.length > 0 ? requiredFilters : ["image-layout"];
+  return Array.from(new Set(resolved));
+}
+
+export function createPandocExporter(format: Extract<ExportFormat, "docx" | "epub">): Exporter {
   return {
     id: format,
     description: `Export ${format.toUpperCase()} with pandoc`,
@@ -53,17 +39,9 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
       if (!hasPandoc()) {
         return {
           ok: false,
-          reason: "pandoc is not installed. Install pandoc to enable docx/pdf/epub exports."
+          reason: "pandoc is not installed. Install pandoc to enable docx/pdf/epub/latex exports."
         };
       }
-
-      if (format === "pdf" && !resolvePdfEngine()) {
-        return {
-          ok: false,
-          reason: getMissingPdfEngineReason()
-        };
-      }
-
       return { ok: true };
     },
     async run({ inputPath, outputPath, cwd, inputFormat, resourcePaths, requiredFilters, extraArgs, postprocess }) {
@@ -85,13 +63,6 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
       if (resourcePaths && resourcePaths.length > 0) {
         args.push(`--resource-path=${resourcePaths.join(path.delimiter)}`);
       }
-      if (format === "pdf") {
-        const engine = resolvePdfEngine();
-        if (!engine) {
-          throw new Error(getMissingPdfEngineReason());
-        }
-        args.push(`--pdf-engine=${engine}`);
-      }
       if (extraArgs && extraArgs.length > 0) {
         args.push(...extraArgs);
       }
@@ -109,15 +80,10 @@ export function createPandocExporter(format: Exclude<ExportFormat, "md">): Expor
       }
 
       if (format === "docx") {
-        await applyDocxLayout(outputPath, postprocess?.docx?.blockLayouts || []);
+        await applyDocxLayout(outputPath, postprocess?.docx || {});
       }
 
       return { outputPath };
     }
   };
-}
-
-function resolveRequiredFilters(requiredFilters: string[] | undefined): string[] {
-  const resolved = requiredFilters && requiredFilters.length > 0 ? requiredFilters : ["image-layout"];
-  return Array.from(new Set(resolved));
 }

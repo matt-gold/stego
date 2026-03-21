@@ -12,7 +12,7 @@ export function registerExportCommand(registry: CommandRegistry): void {
     options: [
       { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--template <path>", description: "Project-relative template path" },
-      { flags: "--format <format>", description: "md|docx|pdf|epub" },
+      { flags: "--format <format>", description: "md|docx|pdf|epub|latex" },
       { flags: "--output <path>", description: "Explicit output path" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],

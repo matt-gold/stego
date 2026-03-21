@@ -8,6 +8,5 @@ export type {
   ContentTree,
   TemplateContext,
   StegoTemplate,
-  TemplateDefinitionOptions,
-  TemplateTypes
+  TemplateDefinitionOptions
 } from "./types.ts";

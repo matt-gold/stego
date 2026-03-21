@@ -82,18 +82,6 @@ export type TemplateContext<
   allBranches: BranchRecord<TBranchMetadata, TLeafMetadata>[];
 };
 
-export type TemplateTypes<
-  TLeafMetadata extends LeafMetadata = LeafMetadata,
-  TBranchMetadata extends BranchMetadata = BranchMetadata,
-  TProjectMetadata extends ProjectMetadata = ProjectMetadata,
-  TTargets extends readonly PresentationTarget[] | null = null
-> = {
-  leafMetadata: TLeafMetadata;
-  branchMetadata: TBranchMetadata;
-  projectMetadata: TProjectMetadata;
-  targets: TTargets;
-};
-
 export type StegoTemplate<
   TLeafMetadata extends LeafMetadata = LeafMetadata,
   TBranchMetadata extends BranchMetadata = BranchMetadata,

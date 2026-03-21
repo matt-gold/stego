@@ -7,8 +7,11 @@ import {
 import { createDocxLayoutBookmarkName, type DocxBlockLayoutSpec } from "@stego-labs/shared/domain/layout";
 import type {
   AlignValue,
+  FontFamilyValue,
+  FontSizeValue,
   IndentValue,
   InsetValue,
+  LineSpacingValue,
   SpacingValue,
   StegoInlineNode,
   StegoNode
@@ -23,14 +26,27 @@ type LeafIndexEntry = {
   headings: LeafHeadingTarget[];
 };
 
-export function writePandocMarkdown(nodes: StegoNode[], leaves: LeafRecord[]): {
+export function writePandocMarkdown(
+  nodes: StegoNode[],
+  leaves: LeafRecord[],
+  options: {
+    parSpaceBefore?: SpacingValue;
+    parSpaceAfter?: SpacingValue;
+  } = {}
+): {
   markdown: string;
   docxBlockLayouts: DocxBlockLayoutSpec[];
+  usesBlockFontFamily: boolean;
+  usesBlockLineSpacing: boolean;
 } {
   const blocks: string[] = [];
   const context = {
     docxBlockLayoutIndex: 0,
     docxBlockLayouts: [] as DocxBlockLayoutSpec[],
+    usesBlockFontFamily: false,
+    usesBlockLineSpacing: false,
+    defaultParagraphSpaceBefore: formatSpacingValue(options.parSpaceBefore ?? 0),
+    defaultParagraphSpaceAfter: formatSpacingValue(options.parSpaceAfter ?? 0),
     leaves: new Map(leaves.map((leaf) => [leaf.id, {
       id: leaf.id,
       titleFromFilename: leaf.titleFromFilename,
@@ -50,7 +66,9 @@ export function writePandocMarkdown(nodes: StegoNode[], leaves: LeafRecord[]): {
   }
   return {
     markdown: `${blocks.join("\n\n").replace(/\n{3,}/g, "\n\n")}\n`,
-    docxBlockLayouts: context.docxBlockLayouts
+    docxBlockLayouts: context.docxBlockLayouts,
+    usesBlockFontFamily: context.usesBlockFontFamily,
+    usesBlockLineSpacing: context.usesBlockLineSpacing
   };
 }
 
@@ -79,7 +97,10 @@ function renderNode(node: StegoNode, context: RenderContext): string {
         insetLeft: node.insetLeft,
         insetRight: node.insetRight,
         firstLineIndent: node.firstLineIndent,
-        align: node.align
+        align: node.align,
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
       });
       const attrs = renderBlockAttrs({
         id: markerId || node.id,
@@ -89,7 +110,10 @@ function renderNode(node: StegoNode, context: RenderContext): string {
         insetLeft: node.insetLeft,
         insetRight: node.insetRight,
         firstLineIndent: node.firstLineIndent,
-        align: node.align
+        align: node.align,
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
       });
       return attrs ? `::: ${attrs}\n${body}\n:::` : body;
     }
@@ -99,7 +123,10 @@ function renderNode(node: StegoNode, context: RenderContext): string {
         spaceAfter: node.spaceAfter,
         insetLeft: node.insetLeft,
         insetRight: node.insetRight,
-        align: node.align
+        align: node.align,
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
       });
       const body = `${"#".repeat(node.level)} ${renderInlineChildren(node.children, context)}`;
       if (!layout) {
@@ -116,31 +143,97 @@ function renderNode(node: StegoNode, context: RenderContext): string {
         spaceAfter: node.spaceAfter,
         insetLeft: node.insetLeft,
         insetRight: node.insetRight,
-        align: node.align
+        align: node.align,
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
       });
       return `::: ${attrs}\n${body}\n:::`;
     }
     case "paragraph": {
+      const spacing = normalizeParagraphSpacingForDefaults(
+        {
+          spaceBefore: node.spaceBefore,
+          spaceAfter: node.spaceAfter
+        },
+        context,
+      );
       const markerId = getOrCreateDocxBlockLayoutMarker(context, {
-        spaceBefore: node.spaceBefore,
-        spaceAfter: node.spaceAfter,
+        spaceBefore: spacing.spaceBefore,
+        spaceAfter: spacing.spaceAfter,
         insetLeft: node.insetLeft,
         insetRight: node.insetRight,
         firstLineIndent: node.firstLineIndent,
-        align: node.align
+        align: node.align,
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
       });
       const attrs = renderBlockAttrs({
         id: markerId,
-        spaceBefore: node.spaceBefore,
-        spaceAfter: node.spaceAfter,
+        spaceBefore: spacing.spaceBefore,
+        spaceAfter: spacing.spaceAfter,
         insetLeft: node.insetLeft,
         insetRight: node.insetRight,
         firstLineIndent: node.firstLineIndent,
-        align: node.align
+        align: node.align,
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
       });
       const body = renderInlineChildren(node.children, context);
       return attrs ? `::: ${attrs}\n${body}\n:::` : body;
     }
+    case "markdownParagraph": {
+      const spacing = normalizeParagraphSpacingForDefaults(
+        {
+          spaceBefore: node.spaceBefore,
+          spaceAfter: node.spaceAfter
+        },
+        context,
+      );
+      const markerId = getOrCreateDocxBlockLayoutMarker(context, {
+        spaceBefore: spacing.spaceBefore,
+        spaceAfter: spacing.spaceAfter,
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
+      });
+      const attrs = renderBlockAttrs({
+        id: markerId,
+        spaceBefore: spacing.spaceBefore,
+        spaceAfter: spacing.spaceAfter,
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
+      });
+      return attrs ? `::: ${attrs}\n${node.source}\n:::` : node.source;
+    }
+    case "markdownHeading": {
+      const body = renderMarkdownHeadingNode(node);
+      const layout = toDocxBlockLayout({
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
+      });
+      if (!layout) {
+        return body;
+      }
+      const markerId = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
+      context.docxBlockLayouts.push({
+        bookmarkName: markerId,
+        ...layout
+      });
+      const attrs = renderBlockAttrs({
+        id: markerId,
+        fontFamily: node.fontFamily,
+        fontSize: node.fontSize,
+        lineSpacing: node.lineSpacing
+      });
+      return `::: ${attrs}\n${body}\n:::`;
+    }
+    case "markdownBlock":
+      return node.source;
     case "markdown":
       return renderMarkdownNode(node, context);
     case "plainText":
@@ -188,6 +281,10 @@ function renderNode(node: StegoNode, context: RenderContext): string {
 type RenderContext = {
   docxBlockLayoutIndex: number;
   docxBlockLayouts: DocxBlockLayoutSpec[];
+  usesBlockFontFamily: boolean;
+  usesBlockLineSpacing: boolean;
+  defaultParagraphSpaceBefore?: string;
+  defaultParagraphSpaceAfter?: string;
   leaves: Map<string, LeafIndexEntry>;
 };
 
@@ -213,6 +310,16 @@ function renderPlainTextNode(node: Extract<StegoNode, { kind: "plainText" }>, co
     return `::: {#${anchor} data-leaf-id=${node.leaf.id}}\n${body}\n:::`;
   }
   return body;
+}
+
+function renderMarkdownHeadingNode(
+  node: Extract<StegoNode, { kind: "markdownHeading" }>,
+): string {
+  if (!node.anchorId) {
+    return node.source;
+  }
+
+  return applyHeadingAnchorToSource(node.source, node.anchorId);
 }
 
 function renderInlineChildren(children: StegoInlineNode[], context: RenderContext): string {
@@ -263,6 +370,32 @@ function normalizeAnchor(value: string): string {
   return value.trim().replace(/^#/, "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+function normalizeParagraphSpacingForDefaults(
+  input: {
+    spaceBefore?: SpacingValue;
+    spaceAfter?: SpacingValue;
+  },
+  context: RenderContext,
+): {
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+} {
+  const before = formatSpacingValue(input.spaceBefore);
+  const after = formatSpacingValue(input.spaceAfter);
+
+  return {
+    spaceBefore: before === context.defaultParagraphSpaceBefore ? undefined : input.spaceBefore,
+    spaceAfter: after === context.defaultParagraphSpaceAfter ? undefined : input.spaceAfter
+  };
+}
+
+function applyHeadingAnchorToSource(source: string, anchorId: string): string {
+  return source.replace(
+    /^(\s*#{1,6}\s+)(.+?)\s*(?:\{#([^}]+)\})?\s*$/m,
+    (_match, prefix: string, text: string) => `${prefix}${text.trim()} {#${anchorId}}`,
+  );
+}
+
 function escapeInlineText(value: string): string {
   return value.replace(/([\[\]\\])/g, "\\$1");
 }
@@ -277,11 +410,20 @@ function getOrCreateDocxBlockLayoutMarker(
     insetRight?: InsetValue;
     firstLineIndent?: IndentValue;
     align?: AlignValue;
+    fontFamily?: FontFamilyValue;
+    fontSize?: FontSizeValue;
+    lineSpacing?: LineSpacingValue;
   }
 ): string | undefined {
   const layout = toDocxBlockLayout(input);
   if (!layout) {
     return undefined;
+  }
+  if (layout.fontFamily) {
+    context.usesBlockFontFamily = true;
+  }
+  if (layout.lineSpacing !== undefined) {
+    context.usesBlockLineSpacing = true;
   }
   const bookmarkName = input.bookmarkName || createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
   context.docxBlockLayouts.push({
@@ -313,6 +455,9 @@ function toDocxBlockLayout(input: {
   insetRight?: InsetValue;
   firstLineIndent?: IndentValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
 }): Omit<DocxBlockLayoutSpec, "bookmarkName"> | undefined {
   const spaceBefore = formatSpacingValue(input.spaceBefore);
   const spaceAfter = formatSpacingValue(input.spaceAfter);
@@ -320,8 +465,11 @@ function toDocxBlockLayout(input: {
   const insetRight = formatSpacingValue(input.insetRight);
   const firstLineIndent = formatIndentValue(input.firstLineIndent);
   const align = input.align;
+  const fontFamily = formatFontFamilyValue(input.fontFamily);
+  const fontSizePt = formatFontSizeInPoints(input.fontSize);
+  const lineSpacing = formatLineSpacingValue(input.lineSpacing);
 
-  if (!spaceBefore && !spaceAfter && !insetLeft && !insetRight && !firstLineIndent && !align) {
+  if (!spaceBefore && !spaceAfter && !insetLeft && !insetRight && !firstLineIndent && !align && !fontFamily && lineSpacing === undefined && fontSizePt === undefined) {
     return undefined;
   }
 
@@ -331,7 +479,10 @@ function toDocxBlockLayout(input: {
     insetLeft,
     insetRight,
     firstLineIndent,
-    align
+    align,
+    fontFamily,
+    fontSizePt,
+    lineSpacing
   };
 }
 
@@ -344,6 +495,9 @@ function renderBlockAttrs(input: {
   insetRight?: InsetValue;
   firstLineIndent?: IndentValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
 }): string {
   const tokens: string[] = [];
   if (input.id) {
@@ -375,6 +529,18 @@ function renderBlockAttrs(input: {
   if (input.align) {
     tokens.push(`data-align=${String(input.align)}`);
   }
+  const fontFamily = formatFontFamilyValue(input.fontFamily);
+  const fontSize = formatFontSizeValue(input.fontSize);
+  const lineSpacing = formatLineSpacingValue(input.lineSpacing);
+  if (fontFamily) {
+    tokens.push(`data-font-family=${quoteAttrValue(fontFamily)}`);
+  }
+  if (fontSize) {
+    tokens.push(`data-font-size=${fontSize}`);
+  }
+  if (lineSpacing !== undefined) {
+    tokens.push(`data-line-spacing=${String(lineSpacing)}`);
+  }
   return tokens.length > 0 ? `{${tokens.join(" ")}}` : "";
 }
 
@@ -394,4 +560,43 @@ function formatIndentValue(value: IndentValue | undefined): string | undefined {
     return undefined;
   }
   return typeof value === "number" ? `${value}pt` : value;
+}
+
+function formatFontFamilyValue(value: FontFamilyValue | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function formatFontSizeValue(value: FontSizeValue | undefined): string | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  return typeof value === "number" ? `${value}pt` : value.trim();
+}
+
+function formatFontSizeInPoints(value: FontSizeValue | undefined): number | undefined {
+  const normalized = formatFontSizeValue(value);
+  if (!normalized) {
+    return undefined;
+  }
+  const match = normalized.match(/^(-?\d+(?:\.\d+)?)pt$/);
+  if (!match) {
+    return undefined;
+  }
+  const amount = Number(match[1]);
+  return Number.isFinite(amount) ? amount : undefined;
+}
+
+function formatLineSpacingValue(value: LineSpacingValue | undefined): number | undefined {
+  if (value == null || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return value;
+}
+
+function quoteAttrValue(value: string): string {
+  return JSON.stringify(value);
 }

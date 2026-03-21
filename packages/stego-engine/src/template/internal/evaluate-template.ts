@@ -52,7 +52,7 @@ export function assertTemplateModule(value: unknown): StegoTemplate {
       if (invalid.length > 0) {
         throw new TemplateContractError(
           "invalid-targets",
-          "Target-aware templates may only declare docx, pdf, or epub.",
+          "Target-aware templates may only declare docx, pdf, epub, or latex.",
           { targets }
         );
       }
@@ -126,6 +126,7 @@ function resolveSupportedCapabilities(targets: readonly PresentationTarget[]): R
     inset: targets.every((target) => TARGET_CAPABILITIES[target].inset),
     indent: targets.every((target) => TARGET_CAPABILITIES[target].indent),
     align: targets.every((target) => TARGET_CAPABILITIES[target].align),
+    typography: targets.every((target) => TARGET_CAPABILITIES[target].typography),
     imageAlign: targets.every((target) => TARGET_CAPABILITIES[target].imageAlign),
     imageLayout: targets.every((target) => TARGET_CAPABILITIES[target].imageLayout)
   };
@@ -141,6 +142,10 @@ function visitNode(
       if (node.page) {
         assertCapability("pageLayout", "Document", targets, capabilities);
       }
+      if (node.parSpaceBefore !== undefined || node.parSpaceAfter !== undefined) {
+        assertCapability("spacing", "Document", targets, capabilities);
+      }
+      validateTypographyCapabilities("Document", node, targets, capabilities);
       for (const child of node.children) {
         visitNode(child, targets, capabilities);
       }
@@ -158,15 +163,29 @@ function visitNode(
       return;
     case "section":
       validateSharedBlockCapabilities("Section", node, targets, capabilities);
+      if (node.parSpaceBefore !== undefined || node.parSpaceAfter !== undefined) {
+        assertCapability("spacing", "Section", targets, capabilities);
+      }
+      validateTypographyCapabilities("Section", node, targets, capabilities);
       for (const child of node.children) {
         visitNode(child, targets, capabilities);
       }
       return;
     case "heading":
       validateSharedBlockCapabilities("Heading", node, targets, capabilities);
+      validateTypographyCapabilities("Heading", node, targets, capabilities);
       return;
     case "paragraph":
       validateSharedBlockCapabilities("Paragraph", node, targets, capabilities);
+      validateTypographyCapabilities("Paragraph", node, targets, capabilities);
+      return;
+    case "markdownParagraph":
+      if (node.spaceBefore !== undefined || node.spaceAfter !== undefined) {
+        assertCapability("spacing", "MarkdownParagraph", targets, capabilities);
+      }
+      return;
+    case "markdownHeading":
+    case "markdownBlock":
       return;
     case "image":
       if (node.layout !== undefined) {
@@ -237,6 +256,21 @@ function validateSharedBlockCapabilities(
   }
   if (node.align !== undefined) {
     assertCapability("align", componentName, targets, capabilities);
+  }
+}
+
+function validateTypographyCapabilities(
+  componentName: "Document" | "Section" | "Heading" | "Paragraph",
+  node: {
+    fontFamily?: unknown;
+    fontSize?: unknown;
+    lineSpacing?: unknown;
+  },
+  targets: readonly PresentationTarget[],
+  capabilities: Record<TemplateCapability, boolean>
+): void {
+  if (node.fontFamily !== undefined || node.fontSize !== undefined || node.lineSpacing !== undefined) {
+    assertCapability("typography", componentName, targets, capabilities);
   }
 }
 

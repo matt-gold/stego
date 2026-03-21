@@ -12,7 +12,7 @@ export function registerTemplateExportCommand(registry: CommandRegistry): void {
     options: [
       { flags: "-p, --project <project-id>", description: "Project id" },
       { flags: "--template <path>", description: "Project-relative template path" },
-      { flags: "--format <format>", description: "md|docx|pdf|epub" },
+      { flags: "--format <format>", description: "md|docx|pdf|epub|latex" },
       { flags: "--output <path>", description: "Explicit output path" },
       { flags: "--root <path>", description: "Workspace root path" }
     ],
@@ -33,7 +33,7 @@ export function registerTemplateExportCommand(registry: CommandRegistry): void {
         templatePath: readStringOption(context.options, "template"),
         format,
         explicitOutputPath: readStringOption(context.options, "output")
-          || path.join(project.distDir, "exports", `${project.id}.template.${format}`)
+          || path.join(project.distDir, "exports", `${project.id}.template.${format === "latex" ? "tex" : format}`)
       });
 
       writeText(`Template build markdown: ${result.markdownPath}`);

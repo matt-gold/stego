@@ -61,7 +61,7 @@ Markdown is a special-case export artifact. It stays on the deterministic defaul
 
 For presentation targets in advanced template mode, Stego selects the unique matching discovered template. If more than one discovered template supports the same presentation target, export fails with an ambiguity error until you pass `--template`.
 
-When layout fidelity matters, prefer docx, pdf, or epub.
+When layout fidelity matters, prefer docx, pdf, epub, or latex.
 
 For local images, keep files in `assets/`. Stego exports with project-aware resource paths so image references in the compiled manuscript can resolve during Pandoc conversion.
 

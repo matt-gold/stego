@@ -8,22 +8,18 @@ import type {
   ProjectMetadata,
   StegoTemplate,
   TemplateContext,
-  TemplateDefinitionOptions,
-  TemplateTypes
+  TemplateDefinitionOptions
 } from "./types.ts";
 
-type AnyTemplateTypes = TemplateTypes<LeafMetadata, BranchMetadata, ProjectMetadata, readonly PresentationTarget[] | null>;
-type LeafMetadataOf<TTypes extends AnyTemplateTypes> = TTypes["leafMetadata"];
-type BranchMetadataOf<TTypes extends AnyTemplateTypes> = TTypes["branchMetadata"];
-type ProjectMetadataOf<TTypes extends AnyTemplateTypes> = TTypes["projectMetadata"];
-
 export function defineTemplate<
-  TTypes extends AnyTemplateTypes = TemplateTypes
+  TLeafMetadata extends LeafMetadata = LeafMetadata,
+  TBranchMetadata extends BranchMetadata = BranchMetadata,
+  TProjectMetadata extends ProjectMetadata = ProjectMetadata
 >(
   render: (
-    context: TemplateContext<LeafMetadataOf<TTypes>, BranchMetadataOf<TTypes>, ProjectMetadataOf<TTypes>>
+    context: TemplateContext<TLeafMetadata, TBranchMetadata, TProjectMetadata>
   ) => StegoNode
-): StegoTemplate<LeafMetadataOf<TTypes>, BranchMetadataOf<TTypes>, ProjectMetadataOf<TTypes>>;
+): StegoTemplate<TLeafMetadata, TBranchMetadata, TProjectMetadata>;
 
 export function defineTemplate<
   const TTargets extends readonly PresentationTarget[],
@@ -37,21 +33,6 @@ export function defineTemplate<
     stego: StegoApi<TTargets[number]>
   ) => StegoNode
 ): StegoTemplate<TLeafMetadata, TBranchMetadata, TProjectMetadata, TTargets[number]>;
-
-export function defineTemplate<
-  TTypes extends AnyTemplateTypes & { targets: readonly PresentationTarget[] }
->(
-  options: TemplateDefinitionOptions<TTypes["targets"]>,
-  render: (
-    context: TemplateContext<LeafMetadataOf<TTypes>, BranchMetadataOf<TTypes>, ProjectMetadataOf<TTypes>>,
-    stego: StegoApi<TTypes["targets"][number]>
-  ) => StegoNode
-): StegoTemplate<
-  LeafMetadataOf<TTypes>,
-  BranchMetadataOf<TTypes>,
-  ProjectMetadataOf<TTypes>,
-  TTypes["targets"][number]
->;
 
 export function defineTemplate<
   TLeafMetadata extends LeafMetadata = LeafMetadata,
@@ -86,7 +67,7 @@ export function defineTemplate<
 
   const invalidTargets = rawTargets.filter((target) => !isPresentationTarget(target));
   if (invalidTargets.length > 0) {
-    throw new Error("Target-aware templates may only declare docx, pdf, or epub.");
+    throw new Error("Target-aware templates may only declare docx, pdf, epub, or latex.");
   }
 
   if (new Set(rawTargets).size !== rawTargets.length) {

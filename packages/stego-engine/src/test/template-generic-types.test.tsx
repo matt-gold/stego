@@ -3,8 +3,7 @@ import {
   Stego,
   type BranchRecord,
   type LeafRecord,
-  type TemplateContext,
-  type TemplateTypes
+  type TemplateContext
 } from "../template/index.ts";
 
 type ProjectMeta = {
@@ -23,10 +22,7 @@ type BranchMeta = {
   label?: string;
 };
 
-type LegacyTemplateTypes = TemplateTypes<LeafMeta, BranchMeta, ProjectMeta>;
-type PrintTemplateTypes = TemplateTypes<LeafMeta, BranchMeta, ProjectMeta, ["docx", "pdf"]>;
-
-const legacyTemplate = defineTemplate<LegacyTemplateTypes>((ctx) => {
+const legacyTemplate = defineTemplate((ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>) => {
   const firstLeaf = ctx.allLeaves[0];
   const firstBranchLeaf = ctx.content.branches[0]?.leaves[0];
   const chapter = firstLeaf?.metadata.chapter;
@@ -35,7 +31,7 @@ const legacyTemplate = defineTemplate<LegacyTemplateTypes>((ctx) => {
   const projectTitle = ctx.project.metadata.title;
 
   return (
-    <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
+    <Stego.Document page={{ size: "6x9", margin: "0.75in" }} fontFamily="Georgia" fontSize="12pt" lineSpacing={1.5} parSpaceBefore={0} parSpaceAfter={0}>
       <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
       <Stego.KeepTogether>
         <Stego.Heading level={1}>{projectTitle}</Stego.Heading>
@@ -46,30 +42,32 @@ const legacyTemplate = defineTemplate<LegacyTemplateTypes>((ctx) => {
   );
 });
 
-const printTemplate = defineTemplate<PrintTemplateTypes>(
-  { targets: ["docx", "pdf"] as const },
-  (ctx, PrintStego) => {
+const printTemplate = defineTemplate(
+  { targets: ["docx", "pdf", "latex"] },
+  (ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, PrintStego) => {
     const firstLeaf = ctx.allLeaves[0];
 
     return (
-      <PrintStego.Document page={{ size: "6x9", margin: "0.75in" }}>
+      <PrintStego.Document page={{ size: "letter", margin: "1in" }} fontFamily="Times New Roman" fontSize="12pt" lineSpacing={2}>
         <PrintStego.PageTemplate footer={{ right: <PrintStego.PageNumber /> }} />
+        <PrintStego.Section parSpaceBefore={0} parSpaceAfter={0}>
         <PrintStego.KeepTogether>
-          <PrintStego.Heading level={1} spaceAfter={18}>
+          <PrintStego.Heading level={1} spaceAfter={18} fontFamily="Georgia">
             {ctx.project.metadata.title}
           </PrintStego.Heading>
-          <PrintStego.Paragraph align="center" firstLineIndent="2em">
+          <PrintStego.Paragraph align="center" firstLineIndent="2em" lineSpacing={1.5}>
             {ctx.project.metadata.author ?? "Anonymous"}
           </PrintStego.Paragraph>
         </PrintStego.KeepTogether>
         {firstLeaf ? <PrintStego.Markdown leaf={firstLeaf} /> : null}
+        </PrintStego.Section>
       </PrintStego.Document>
     );
   }
 );
 
 const allPresentationTargetsTemplate = defineTemplate(
-  { targets: ["docx", "pdf", "epub"] as const },
+  { targets: ["docx", "pdf", "epub", "latex"] },
   (_ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, MultiTargetStego) => {
     // @ts-expect-error epub removes page-template support from the strict intersection
     MultiTargetStego.PageTemplate;
@@ -80,6 +78,12 @@ const allPresentationTargetsTemplate = defineTemplate(
     // @ts-expect-error epub removes align support from the strict intersection
     MultiTargetStego.Paragraph({ align: "center", children: "Body" });
 
+    // @ts-expect-error epub removes spacing defaults from the strict intersection
+    MultiTargetStego.Document({ parSpaceAfter: "12pt", children: [] });
+
+    // @ts-expect-error epub removes typography support from the strict intersection
+    MultiTargetStego.Document({ fontFamily: "Times New Roman", children: [] });
+
     return (
       <MultiTargetStego.Document>
         <MultiTargetStego.Paragraph>Portable body</MultiTargetStego.Paragraph>
@@ -89,7 +93,7 @@ const allPresentationTargetsTemplate = defineTemplate(
 );
 
 const epubTemplate = defineTemplate(
-  { targets: ["epub"] as const },
+  { targets: ["epub"] },
   (_ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, EpubStego) => {
     // @ts-expect-error epub-only templates do not expose page numbers
     EpubStego.PageNumber;
@@ -99,6 +103,12 @@ const epubTemplate = defineTemplate(
 
     // @ts-expect-error epub-only templates do not allow image alignment controls
     EpubStego.Image({ src: "cover.png", align: "center" });
+
+    // @ts-expect-error epub-only templates do not allow typography controls
+    EpubStego.Paragraph({ fontSize: "12pt", children: "EPUB body" });
+
+    // @ts-expect-error epub-only templates do not allow paragraph spacing defaults
+    EpubStego.Section({ parSpaceAfter: "12pt", children: [] });
 
     return (
       <EpubStego.Document>
@@ -177,6 +187,15 @@ const typedContext: TemplateContext<LeafMeta, BranchMeta, ProjectMeta> = {
 
 legacyTemplate.render(typedContext);
 printTemplate.render(typedContext);
+const latexTemplate = defineTemplate(
+  { targets: ["latex"] },
+  (_ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, LatexStego) => (
+    <LatexStego.Document fontFamily="Times New Roman">
+      <LatexStego.Paragraph>LATEX ONLY</LatexStego.Paragraph>
+    </LatexStego.Document>
+  )
+);
+latexTemplate.render(typedContext);
 allPresentationTargetsTemplate.render(typedContext);
 epubTemplate.render(typedContext);
 

@@ -1,5 +1,5 @@
 import type { ExportFormat } from "../types.ts";
-import type { DocxExportPostprocess } from "../types.ts";
+import type { DocxExportPostprocess, PdfExportPostprocess } from "../types.ts";
 import { isExportTarget } from "@stego-labs/shared/domain/templates";
 
 export interface ExportRunArgs {
@@ -12,6 +12,7 @@ export interface ExportRunArgs {
   extraArgs?: string[];
   postprocess?: {
     docx?: DocxExportPostprocess;
+    pdf?: PdfExportPostprocess;
   };
 }
 
@@ -35,5 +36,5 @@ export function parseExportFormat(value: string): ExportFormat {
   if (isExportTarget(value)) {
     return value;
   }
-  throw new Error(`Unsupported export format '${value}'. Use md, docx, pdf, or epub.`);
+  throw new Error(`Unsupported export format '${value}'. Use md, docx, pdf, epub, or latex.`);
 }

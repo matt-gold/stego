@@ -105,6 +105,8 @@ test("new-project creates scaffold and returns JSON envelope", () => {
     assert.equal(fs.existsSync(path.join(projectRoot, "content", "reference", "_branch.md")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "content", "manuscript", "100-hello-world.md")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "templates", "book.template.tsx")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "templates", "ebook.template.tsx")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "templates", "manuscript.template.tsx")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "content", "reference")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, ".vscode", "extensions.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, ".vscode", "settings.json")), false);
@@ -112,6 +114,15 @@ test("new-project creates scaffold and returns JSON envelope", () => {
     const templateSource = fs.readFileSync(path.join(projectRoot, "templates", "book.template.tsx"), "utf8");
     assert.doesNotMatch(templateSource, /kind:\s*"reference"/);
     assert.match(templateSource, /const chapterLeaves = ctx\.allLeaves\.filter\(\(leaf\) => leaf\.metadata\.kind !== "reference"\);/);
+    assert.match(templateSource, /\{ targets: \["docx", "pdf", "latex"\] \}/);
+
+    const ebookTemplateSource = fs.readFileSync(path.join(projectRoot, "templates", "ebook.template.tsx"), "utf8");
+    assert.match(ebookTemplateSource, /\{ targets: \["epub"\] \}/);
+
+    const manuscriptTemplateSource = fs.readFileSync(path.join(projectRoot, "templates", "manuscript.template.tsx"), "utf8");
+    assert.match(manuscriptTemplateSource, /\{ targets: \["docx"\] \}/);
+    assert.match(manuscriptTemplateSource, /fontFamily="Times New Roman"/);
+    assert.match(manuscriptTemplateSource, /lineSpacing=\{2\}/);
 
     const projectJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "stego-project.json"), "utf8"));
     assert.equal("compileStructure" in projectJson, false);

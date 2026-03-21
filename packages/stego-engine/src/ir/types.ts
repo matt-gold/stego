@@ -1,9 +1,13 @@
 export type AlignValue = "left" | "center" | "right";
-export type PageSizeValue = "5x8" | "6x9" | "a5";
+export type PageSizeValue = "5x8" | "6x9" | "a5" | "letter";
 export type SpacingValue = number | `${number}pt` | `${number}in`;
 export type SizeValue = number | `${number}%` | `${number}pt` | `${number}in`;
 export type InsetValue = SpacingValue;
 export type IndentValue = number | `${number}pt` | `${number}in` | `${number}em`;
+export type CommonFontFamily = "Times New Roman" | "Courier New" | "Arial" | "Georgia";
+export type FontFamilyValue = CommonFontFamily | (string & {});
+export type FontSizeValue = number | `${number}pt`;
+export type LineSpacingValue = number;
 
 export type PageRegionSpec = {
   left?: StegoNode;
@@ -23,6 +27,9 @@ export type StegoNode =
   | StegoSectionNode
   | StegoHeadingNode
   | StegoParagraphNode
+  | StegoMarkdownParagraphNode
+  | StegoMarkdownHeadingNode
+  | StegoMarkdownBlockNode
   | StegoMarkdownNode
   | StegoPlainTextNode
   | StegoImageNode
@@ -37,6 +44,11 @@ export type StegoInlineNode = StegoTextNode | StegoLinkNode;
 export type StegoDocumentNode = {
   kind: "document";
   page?: PageSpec;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+  parSpaceBefore?: SpacingValue;
+  parSpaceAfter?: SpacingValue;
   children: StegoNode[];
 };
 
@@ -56,10 +68,15 @@ export type StegoSectionNode = {
   id?: string;
   spaceBefore?: SpacingValue;
   spaceAfter?: SpacingValue;
+  parSpaceBefore?: SpacingValue;
+  parSpaceAfter?: SpacingValue;
   insetLeft?: InsetValue;
   insetRight?: InsetValue;
   firstLineIndent?: IndentValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
   children: StegoNode[];
 };
 
@@ -71,6 +88,9 @@ export type StegoHeadingNode = {
   insetLeft?: InsetValue;
   insetRight?: InsetValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
   children: StegoInlineNode[];
 };
 
@@ -82,7 +102,35 @@ export type StegoParagraphNode = {
   insetRight?: InsetValue;
   firstLineIndent?: IndentValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
   children: StegoInlineNode[];
+};
+
+export type StegoMarkdownParagraphNode = {
+  kind: "markdownParagraph";
+  source: string;
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+};
+
+export type StegoMarkdownHeadingNode = {
+  kind: "markdownHeading";
+  level: 1 | 2 | 3 | 4 | 5 | 6;
+  source: string;
+  anchorId?: string;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+};
+
+export type StegoMarkdownBlockNode = {
+  kind: "markdownBlock";
+  source: string;
 };
 
 export type StegoMarkdownNode = {

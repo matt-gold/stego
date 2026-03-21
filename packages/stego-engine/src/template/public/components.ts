@@ -13,8 +13,11 @@ import {
   createParagraphNode,
   createSectionNode,
   type AlignValue,
+  type FontFamilyValue,
+  type FontSizeValue,
   type IndentValue,
   type InsetValue,
+  type LineSpacingValue,
   type PageRegionSpec,
   type PageSpec,
   type SizeValue,
@@ -42,6 +45,11 @@ import { normalizeChildren, normalizeInlineChildren } from "../internal/normaliz
 
 export type DocumentProps = {
   page?: PageSpec;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+  parSpaceBefore?: SpacingValue;
+  parSpaceAfter?: SpacingValue;
   children?: unknown;
 };
 
@@ -50,10 +58,15 @@ export type SectionProps = {
   id?: string;
   spaceBefore?: SpacingValue;
   spaceAfter?: SpacingValue;
+  parSpaceBefore?: SpacingValue;
+  parSpaceAfter?: SpacingValue;
   insetLeft?: InsetValue;
   insetRight?: InsetValue;
   firstLineIndent?: IndentValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
   children?: unknown;
 };
 
@@ -64,6 +77,9 @@ export type HeadingProps = {
   insetLeft?: InsetValue;
   insetRight?: InsetValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
   children?: unknown;
 };
 
@@ -74,6 +90,9 @@ export type ParagraphProps = {
   insetRight?: InsetValue;
   firstLineIndent?: IndentValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
   children?: unknown;
 };
 
@@ -99,9 +118,20 @@ type GatedProps<
   ? TProps
   : { [TKey in keyof TProps]?: never };
 
+type NarrowTypographyProps<TTargets extends PresentationTarget> = GatedProps<TTargets, "typography", {
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+}>;
+
 type NarrowDocumentProps<TTargets extends PresentationTarget> = {
   children?: unknown;
-} & GatedProps<TTargets, "pageLayout", { page?: PageSpec }>;
+} & GatedProps<TTargets, "pageLayout", { page?: PageSpec }>
+  & GatedProps<TTargets, "spacing", {
+    parSpaceBefore?: SpacingValue;
+    parSpaceAfter?: SpacingValue;
+  }>
+  & NarrowTypographyProps<TTargets>;
 
 type NarrowSectionProps<TTargets extends PresentationTarget> = {
   role?: StegoSectionNode["role"];
@@ -110,6 +140,8 @@ type NarrowSectionProps<TTargets extends PresentationTarget> = {
 } & GatedProps<TTargets, "spacing", {
   spaceBefore?: SpacingValue;
   spaceAfter?: SpacingValue;
+  parSpaceBefore?: SpacingValue;
+  parSpaceAfter?: SpacingValue;
 }> & GatedProps<TTargets, "inset", {
   insetLeft?: InsetValue;
   insetRight?: InsetValue;
@@ -117,7 +149,7 @@ type NarrowSectionProps<TTargets extends PresentationTarget> = {
   firstLineIndent?: IndentValue;
 }> & GatedProps<TTargets, "align", {
   align?: AlignValue;
-}>;
+}> & NarrowTypographyProps<TTargets>;
 
 type NarrowHeadingProps<TTargets extends PresentationTarget> = {
   level: StegoHeadingNode["level"];
@@ -130,7 +162,7 @@ type NarrowHeadingProps<TTargets extends PresentationTarget> = {
   insetRight?: InsetValue;
 }> & GatedProps<TTargets, "align", {
   align?: AlignValue;
-}>;
+}> & NarrowTypographyProps<TTargets>;
 
 type NarrowParagraphProps<TTargets extends PresentationTarget> = {
   children?: unknown;
@@ -144,7 +176,7 @@ type NarrowParagraphProps<TTargets extends PresentationTarget> = {
   firstLineIndent?: IndentValue;
 }> & GatedProps<TTargets, "align", {
   align?: AlignValue;
-}>;
+}> & NarrowTypographyProps<TTargets>;
 
 type NarrowImageProps<TTargets extends PresentationTarget> = {
   src: string;
@@ -190,7 +222,13 @@ export type StegoApi<TTargets extends PresentationTarget> = {
   & MaybeComponent<"PageNumber", TTargets, "pageNumber", typeof PageNumber>;
 
 export function Document(props: DocumentProps): StegoDocumentNode {
-  return createDocumentNode(props.page, normalizeChildren(props.children));
+  return createDocumentNode(props.page, normalizeChildren(props.children), {
+    fontFamily: props.fontFamily,
+    fontSize: props.fontSize,
+    lineSpacing: props.lineSpacing,
+    parSpaceBefore: props.parSpaceBefore,
+    parSpaceAfter: props.parSpaceAfter
+  });
 }
 
 export function Fragment(props: { children?: unknown }): StegoFragmentNode {

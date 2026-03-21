@@ -1,5 +1,5 @@
 import type { ProjectContext } from "../project/index.ts";
-import type { DocxBlockLayoutSpec } from "@stego-labs/shared/domain/layout";
+import type { DocxBlockLayoutSpec, DocxDocumentStyleSpec } from "@stego-labs/shared/domain/layout";
 import type { ExportTarget } from "@stego-labs/shared/domain/templates";
 
 export type ExportModuleName = "export";
@@ -17,6 +17,7 @@ export type RunExportInput = {
   extraArgs?: string[];
   postprocess?: {
     docx?: DocxExportPostprocess;
+    pdf?: PdfExportPostprocess;
   };
 };
 
@@ -27,4 +28,9 @@ export type RunExportResult = {
 
 export type DocxExportPostprocess = {
   blockLayouts?: DocxBlockLayoutSpec[];
+  documentStyle?: DocxDocumentStyleSpec;
+};
+
+export type PdfExportPostprocess = {
+  requiresXelatex?: boolean;
 };

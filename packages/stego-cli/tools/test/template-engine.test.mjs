@@ -169,7 +169,7 @@ test("template build fails with missing template guidance", () => {
   }
 });
 
-test("template export writes docx and pdf through pandoc stub", () => {
+test("template export writes docx, latex, and pdf through the shared pandoc path", () => {
   const projectId = `template-export-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId);
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-template-pandoc-"));
@@ -225,6 +225,15 @@ fi
       true
     );
 
+    const latex = runCli(["template", "export", "--project", projectId, "--format", "latex"], {
+      env: { PATH: `${tempDir}:${process.env.PATH || ""}` }
+    });
+    assert.equal(latex.status, 0, `${latex.stdout}\n${latex.stderr}`);
+    assert.equal(
+      fs.existsSync(path.join(projectRoot, "dist", "exports", `${projectId}.template.tex`)),
+      true
+    );
+
     const pdf = runCli(["template", "export", "--project", projectId, "--format", "pdf"], {
       env: { PATH: `${tempDir}:${process.env.PATH || ""}` }
     });
@@ -245,6 +254,112 @@ fi
     assert.equal(luaFilters.length >= 2, true, "Expected template export lua filters");
     assert.ok(luaFilters.some((value) => /filters[\\/]+image-layout\.lua$/.test(value)), "Expected image-layout filter");
     assert.ok(luaFilters.some((value) => /filters[\\/]+block-layout\.lua$/.test(value)), "Expected block-layout filter");
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("template export requires xelatex when the template requests a font family", () => {
+  const projectId = `template-export-fonts-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(projectId);
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-template-pandoc-fonts-"));
+  const argsPath = path.join(tempDir, "pandoc-args.txt");
+  const fakePandocPath = path.join(tempDir, "pandoc");
+  const fakeXelatexPath = path.join(tempDir, "xelatex");
+
+  writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego-labs/engine";
+export default defineTemplate((ctx) => (
+  <Stego.Document page={{ size: "letter", margin: "1in" }} fontFamily="Times New Roman" fontSize="12pt" lineSpacing={2}>
+    {ctx.allLeaves.map((leaf) => (
+      <Stego.Section firstLineIndent="0.5in">
+        <Stego.Markdown leaf={leaf} />
+      </Stego.Section>
+    ))}
+  </Stego.Document>
+));
+`);
+
+  writeFile(fakeXelatexPath, "#!/usr/bin/env bash\nexit 0\n");
+  fs.chmodSync(fakeXelatexPath, 0o755);
+  writeFile(fakePandocPath, `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "pandoc 3.0"
+  exit 0
+fi
+printf '%s\n' "$@" > "${argsPath}"
+out=""
+while [[ "$#" -gt 0 ]]; do
+  if [[ "$1" == "-o" && "$#" -gt 1 ]]; then
+    out="$2"
+    shift 2
+    continue
+  fi
+  shift
+done
+if [[ -n "$out" ]]; then
+  mkdir -p "$(dirname "$out")"
+  : > "$out"
+fi
+`);
+  fs.chmodSync(fakePandocPath, 0o755);
+
+  try {
+    const pdf = runCli(["template", "export", "--project", projectId, "--format", "pdf"], {
+      env: { PATH: `${tempDir}:${process.env.PATH || ""}` }
+    });
+    assert.equal(pdf.status, 0, `${pdf.stdout}\n${pdf.stderr}`);
+
+    const recordedArgs = fs.readFileSync(argsPath, "utf8").split(/\r?\n/).filter(Boolean);
+    assert.ok(recordedArgs.includes("--pdf-engine=xelatex"), "Expected xelatex PDF engine for font-aware templates");
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("template export fails clearly when xelatex is missing for font-aware pdf export", () => {
+  const projectId = `template-export-fonts-missing-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(projectId);
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-template-pandoc-fonts-missing-"));
+  const fakePandocPath = path.join(tempDir, "pandoc");
+  const fakeWhichPath = path.join(tempDir, "which");
+
+  writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego-labs/engine";
+export default defineTemplate((ctx) => (
+  <Stego.Document page={{ size: "letter", margin: "1in" }} fontFamily="Times New Roman">
+    {ctx.allLeaves.map((leaf) => (
+      <Stego.Markdown leaf={leaf} />
+    ))}
+  </Stego.Document>
+));
+`);
+
+  writeFile(fakePandocPath, `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "pandoc 3.0"
+  exit 0
+fi
+exit 1
+`);
+  fs.chmodSync(fakePandocPath, 0o755);
+  writeFile(fakeWhichPath, `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "xelatex" ]]; then
+  exit 1
+fi
+command -v "$1"
+`);
+  fs.chmodSync(fakeWhichPath, 0o755);
+
+  try {
+    const pdf = runCli(["template", "export", "--project", projectId, "--format", "pdf"], {
+      env: { PATH: `${tempDir}:${process.env.PATH || ""}` }
+    });
+    assert.equal(pdf.status, 1, `${pdf.stdout}\n${pdf.stderr}`);
+    assert.match(`${pdf.stdout}\n${pdf.stderr}`, /requires xelatex/i);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
     fs.rmSync(tempDir, { recursive: true, force: true });

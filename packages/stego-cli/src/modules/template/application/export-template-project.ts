@@ -75,7 +75,7 @@ function writeTempMetadataFile(metadata: Record<string, unknown>): string {
 function normalizeExportTarget(value: string): ExportTarget {
   const normalized = value.trim().toLowerCase();
   if (!isExportTarget(normalized)) {
-    throw new CliError("INVALID_USAGE", `Unsupported export format '${value}'. Use md, docx, pdf, or epub.`);
+    throw new CliError("INVALID_USAGE", `Unsupported export format '${value}'. Use md, docx, pdf, epub, or latex.`);
   }
   return normalized;
 }
