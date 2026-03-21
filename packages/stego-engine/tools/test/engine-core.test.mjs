@@ -70,6 +70,9 @@ test("target-aware templates reject unsupported runtime capabilities", () => {
   const template = engine.defineTemplate(
     { targets: ["epub"] },
     (_ctx, NarrowStego) => NarrowStego.Document({
+      bodyStyle: {
+        fontFamily: "Times New Roman"
+      },
       children: [
         engine.Stego.PageTemplate({
           footer: { right: engine.Stego.PageNumber() }
@@ -84,6 +87,41 @@ test("target-aware templates reject unsupported runtime capabilities", () => {
     allLeaves: [],
     allBranches: []
   }), /declared targets \(epub\) do not all support/i);
+});
+
+test("target-aware templates reject invalid heading colors", () => {
+  const template = engine.defineTemplate(
+    { targets: ["docx", "pdf"] },
+    (_ctx, PrintStego) => PrintStego.Document({
+      headingStyle: {
+        color: "red"
+      },
+      children: [PrintStego.Heading({ level: 1, children: "Body" })]
+    })
+  );
+
+  assert.throws(() => engine.evaluateTemplate(template, {
+    project: { id: "demo", root: "/tmp/demo", metadata: {} },
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: []
+  }), /hex color/i);
+});
+
+test("defineTemplate accepts latex as a presentation target", () => {
+  const template = engine.defineTemplate(
+    { targets: ["latex"] },
+    (_ctx, LatexStego) => LatexStego.Document({ children: [LatexStego.Paragraph({ children: "Body" })] })
+  );
+
+  const document = engine.evaluateTemplate(template, {
+    project: { id: "demo", root: "/tmp/demo", metadata: {} },
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: []
+  });
+
+  assert.equal(document.kind, "document");
 });
 
 test("defineTemplate rejects empty and duplicate target declarations", () => {
@@ -175,7 +213,18 @@ export default defineTemplate((ctx) => (
 
 test("renderDocument emits keep-together, layout, footer page-number metadata, and image attrs", () => {
   const document = engine.Stego.Document({
-    page: { size: "6x9", margin: "0.75in" },
+    page: { size: "letter", margin: "1in" },
+    bodyStyle: {
+      fontFamily: "Times New Roman",
+      fontSize: "12pt",
+      lineSpacing: 2,
+      spaceBefore: 0,
+      spaceAfter: 0,
+    },
+    headingStyle: {
+      color: "#333333",
+      fontWeight: "normal"
+    },
     children: [
       engine.Stego.PageTemplate({ footer: { right: engine.Stego.PageNumber() } }),
       engine.Stego.PageBreak(),
@@ -186,14 +235,26 @@ test("renderDocument emits keep-together, layout, footer page-number metadata, a
         ]
       }),
       engine.Stego.Section({
-        insetLeft: "24pt",
-        insetRight: "24pt",
-        spaceBefore: 18,
-        spaceAfter: 12,
-        firstLineIndent: "1.5em",
+        bodyStyle: {
+          insetLeft: "24pt",
+          insetRight: "24pt",
+          spaceBefore: 18,
+          spaceAfter: 12,
+          firstLineIndent: "1.5em",
+          lineSpacing: 1.5,
+        },
+        headingStyles: {
+          2: {
+            spaceBefore: 24,
+            spaceAfter: 18,
+            fontFamily: "Georgia",
+            underline: true,
+          }
+        },
         children: [
-          engine.Stego.Heading({ level: 2, spaceBefore: 24, spaceAfter: 18, children: "Inset heading" }),
-          engine.Stego.Paragraph({ align: "center", firstLineIndent: "2em", children: "Inset paragraph" })
+          engine.Stego.Heading({ level: 2, children: "Inset heading" }),
+          engine.Stego.Paragraph({ children: "Section body paragraph" }),
+          engine.Stego.Paragraph({ align: "center", firstLineIndent: "2em", fontSize: "11pt", children: "Inset paragraph" })
         ]
       }),
       engine.Stego.Image({
@@ -216,8 +277,14 @@ test("renderDocument emits keep-together, layout, footer page-number metadata, a
       allBranches: []
     }
   });
-  assert.equal(rendered.backend, "pandoc");
+  assert.equal(rendered.backend, "pandoc-latex");
   assert.equal(rendered.inputFormat, "markdown-implicit_figures");
+  assert.deepEqual(rendered.metadata.geometry, ["paper=letterpaper", "margin=1in"]);
+  assert.equal(rendered.metadata.mainfont, "Times New Roman");
+  assert.equal(rendered.metadata.fontsize, "12pt");
+  assert.ok(Array.isArray(rendered.metadata["header-includes"]));
+  assert.equal(rendered.metadata["header-includes"].some((entry) => entry.includes("\\usepackage{setspace}")), true);
+  assert.equal(rendered.metadata["header-includes"].some((entry) => entry.includes("\\setstretch{2}")), true);
   assert.match(rendered.markdown, /data-page-break=true/);
   assert.match(rendered.markdown, /data-keep-together=true/);
   assert.match(rendered.markdown, /data-space-before=18pt/);
@@ -226,23 +293,140 @@ test("renderDocument emits keep-together, layout, footer page-number metadata, a
   assert.match(rendered.markdown, /data-inset-right=24pt/);
   assert.match(rendered.markdown, /data-first-line-indent=1.5em/);
   assert.match(rendered.markdown, /data-first-line-indent=2em/);
+  assert.match(rendered.markdown, /data-line-spacing=1.5/);
+  assert.match(rendered.markdown, /data-font-family="Georgia"/);
+  assert.match(rendered.markdown, /data-font-size=11pt/);
+  assert.match(rendered.markdown, /data-font-weight=normal/);
+  assert.match(rendered.markdown, /data-underline=true/);
+  assert.match(rendered.markdown, /data-color="#333333"/);
   assert.match(rendered.markdown, /data-layout=block/);
   assert.deepEqual(rendered.requiredFilters, ["image-layout", "block-layout"]);
   assert.equal(Array.isArray(rendered.postprocess.docx.blockLayouts), true);
   assert.equal(rendered.postprocess.docx.blockLayouts.length >= 4, true);
+  assert.deepEqual(rendered.postprocess.docx.documentStyle, {
+    fontFamily: "Times New Roman",
+    fontSizePt: 12,
+    lineSpacing: 2,
+    spaceBefore: "0pt",
+    spaceAfter: "0pt"
+  });
   assert.equal(rendered.postprocess.docx.blockLayouts.some((entry) => entry.keepTogether === true), true);
   assert.equal(
-    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceBefore === "18pt" && entry.firstLineIndent === "1.5em"),
+    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceBefore === "18pt" && entry.firstLineIndent === "1.5em" && entry.lineSpacing === 1.5),
     true
   );
   assert.equal(
-    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceBefore === "24pt" && entry.spaceAfter === "18pt"),
+    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceBefore === "24pt" && entry.spaceAfter === "18pt" && entry.fontFamily === "Georgia" && entry.underline === true),
     true
   );
   assert.equal(
-    rendered.postprocess.docx.blockLayouts.some((entry) => entry.align === "center" && !entry.spaceBefore && !entry.keepTogether),
+    rendered.postprocess.docx.blockLayouts.some((entry) =>
+      entry.align === "center"
+      && entry.fontSizePt === 11
+      && entry.spaceBefore === "18pt"
+      && entry.insetLeft === "24pt"
+      && entry.firstLineIndent === "2em"
+    ),
     true
   );
   assert.equal(rendered.postprocess.docx.blockLayouts.some((entry) => entry.pageBreak === true), true);
-  assert.ok(Array.isArray(rendered.metadata["header-includes"]));
+  assert.equal(rendered.postprocess.pdf.requiresXelatex, true);
+});
+
+test("renderDocument turns markdown into block IR and applies section paragraph defaults", () => {
+  const document = engine.Stego.Document({
+    children: [
+      engine.Stego.Section({
+        bodyStyle: {
+          spaceAfter: "12pt"
+        },
+        children: [
+          engine.Stego.Markdown({
+            source: `# Heading
+
+First paragraph with *markdown*.
+
+- item one
+- item two
+
+Second paragraph.`
+          })
+        ]
+      })
+    ]
+  });
+
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: []
+    }
+  });
+
+  assert.match(rendered.markdown, /# Heading/);
+  assert.match(rendered.markdown, /data-space-after=12pt/);
+  assert.match(rendered.markdown, /First paragraph with \*markdown\*\./);
+  assert.match(rendered.markdown, /- item one/);
+  assert.match(rendered.markdown, /Second paragraph\./);
+  assert.equal(
+    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceAfter === "12pt"),
+    true
+  );
+});
+
+test("renderDocument resolves grouped heading and body styles for markdown and explicit blocks", () => {
+  const document = engine.Stego.Document({
+    bodyStyle: {
+      fontFamily: "Times New Roman",
+      fontSize: "12pt",
+      lineSpacing: 2,
+      spaceAfter: "6pt",
+    },
+    headingStyle: {
+      fontWeight: "bold",
+      color: "#222222",
+    },
+    headingStyles: {
+      1: { spaceAfter: "18pt" }
+    },
+    children: [
+      engine.Stego.Section({
+        bodyStyle: {
+          spaceAfter: "12pt",
+          firstLineIndent: "0.5in",
+        },
+        headingStyles: {
+          1: {
+            fontWeight: "normal",
+            underline: true,
+          }
+        },
+        children: [
+          engine.Stego.Heading({ level: 1, children: "Explicit heading" }),
+          engine.Stego.Markdown({ source: "# Markdown heading\n\nBody paragraph." }),
+        ]
+      })
+    ]
+  });
+
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: []
+    }
+  });
+
+  assert.match(rendered.markdown, /data-font-weight=normal/);
+  assert.match(rendered.markdown, /data-underline=true/);
+  assert.match(rendered.markdown, /data-color="#222222"/);
+  assert.match(rendered.markdown, /data-first-line-indent=0.5in/);
+  assert.match(rendered.markdown, /data-space-after=12pt/);
 });

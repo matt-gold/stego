@@ -1,9 +1,46 @@
 export type AlignValue = "left" | "center" | "right";
-export type PageSizeValue = "5x8" | "6x9" | "a5";
+export type PageSizeValue = "5x8" | "6x9" | "a5" | "letter";
 export type SpacingValue = number | `${number}pt` | `${number}in`;
 export type SizeValue = number | `${number}%` | `${number}pt` | `${number}in`;
 export type InsetValue = SpacingValue;
 export type IndentValue = number | `${number}pt` | `${number}in` | `${number}em`;
+export type CommonFontFamily = "Times New Roman" | "Courier New" | "Arial" | "Georgia";
+export type FontFamilyValue = CommonFontFamily | (string & {});
+export type FontSizeValue = number | `${number}pt`;
+export type LineSpacingValue = number;
+export type FontWeightValue = "normal" | "bold";
+export type ColorValue = `#${string}`;
+export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
+
+export type BodyStyle = {
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+  firstLineIndent?: IndentValue;
+  align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+};
+
+export type HeadingStyle = {
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+  align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+  fontWeight?: FontWeightValue;
+  italic?: boolean;
+  underline?: boolean;
+  smallCaps?: boolean;
+  color?: ColorValue;
+};
+
+export type HeadingStyleMap = Partial<Record<HeadingLevel, HeadingStyle>>;
 
 export type PageRegionSpec = {
   left?: StegoNode;
@@ -23,6 +60,9 @@ export type StegoNode =
   | StegoSectionNode
   | StegoHeadingNode
   | StegoParagraphNode
+  | StegoMarkdownParagraphNode
+  | StegoMarkdownHeadingNode
+  | StegoMarkdownBlockNode
   | StegoMarkdownNode
   | StegoPlainTextNode
   | StegoImageNode
@@ -37,6 +77,9 @@ export type StegoInlineNode = StegoTextNode | StegoLinkNode;
 export type StegoDocumentNode = {
   kind: "document";
   page?: PageSpec;
+  bodyStyle?: BodyStyle;
+  headingStyle?: HeadingStyle;
+  headingStyles?: HeadingStyleMap;
   children: StegoNode[];
 };
 
@@ -54,23 +97,28 @@ export type StegoSectionNode = {
   kind: "section";
   role?: "frontmatter" | "body" | "backmatter" | "chapter" | "appendix";
   id?: string;
-  spaceBefore?: SpacingValue;
-  spaceAfter?: SpacingValue;
-  insetLeft?: InsetValue;
-  insetRight?: InsetValue;
-  firstLineIndent?: IndentValue;
-  align?: AlignValue;
+  bodyStyle?: BodyStyle;
+  headingStyle?: HeadingStyle;
+  headingStyles?: HeadingStyleMap;
   children: StegoNode[];
 };
 
 export type StegoHeadingNode = {
   kind: "heading";
-  level: 1 | 2 | 3 | 4 | 5 | 6;
+  level: HeadingLevel;
   spaceBefore?: SpacingValue;
   spaceAfter?: SpacingValue;
   insetLeft?: InsetValue;
   insetRight?: InsetValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+  fontWeight?: FontWeightValue;
+  italic?: boolean;
+  underline?: boolean;
+  smallCaps?: boolean;
+  color?: ColorValue;
   children: StegoInlineNode[];
 };
 
@@ -82,7 +130,49 @@ export type StegoParagraphNode = {
   insetRight?: InsetValue;
   firstLineIndent?: IndentValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
   children: StegoInlineNode[];
+};
+
+export type StegoMarkdownParagraphNode = {
+  kind: "markdownParagraph";
+  source: string;
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+  firstLineIndent?: IndentValue;
+  align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+};
+
+export type StegoMarkdownHeadingNode = {
+  kind: "markdownHeading";
+  level: HeadingLevel;
+  source: string;
+  anchorId?: string;
+  spaceBefore?: SpacingValue;
+  spaceAfter?: SpacingValue;
+  insetLeft?: InsetValue;
+  insetRight?: InsetValue;
+  align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+  fontWeight?: FontWeightValue;
+  italic?: boolean;
+  underline?: boolean;
+  smallCaps?: boolean;
+  color?: ColorValue;
+};
+
+export type StegoMarkdownBlockNode = {
+  kind: "markdownBlock";
+  source: string;
 };
 
 export type StegoMarkdownNode = {

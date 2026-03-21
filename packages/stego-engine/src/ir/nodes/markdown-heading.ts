@@ -1,40 +1,52 @@
 import type {
   AlignValue,
+  ColorValue,
   FontFamilyValue,
   FontSizeValue,
-  IndentValue,
+  FontWeightValue,
   InsetValue,
   LineSpacingValue,
   SpacingValue,
-  StegoInlineNode,
-  StegoParagraphNode
+  StegoMarkdownHeadingNode
 } from "../types.ts";
 
-export function createParagraphNode(
+export function createMarkdownHeadingNode(
+  level: StegoMarkdownHeadingNode["level"],
+  source: string,
+  anchorId?: string,
   props: {
     spaceBefore?: SpacingValue;
     spaceAfter?: SpacingValue;
     insetLeft?: InsetValue;
     insetRight?: InsetValue;
-    firstLineIndent?: IndentValue;
     align?: AlignValue;
     fontFamily?: FontFamilyValue;
     fontSize?: FontSizeValue;
     lineSpacing?: LineSpacingValue;
-  },
-  children: StegoInlineNode[]
-): StegoParagraphNode {
+    fontWeight?: FontWeightValue;
+    italic?: boolean;
+    underline?: boolean;
+    smallCaps?: boolean;
+    color?: ColorValue;
+  } = {}
+): StegoMarkdownHeadingNode {
   return {
-    kind: "paragraph",
+    kind: "markdownHeading",
+    level,
+    source,
+    anchorId,
     spaceBefore: props.spaceBefore,
     spaceAfter: props.spaceAfter,
     insetLeft: props.insetLeft,
     insetRight: props.insetRight,
-    firstLineIndent: props.firstLineIndent,
     align: props.align,
     fontFamily: props.fontFamily,
     fontSize: props.fontSize,
     lineSpacing: props.lineSpacing,
-    children
+    fontWeight: props.fontWeight,
+    italic: props.italic,
+    underline: props.underline,
+    smallCaps: props.smallCaps,
+    color: props.color
   };
 }

@@ -74,6 +74,11 @@ export function getSidebarFileTitle(documentPath: string, preferredTitle?: strin
 
   const extensionIndex = filename.lastIndexOf('.');
   const stem = extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename;
+  if (stem === '_branch') {
+    const parentName = path.basename(path.dirname(documentPath || ''));
+    return { title: parentName || filename, filename };
+  }
+
   const match = stem.match(/^\d+-([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)$/);
   if (!match) {
     return { title: filename, filename };

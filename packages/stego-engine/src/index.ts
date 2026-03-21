@@ -14,7 +14,6 @@ export type {
   TemplateContext,
   StegoTemplate,
   TemplateDefinitionOptions,
-  TemplateTypes,
   StegoApi
 } from "./template/index.ts";
 export { compileProject, buildTemplateContext } from "./compile/index.ts";

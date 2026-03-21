@@ -4,7 +4,6 @@ import { END_SENTINEL, START_SENTINEL } from '@stego-labs/shared/domain/comments
 import { METADATA_VIEW_ID } from './shared/constants';
 import {
   runInsertImageWorkflow,
-  maybeAutoFoldFrontmatter,
   runLocalValidateWorkflow,
   runNewManuscriptWorkflow,
   runNewProjectWorkflow,
@@ -225,9 +224,6 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidOpenTextDocument((document) => {
       void refreshDiagnosticsForDocument(document, indexService, diagnostics);
-      if (document === vscode.window.activeTextEditor?.document) {
-        void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);
-      }
       void syncCommentStateAndTracker(document, false);
       commentDecorations.refreshVisibleEditors();
       void prewarmOverviewForDocument(document);
@@ -296,7 +292,6 @@ export function activate(context: vscode.ExtensionContext): void {
         indexService.clear();
         referenceUsageService.clear();
         void refreshVisibleMarkdownDocuments(indexService, diagnostics);
-        void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);
         const activeDoc = vscode.window.activeTextEditor?.document;
         const commentsEnabled = activeDoc
           ? getConfig('comments', activeDoc.uri).get<boolean>('enable', true) !== false
@@ -310,7 +305,6 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
-      void maybeAutoFoldFrontmatter(editor);
       if (editor?.document) {
         void syncCommentStateAndTracker(editor.document, false);
       }
@@ -331,7 +325,6 @@ export function activate(context: vscode.ExtensionContext): void {
   void prewarmVisibleProjectOverviews();
   void sidebarProvider.refresh();
   void refreshOpenModeContext();
-  void maybeAutoFoldFrontmatter(vscode.window.activeTextEditor);
   for (const editor of vscode.window.visibleTextEditors) {
     void syncCommentStateAndTracker(editor.document, false);
   }

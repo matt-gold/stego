@@ -6,11 +6,11 @@ import type {
   InsetValue,
   LineSpacingValue,
   SpacingValue,
-  StegoInlineNode,
-  StegoParagraphNode
+  StegoMarkdownParagraphNode
 } from "../types.ts";
 
-export function createParagraphNode(
+export function createMarkdownParagraphNode(
+  source: string,
   props: {
     spaceBefore?: SpacingValue;
     spaceAfter?: SpacingValue;
@@ -21,11 +21,11 @@ export function createParagraphNode(
     fontFamily?: FontFamilyValue;
     fontSize?: FontSizeValue;
     lineSpacing?: LineSpacingValue;
-  },
-  children: StegoInlineNode[]
-): StegoParagraphNode {
+  } = {}
+): StegoMarkdownParagraphNode {
   return {
-    kind: "paragraph",
+    kind: "markdownParagraph",
+    source,
     spaceBefore: props.spaceBefore,
     spaceAfter: props.spaceAfter,
     insetLeft: props.insetLeft,
@@ -34,7 +34,6 @@ export function createParagraphNode(
     align: props.align,
     fontFamily: props.fontFamily,
     fontSize: props.fontSize,
-    lineSpacing: props.lineSpacing,
-    children
+    lineSpacing: props.lineSpacing
   };
 }

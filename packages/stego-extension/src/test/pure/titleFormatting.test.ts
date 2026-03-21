@@ -14,10 +14,22 @@ test('getSidebarFileTitle falls back to filename when pattern does not match', (
   assert.equal(parsed.title, 'notes.md');
 });
 
+test('getSidebarFileTitle falls back to the branch directory name for _branch notes', () => {
+  const parsed = getSidebarFileTitle('/tmp/project/content/reference/characters/_branch.md');
+  assert.equal(parsed.title, 'characters');
+  assert.equal(parsed.filename, '_branch.md');
+});
+
 test('getSidebarFileTitle uses preferred title when provided', () => {
   const parsed = getSidebarFileTitle('/tmp/200-the-fall-of-rome.md', 'Custom Label');
   assert.equal(parsed.title, 'Custom Label');
   assert.equal(parsed.filename, '200-the-fall-of-rome.md');
+});
+
+test('getSidebarFileTitle prefers explicit branch labels over the directory fallback', () => {
+  const parsed = getSidebarFileTitle('/tmp/project/content/reference/characters/_branch.md', 'Characters');
+  assert.equal(parsed.title, 'Characters');
+  assert.equal(parsed.filename, '_branch.md');
 });
 
 test('getSidebarFileTitle ignores blank preferred title', () => {

@@ -82,7 +82,7 @@ Use `Stego.groupBy(...)` when you want bucketed summaries that ignore file-order
 Stego supports two lanes:
 
 - default lane: one simple `templates/book.template.tsx` using the broad `Stego` API
-- advanced template mode: multiple templates per project, auto-discovered from `templates/*.template.tsx`, with target declarations such as `defineTemplate({ targets: ["docx", "pdf"] as const }, ...)`
+- advanced template mode: multiple templates per project, auto-discovered from `templates/*.template.tsx`, with target declarations such as `defineTemplate({ targets: ["docx", "pdf"] }, (ctx: TemplateContext<...>, Stego) => ...)`
 
 ## Reference material
 

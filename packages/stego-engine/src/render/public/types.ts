@@ -1,4 +1,4 @@
-import type { DocxBlockLayoutSpec } from "@stego-labs/shared/domain/layout";
+import type { DocxBlockLayoutSpec, DocxDocumentStyleSpec } from "@stego-labs/shared/domain/layout";
 import type { StegoDocumentNode } from "../../ir/index.ts";
 import type { TemplateContext } from "../../template/index.ts";
 
@@ -9,7 +9,7 @@ export type RenderDocumentInput = {
 };
 
 export type RenderDocumentResult = {
-  backend: "pandoc";
+  backend: "pandoc-latex";
   inputFormat: string;
   markdown: string;
   metadata: Record<string, unknown>;
@@ -18,6 +18,10 @@ export type RenderDocumentResult = {
   postprocess: {
     docx: {
       blockLayouts: DocxBlockLayoutSpec[];
+      documentStyle?: DocxDocumentStyleSpec;
+    };
+    pdf?: {
+      requiresXelatex?: boolean;
     };
   };
 };

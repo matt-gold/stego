@@ -10,7 +10,7 @@ test('parseDeclaredTemplateTargets reads targets from defineTemplate options', (
     import { defineTemplate } from "@stego-labs/engine";
 
     export default defineTemplate(
-      { targets: ["docx", "pdf"] as const },
+      { targets: ["docx", "pdf"] },
       (_ctx, Stego) => <Stego.Document />
     );
   `;
@@ -20,18 +20,11 @@ test('parseDeclaredTemplateTargets reads targets from defineTemplate options', (
 
 test('parseDeclaredTemplateTargets reads targets from generic defineTemplate calls', () => {
   const source = `
-    import { defineTemplate, type TemplateTypes } from "@stego-labs/engine";
+    import { defineTemplate, type TemplateContext } from "@stego-labs/engine";
 
-    type PrintTemplate = TemplateTypes<
-      { id: string },
-      { label?: string },
-      { title?: string },
-      ["docx", "pdf"]
-    >;
-
-    export default defineTemplate<PrintTemplate>(
-      { targets: ["docx", "pdf"] as const },
-      (_ctx, Stego) => <Stego.Document />
+    export default defineTemplate(
+      { targets: ["docx", "pdf"] },
+      (_ctx: TemplateContext<{ id: string }, { label?: string }, { title?: string }>, Stego) => <Stego.Document />
     );
   `;
 
@@ -44,7 +37,7 @@ test('parseDeclaredTemplateTargets ignores unrelated targets arrays outside defi
     const metadata = "targets: [\\"docx\\"]";
 
     export default defineTemplate(
-      { targets: ["docx", "pdf"] as const },
+      { targets: ["docx", "pdf"] },
       (_ctx, Stego) => <Stego.Document />
     );
   `;
@@ -54,7 +47,20 @@ test('parseDeclaredTemplateTargets ignores unrelated targets arrays outside defi
 
 test('inferSupportedTemplateTargets keeps markdown lane for book templates', () => {
   assert.deepEqual(
-    inferSupportedTemplateTargets('book', ['docx', 'pdf']),
-    ['md', 'docx', 'pdf']
+    inferSupportedTemplateTargets('book', ['docx', 'pdf', 'latex']),
+    ['md', 'docx', 'pdf', 'latex']
   );
+});
+
+test('parseDeclaredTemplateTargets includes latex when declared', () => {
+  const source = `
+    import { defineTemplate } from "@stego-labs/engine";
+
+    export default defineTemplate(
+      { targets: ["pdf", "latex"] },
+      (_ctx, Stego) => <Stego.Document />
+    );
+  `;
+
+  assert.deepEqual(parseDeclaredTemplateTargets(source), ['pdf', 'latex']);
 });

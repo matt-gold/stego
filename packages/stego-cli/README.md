@@ -75,7 +75,7 @@ Current behavior:
 - templates import `defineTemplate` and `Stego` from `@stego-labs/engine`
 - the engine loads ordered leaves from `content/`
 - default projects can stay on `defineTemplate((ctx) => ...)` and export to `md`, `docx`, `pdf`, and `epub` without extra configuration
-- advanced template mode is opt-in: `defineTemplate({ targets: [...] }, (ctx, Stego) => ...)` narrows the Stego API to the strict intersection of those presentation targets
+- advanced template mode is opt-in: `defineTemplate({ targets: [...] }, (ctx: TemplateContext<...>, Stego) => ...)` narrows the Stego API to the strict intersection of those presentation targets
 - advanced template mode supports multiple templates per project through auto-discovery in `templates/`
 - template export supports `md`, `docx`, `pdf`, and `epub`
 - `md` is the low-fidelity compiled/debug artifact: useful for inspection, diffing, and portable handoff, but not a full presentation-fidelity target for all Stego layout primitives
@@ -88,13 +88,13 @@ Current behavior:
 Default projects keep the low-friction path:
 
 - `stego build` compiles the default `book.template.tsx`
-- `stego export --format md|docx|pdf|epub` uses that same default template
+- `stego export --format md|docx|pdf|epub|latex` uses that same default template
 
 Advanced template mode is for sophisticated projects that want target-aware templates, multiple templates per project, or a narrowed Stego API:
 
 - Stego auto-discovers `templates/*.template.tsx`
 - `stego build` compiles every discovered template once and writes per-template markdown/render-plan artifacts
-- `stego export --format docx|pdf|epub` chooses the unique matching discovered template
+- `stego export --format docx|pdf|epub|latex` chooses the unique matching discovered template
 - if more than one discovered template supports the same presentation target, export fails with an ambiguity error until you pass `--template`
 - `stego template build` and `stego template export` remain the direct single-template debug/bypass commands
 
@@ -144,9 +144,9 @@ validate --project|-p <project-id> [--file <project-relative-content-path>] [--r
 build --project|-p <project-id> [--template <path>] [--root <path>]
 check-stage --project|-p <project-id> --stage <draft|revise|line-edit|proof|final> [--file <project-relative-content-path>] [--root <path>]
 lint --project|-p <project-id> [--manuscript|--notes] [--root <path>]
-export --project|-p <project-id> --format <md|docx|pdf|epub> [--template <path>] [--output <path>] [--root <path>]
+export --project|-p <project-id> --format <md|docx|pdf|epub|latex> [--template <path>] [--output <path>] [--root <path>]
 template build --project|-p <project-id> [--template <path>] [--root <path>]
-template export --project|-p <project-id> --format <md|docx|pdf|epub> [--template <path>] [--output <path>] [--root <path>]
+template export --project|-p <project-id> --format <md|docx|pdf|epub|latex> [--template <path>] [--output <path>] [--root <path>]
 metadata read <markdown-path> [--format <text|json>]
 metadata apply <markdown-path> --input <path|-> [--format <text|json>]
 comments read <markdown-path> [--format <text|json>]

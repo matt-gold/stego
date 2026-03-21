@@ -161,7 +161,7 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
       }
     }
 
-    for (const target of ["docx", "pdf", "epub"] as const) {
+    for (const target of ["docx", "pdf", "epub", "latex"] as const) {
       const matches = loadedTemplates.filter((template) =>
         supportsDiscoveredPresentationTarget(template, target, loadedTemplates.length)
       );
@@ -415,7 +415,7 @@ function writePlannedTemplateArtifacts(
 function normalizeExportTarget(value: string): ExportTarget {
   const normalized = value.trim().toLowerCase();
   if (!isExportTarget(normalized)) {
-    throw new CliError("INVALID_USAGE", `Unsupported export format '${value}'. Use md, docx, pdf, or epub.`);
+    throw new CliError("INVALID_USAGE", `Unsupported export format '${value}'. Use md, docx, pdf, epub, or latex.`);
   }
   return normalized;
 }

@@ -150,11 +150,6 @@
           "default": false,
           "description": "Create links inside fenced code blocks."
         },
-        "stego.editor.autoFoldFrontmatter": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically fold YAML frontmatter in Markdown files."
-        },
         "stego.comments.enable": {
           "type": "boolean",
           "default": true,

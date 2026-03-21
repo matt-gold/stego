@@ -35,21 +35,30 @@ That default form keeps the full low-friction Stego API and works well for singl
 Advanced template mode narrows the Stego API to the strict intersection of the presentation targets you declare:
 
 ```tsx
-import { defineTemplate, type TemplateContext, type TemplateTypes } from "@stego-labs/engine";
+import { defineTemplate, type TemplateContext } from "@stego-labs/engine";
 
 type ProjectMeta = { title: string };
 type LeafMeta = { id: string; chapter?: string };
 type BranchMeta = { label?: string };
-type PrintTemplate = TemplateTypes<LeafMeta, BranchMeta, ProjectMeta, ["docx", "pdf"]>;
 
-export default defineTemplate<PrintTemplate>(
-  { targets: ["docx", "pdf"] as const },
-  (ctx, Stego) => (
-    <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
-      <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
+export default defineTemplate(
+  { targets: ["docx", "pdf"] },
+  (ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, Stego) => (
+    <Stego.Document
+      page={{ size: "letter", margin: "1in" }}
+      bodyStyle={{
+        fontFamily: "Times New Roman",
+        fontSize: "12pt",
+        lineSpacing: 2,
+        spaceBefore: 0,
+        spaceAfter: 0,
+      }}
+    >
       <Stego.Heading level={1}>{ctx.project.metadata.title}</Stego.Heading>
       {ctx.allLeaves.map((leaf) => (
-        <Stego.Markdown leaf={leaf} />
+        <Stego.Section bodyStyle={{ firstLineIndent: "0.5in" }}>
+          <Stego.Markdown leaf={leaf} />
+        </Stego.Section>
       ))}
     </Stego.Document>
   )
@@ -58,12 +67,12 @@ export default defineTemplate<PrintTemplate>(
 
 Target-aware templates are meant for advanced template mode and multiple templates per project. They are opt-in. The global `Stego` import stays broad for the default lane.
 
-If you do not need explicit metadata typing, omitting the generic entirely and typing the callback context is still fine:
+If you do not need explicit metadata typing, omit the callback annotation too:
 
 ```tsx
 export default defineTemplate(
-  { targets: ["docx", "pdf"] as const },
-  (ctx: TemplateContext<LeafMeta, BranchMeta, ProjectMeta>, Stego) => (
+  { targets: ["docx", "pdf"] },
+  (ctx, Stego) => (
     <Stego.Document page={{ size: "6x9", margin: "0.75in" }} />
   )
 );
@@ -96,6 +105,14 @@ Built-in leaf renderers:
 <Stego.PlainText source="Plain text body" />
 <Stego.PlainText leaf={leaf} />
 ```
+
+`Stego.Markdown` now expands into block-aware internal IR before rendering:
+
+- paragraphs become paragraph-like markdown blocks
+- ATX headings become heading-like markdown blocks
+- complex blocks such as lists, blockquotes, code fences, and tables stay opaque in V1
+
+That means markdown paragraphs now participate in paragraph spacing defaults instead of bypassing Stego layout semantics entirely.
 
 Internal links target leaf ids by default:
 
@@ -143,7 +160,27 @@ Stego currently exposes portable layout controls such as:
 - `insetLeft` / `insetRight`
 - `firstLineIndent`
 - `align`
+- `fontFamily`
+- `fontSize`
+- `lineSpacing`
+- `headingStyle` / `headingStyles`
+- `bodyStyle`
 - `Stego.KeepTogether`
 - `Stego.PageBreak`
 
-These lower into the render plan and are supported across the main Stego targets, including DOCX.
+Style support is target-aware in V1:
+
+- `docx`: full block styling
+- `pdf`: full block styling
+- `latex`: full block styling
+- `epub`: safe subset, including spacing, indent, align, font size, line spacing, and heading emphasis/color
+
+PDF exports that request `fontFamily` require `xelatex` so named fonts can be honored reliably.
+
+Paragraph spacing defaults are inherited:
+
+- `Document.bodyStyle.spaceBefore` / `Document.bodyStyle.spaceAfter` set defaults for descendant paragraphs
+- `Section.bodyStyle.spaceBefore` / `Section.bodyStyle.spaceAfter` override those defaults for that subtree
+- `Paragraph.spaceBefore` / `Paragraph.spaceAfter` are explicit per-paragraph overrides
+
+When omitted, Stego treats paragraph spacing defaults as `0` before and `0` after. This keeps manuscript-style DOCX output from inheriting Word's built-in paragraph gap unless the template asks for one.

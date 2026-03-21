@@ -214,6 +214,58 @@ describe('App', () => {
     resetSidebarState();
   });
 
+  it('renders the metadata panel for branch notes files', () => {
+    setWebviewApiForTest(undefined);
+    const root = document.createElement('div');
+    document.body.append(root);
+    updateSidebarState(createSidebarState({
+      documentKind: 'branchNotes',
+      documentPath: '/tmp/project/content/reference/characters/_branch.md',
+      documentTitle: 'Characters',
+      documentFilename: '_branch.md',
+      documentFileStem: '_branch',
+      metadataEditing: true,
+      metadataEntries: [
+        {
+          key: 'label',
+          isStructural: false,
+          isBranch: true,
+          isInherited: false,
+          isArray: false,
+          valueText: 'Characters',
+          references: [],
+          arrayItems: []
+        },
+        {
+          key: 'leafPolicy',
+          isStructural: false,
+          isBranch: true,
+          isInherited: false,
+          isArray: false,
+          valueText: 'requiredMetadata:\n  - kind',
+          references: [],
+          arrayItems: []
+        }
+      ],
+      showMetadataPanel: true,
+      showToc: true,
+      isBranchNotesFile: true
+    }));
+
+    const dispose = render(() => <App />, root);
+
+    expect(root.textContent).toContain('Metadata');
+    expect(root.textContent).toContain('label');
+    expect(root.textContent).toContain('Characters');
+    expect(root.textContent).toContain('leafPolicy');
+    expect(root.textContent).toContain('requiredMetadata:');
+    expect(root.textContent).toContain('Branch');
+
+    dispose();
+    root.remove();
+    resetSidebarState();
+  });
+
   it('shows combined child counts for branch lists in explore', () => {
     setWebviewApiForTest(undefined);
     const root = document.createElement('div');

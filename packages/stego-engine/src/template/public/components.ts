@@ -1,4 +1,6 @@
 import {
+  type BodyStyle,
+  type ColorValue,
   createDocumentNode,
   createFragmentNode,
   createKeepTogetherNode,
@@ -13,8 +15,15 @@ import {
   createParagraphNode,
   createSectionNode,
   type AlignValue,
+  type FontFamilyValue,
+  type FontSizeValue,
+  type FontWeightValue,
+  type HeadingLevel,
+  type HeadingStyle,
+  type HeadingStyleMap,
   type IndentValue,
   type InsetValue,
+  type LineSpacingValue,
   type PageRegionSpec,
   type PageSpec,
   type SizeValue,
@@ -42,18 +51,18 @@ import { normalizeChildren, normalizeInlineChildren } from "../internal/normaliz
 
 export type DocumentProps = {
   page?: PageSpec;
+  bodyStyle?: BodyStyle;
+  headingStyle?: HeadingStyle;
+  headingStyles?: HeadingStyleMap;
   children?: unknown;
 };
 
 export type SectionProps = {
   role?: StegoSectionNode["role"];
   id?: string;
-  spaceBefore?: SpacingValue;
-  spaceAfter?: SpacingValue;
-  insetLeft?: InsetValue;
-  insetRight?: InsetValue;
-  firstLineIndent?: IndentValue;
-  align?: AlignValue;
+  bodyStyle?: BodyStyle;
+  headingStyle?: HeadingStyle;
+  headingStyles?: HeadingStyleMap;
   children?: unknown;
 };
 
@@ -64,6 +73,14 @@ export type HeadingProps = {
   insetLeft?: InsetValue;
   insetRight?: InsetValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
+  fontWeight?: FontWeightValue;
+  italic?: boolean;
+  underline?: boolean;
+  smallCaps?: boolean;
+  color?: ColorValue;
   children?: unknown;
 };
 
@@ -74,6 +91,9 @@ export type ParagraphProps = {
   insetRight?: InsetValue;
   firstLineIndent?: IndentValue;
   align?: AlignValue;
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
   children?: unknown;
 };
 
@@ -99,25 +119,68 @@ type GatedProps<
   ? TProps
   : { [TKey in keyof TProps]?: never };
 
+type NarrowFontProps<TTargets extends PresentationTarget> =
+  GatedProps<TTargets, "fontFamily", { fontFamily?: FontFamilyValue; }>
+  & GatedProps<TTargets, "fontSize", { fontSize?: FontSizeValue; }>
+  & GatedProps<TTargets, "lineSpacing", { lineSpacing?: LineSpacingValue; }>;
+
+type NarrowHeadingEmphasisProps<TTargets extends PresentationTarget> =
+  GatedProps<TTargets, "fontWeight", { fontWeight?: FontWeightValue; }>
+  & GatedProps<TTargets, "italic", { italic?: boolean; }>
+  & GatedProps<TTargets, "underline", { underline?: boolean; }>
+  & GatedProps<TTargets, "smallCaps", { smallCaps?: boolean; }>
+  & GatedProps<TTargets, "textColor", { color?: ColorValue; }>;
+
+type NarrowBodyStyle<TTargets extends PresentationTarget> =
+  GatedProps<TTargets, "spacing", {
+    spaceBefore?: SpacingValue;
+    spaceAfter?: SpacingValue;
+  }>
+  & GatedProps<TTargets, "inset", {
+    insetLeft?: InsetValue;
+    insetRight?: InsetValue;
+  }>
+  & GatedProps<TTargets, "indent", {
+    firstLineIndent?: IndentValue;
+  }>
+  & GatedProps<TTargets, "align", {
+    align?: AlignValue;
+  }>
+  & NarrowFontProps<TTargets>;
+
+type NarrowHeadingStyle<TTargets extends PresentationTarget> =
+  GatedProps<TTargets, "spacing", {
+    spaceBefore?: SpacingValue;
+    spaceAfter?: SpacingValue;
+  }>
+  & GatedProps<TTargets, "inset", {
+    insetLeft?: InsetValue;
+    insetRight?: InsetValue;
+  }>
+  & GatedProps<TTargets, "align", {
+    align?: AlignValue;
+  }>
+  & NarrowFontProps<TTargets>
+  & NarrowHeadingEmphasisProps<TTargets>;
+
 type NarrowDocumentProps<TTargets extends PresentationTarget> = {
   children?: unknown;
-} & GatedProps<TTargets, "pageLayout", { page?: PageSpec }>;
+} & GatedProps<TTargets, "pageLayout", { page?: PageSpec }>
+  & {
+    bodyStyle?: NarrowBodyStyle<TTargets>;
+    headingStyle?: NarrowHeadingStyle<TTargets>;
+    headingStyles?: Partial<Record<HeadingLevel, NarrowHeadingStyle<TTargets>>>;
+  };
 
 type NarrowSectionProps<TTargets extends PresentationTarget> = {
   role?: StegoSectionNode["role"];
   id?: string;
   children?: unknown;
-} & GatedProps<TTargets, "spacing", {
-  spaceBefore?: SpacingValue;
-  spaceAfter?: SpacingValue;
-}> & GatedProps<TTargets, "inset", {
-  insetLeft?: InsetValue;
-  insetRight?: InsetValue;
-}> & GatedProps<TTargets, "indent", {
-  firstLineIndent?: IndentValue;
-}> & GatedProps<TTargets, "align", {
-  align?: AlignValue;
-}>;
+} & {
+  bodyStyle?: NarrowBodyStyle<TTargets>;
+  headingStyle?: NarrowHeadingStyle<TTargets>;
+  headingStyles?: Partial<Record<HeadingLevel, NarrowHeadingStyle<TTargets>>>;
+};
 
 type NarrowHeadingProps<TTargets extends PresentationTarget> = {
   level: StegoHeadingNode["level"];
@@ -130,7 +193,8 @@ type NarrowHeadingProps<TTargets extends PresentationTarget> = {
   insetRight?: InsetValue;
 }> & GatedProps<TTargets, "align", {
   align?: AlignValue;
-}>;
+}> & NarrowFontProps<TTargets>
+  & NarrowHeadingEmphasisProps<TTargets>;
 
 type NarrowParagraphProps<TTargets extends PresentationTarget> = {
   children?: unknown;
@@ -144,7 +208,7 @@ type NarrowParagraphProps<TTargets extends PresentationTarget> = {
   firstLineIndent?: IndentValue;
 }> & GatedProps<TTargets, "align", {
   align?: AlignValue;
-}>;
+}> & NarrowFontProps<TTargets>;
 
 type NarrowImageProps<TTargets extends PresentationTarget> = {
   src: string;
@@ -190,7 +254,12 @@ export type StegoApi<TTargets extends PresentationTarget> = {
   & MaybeComponent<"PageNumber", TTargets, "pageNumber", typeof PageNumber>;
 
 export function Document(props: DocumentProps): StegoDocumentNode {
-  return createDocumentNode(props.page, normalizeChildren(props.children));
+  assertNoLegacyDocumentStyleProps(props);
+  return createDocumentNode(props.page, normalizeChildren(props.children), {
+    bodyStyle: props.bodyStyle,
+    headingStyle: props.headingStyle,
+    headingStyles: props.headingStyles
+  });
 }
 
 export function Fragment(props: { children?: unknown }): StegoFragmentNode {
@@ -202,7 +271,14 @@ export function KeepTogether(props: { children?: unknown }): StegoKeepTogetherNo
 }
 
 export function Section(props: SectionProps): StegoSectionNode {
-  return createSectionNode(props, normalizeChildren(props.children));
+  assertNoLegacySectionStyleProps(props);
+  return createSectionNode({
+    role: props.role,
+    id: props.id,
+    bodyStyle: props.bodyStyle,
+    headingStyle: props.headingStyle,
+    headingStyles: props.headingStyles
+  }, normalizeChildren(props.children));
 }
 
 export function Heading(props: HeadingProps): StegoHeadingNode {
@@ -278,6 +354,42 @@ export function groupBy<T>(items: T[], selector: GroupSelector<T>): Group<T>[] {
 
 export function splitBy<T>(items: T[], selector: GroupSelector<T>): SplitGroup<T>[] {
   return splitCollectionItems(items, selector);
+}
+
+function assertNoLegacyDocumentStyleProps(props: Record<string, unknown>): void {
+  const legacy = ["fontFamily", "fontSize", "lineSpacing", "parSpaceBefore", "parSpaceAfter"].filter(
+    (key) => props[key] !== undefined
+  );
+  if (legacy.length === 0) {
+    return;
+  }
+  throw new Error(
+    `<Stego.Document> no longer accepts ${legacy.join(", ")}. Use bodyStyle={{ ... }} instead.`
+  );
+}
+
+function assertNoLegacySectionStyleProps(props: Record<string, unknown>): void {
+  const legacy = [
+    "spaceBefore",
+    "spaceAfter",
+    "parSpaceBefore",
+    "parSpaceAfter",
+    "insetLeft",
+    "insetRight",
+    "firstLineIndent",
+    "align",
+    "fontFamily",
+    "fontSize",
+    "lineSpacing"
+  ].filter((key) => props[key] !== undefined);
+
+  if (legacy.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    `<Stego.Section> no longer accepts ${legacy.join(", ")}. Use bodyStyle={{ ... }} and headingStyle/headingStyles instead.`
+  );
 }
 
 export const Stego = {

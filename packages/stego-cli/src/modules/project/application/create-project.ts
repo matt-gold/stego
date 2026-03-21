@@ -155,107 +155,11 @@ Start writing here.
   );
 
   const starterTemplatePath = path.join(templatesDir, "book.template.tsx");
-  writeTextFile(
-    starterTemplatePath,
-    `import { defineTemplate, Stego } from "@stego-labs/engine";
-
-// Optional advanced template mode:
-// export default defineTemplate(
-//   { targets: ["docx", "pdf"] as const },
-//   (ctx, Stego) => (
-//     <Stego.Document>
-//       <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
-//     </Stego.Document>
-//   )
-// );
-// See the Stego docs for "target-aware templates" and "multiple templates per project".
-
-export default defineTemplate((ctx) => {
-  const generatedAt = new Date().toISOString();
-  const chapterLeaves = ctx.allLeaves.filter((leaf) => leaf.metadata.kind !== "reference");
-  const chapterGroups = Stego.splitBy(chapterLeaves, (leaf) => asString(leaf.metadata.chapter));
-  const tocEntries = chapterGroups
-    .filter(hasTitledBoundary)
-    .map((group) => {
-      const heading = formatChapterHeading(group.value, group.first.metadata.chapter_title);
-      return \`- [\${heading}](#\${slugify(heading)})\`;
-    });
-
-  return (
-    <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
-      <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
-
-      <Stego.Markdown source={\`<!-- generated: \${generatedAt} -->\`} />
-      <Stego.Heading level={1}>
-        {String(ctx.project.metadata.title ?? ctx.project.id)}
-      </Stego.Heading>
-
-      {ctx.project.metadata.subtitle ? (
-        <Stego.Paragraph spaceAfter={18}>
-          {String(ctx.project.metadata.subtitle)}
-        </Stego.Paragraph>
-      ) : null}
-
-      {ctx.project.metadata.author ? (
-        <Stego.Paragraph spaceAfter={24}>
-          {String(ctx.project.metadata.author)}
-        </Stego.Paragraph>
-      ) : null}
-
-      <Stego.Markdown source={\`Generated: \${generatedAt}\`} />
-      <Stego.Heading level={2}>Table of Contents</Stego.Heading>
-      {tocEntries.length > 0 ? <Stego.Markdown source={tocEntries.join("\\n")} /> : null}
-
-      {chapterGroups.map((group, index) => (
-        <Stego.Section role="chapter" id={group.value ? \`chapter-\${group.value}\` : undefined}>
-          {group.value && index > 0 ? <Stego.PageBreak /> : null}
-          {group.value ? (
-            <Stego.Heading level={2} spaceBefore={48} spaceAfter={24}>
-              {formatChapterHeading(group.value, group.first.metadata.chapter_title)}
-            </Stego.Heading>
-          ) : null}
-          {group.items.map((leaf) => (
-            <>
-              <Stego.Markdown
-                source={\`<!-- source: \${leaf.relativePath} | order: \${leaf.order} | status: \${String(leaf.metadata.status ?? "")} -->\`}
-              />
-              <Stego.Markdown leaf={leaf} />
-            </>
-          ))}
-        </Stego.Section>
-      ))}
-    </Stego.Document>
-  );
-});
-
-function asString(value: unknown): string | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value.trim();
-  }
-  return undefined;
-}
-
-function formatChapterHeading(value: string, rawTitle: unknown): string {
-  const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
-  return title ? \`Chapter \${value}: \${title}\` : \`Chapter \${value}\`;
-}
-
-function hasTitledBoundary<T extends { value?: string }>(group: T): group is T & { value: string } {
-  return typeof group.value === "string" && group.value.trim().length > 0;
-}
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9\\s-]/g, "")
-    .trim()
-    .replace(/\\s+/g, "-");
-}
-`
-  );
+  const starterEbookTemplatePath = path.join(templatesDir, "ebook.template.tsx");
+  const starterManuscriptTemplatePath = path.join(templatesDir, "manuscript.template.tsx");
+  writeTextFile(starterTemplatePath, buildBookTemplateSource());
+  writeTextFile(starterEbookTemplatePath, buildEbookTemplateSource());
+  writeTextFile(starterManuscriptTemplatePath, buildManuscriptTemplateSource());
 
   const assetsReadmePath = path.join(assetsDir, "README.md");
   writeTextFile(
@@ -315,6 +219,8 @@ Global defaults belong in \`stego-project.json\` under \`images\`.
       path.relative(input.workspace.repoRoot, referenceBranchPath),
       path.relative(input.workspace.repoRoot, starterManuscriptPath),
       path.relative(input.workspace.repoRoot, starterTemplatePath),
+      path.relative(input.workspace.repoRoot, starterEbookTemplatePath),
+      path.relative(input.workspace.repoRoot, starterManuscriptTemplatePath),
       path.relative(input.workspace.repoRoot, assetsReadmePath),
       path.relative(input.workspace.repoRoot, projectExtensionsPath),
       ...(projectSettingsPath ? [path.relative(input.workspace.repoRoot, projectSettingsPath)] : [])
@@ -417,6 +323,233 @@ function toDisplayTitle(value: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function buildBookTemplateSource(): string {
+  return `import { defineTemplate } from "@stego-labs/engine";
+
+export default defineTemplate(
+  { targets: ["docx", "pdf", "latex"] },
+  (ctx, Stego) => {
+    const generatedAt = new Date().toISOString();
+    const chapterLeaves = ctx.allLeaves.filter((leaf) => leaf.metadata.kind !== "reference");
+    const chapterGroups = Stego.splitBy(chapterLeaves, (leaf) => asString(leaf.metadata.chapter));
+    const tocEntries = chapterGroups
+      .filter(hasTitledBoundary)
+      .map((group) => {
+        const heading = formatChapterHeading(group.value, group.first.metadata.chapter_title);
+        return \`- [\${heading}](#\${slugify(heading)})\`;
+      });
+
+    return (
+      <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
+        <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
+
+        <Stego.Markdown source={\`<!-- generated: \${generatedAt} -->\`} />
+        <Stego.Heading level={1}>
+          {String(ctx.project.metadata.title ?? ctx.project.id)}
+        </Stego.Heading>
+
+        {ctx.project.metadata.subtitle ? (
+          <Stego.Paragraph spaceAfter={18}>
+            {String(ctx.project.metadata.subtitle)}
+          </Stego.Paragraph>
+        ) : null}
+
+        {ctx.project.metadata.author ? (
+          <Stego.Paragraph spaceAfter={24}>
+            {String(ctx.project.metadata.author)}
+          </Stego.Paragraph>
+        ) : null}
+
+        <Stego.Markdown source={\`Generated: \${generatedAt}\`} />
+        <Stego.Heading level={2}>Table of Contents</Stego.Heading>
+        {tocEntries.length > 0 ? <Stego.Markdown source={tocEntries.join("\\n")} /> : null}
+
+        {chapterGroups.map((group, index) => (
+          <Stego.Section role="chapter" id={group.value ? \`chapter-\${group.value}\` : undefined}>
+            {group.value && index > 0 ? <Stego.PageBreak /> : null}
+            {group.value ? (
+              <Stego.Heading level={2} spaceBefore={48} spaceAfter={24}>
+                {formatChapterHeading(group.value, group.first.metadata.chapter_title)}
+              </Stego.Heading>
+            ) : null}
+            {group.items.map((leaf) => (
+              <>
+                <Stego.Markdown
+                  source={\`<!-- source: \${leaf.relativePath} | order: \${leaf.order} | status: \${String(leaf.metadata.status ?? "")} -->\`}
+                />
+                <Stego.Markdown leaf={leaf} />
+              </>
+            ))}
+          </Stego.Section>
+        ))}
+      </Stego.Document>
+    );
+  }
+);
+
+function asString(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return undefined;
+}
+
+function formatChapterHeading(value: string, rawTitle: unknown): string {
+  const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
+  return title ? \`Chapter \${value}: \${title}\` : \`Chapter \${value}\`;
+}
+
+function hasTitledBoundary<T extends { value?: string }>(group: T): group is T & { value: string } {
+  return typeof group.value === "string" && group.value.trim().length > 0;
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\\s-]/g, "")
+    .trim()
+    .replace(/\\s+/g, "-");
+}
+`;
+}
+
+function buildEbookTemplateSource(): string {
+  return `import { defineTemplate } from "@stego-labs/engine";
+
+export default defineTemplate(
+  { targets: ["epub"] },
+  (ctx, Stego) => {
+    const chapterLeaves = ctx.allLeaves.filter((leaf) => leaf.metadata.kind !== "reference");
+    const chapterGroups = Stego.splitBy(chapterLeaves, (leaf) => asString(leaf.metadata.chapter));
+
+    return (
+      <Stego.Document>
+        <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
+
+        {ctx.project.metadata.subtitle ? (
+          <Stego.Paragraph spaceAfter={18}>
+            {String(ctx.project.metadata.subtitle)}
+          </Stego.Paragraph>
+        ) : null}
+
+        {chapterGroups.map((group) => (
+          <Stego.Section role="chapter" id={group.value ? \`chapter-\${group.value}\` : undefined}>
+            {group.value ? (
+              <Stego.Heading level={2} spaceBefore={36} spaceAfter={18}>
+                {formatChapterHeading(group.value, group.first.metadata.chapter_title)}
+              </Stego.Heading>
+            ) : null}
+            {group.items.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+          </Stego.Section>
+        ))}
+      </Stego.Document>
+    );
+  }
+);
+
+function asString(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return undefined;
+}
+
+function formatChapterHeading(value: string, rawTitle: unknown): string {
+  const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
+  return title ? \`Chapter \${value}: \${title}\` : \`Chapter \${value}\`;
+}
+`;
+}
+
+function buildManuscriptTemplateSource(): string {
+  return `import { defineTemplate } from "@stego-labs/engine";
+
+export default defineTemplate(
+  { targets: ["docx"] },
+  (ctx, Stego) => {
+    const chapterLeaves = ctx.allLeaves.filter((leaf) => leaf.metadata.kind !== "reference");
+    const chapterGroups = Stego.splitBy(chapterLeaves, (leaf) => asString(leaf.metadata.chapter));
+
+    return (
+      <Stego.Document
+        page={{ size: "letter", margin: "1in" }}
+        bodyStyle={{
+          fontFamily: "Times New Roman",
+          fontSize: "12pt",
+          lineSpacing: 2,
+          spaceBefore: 0,
+          spaceAfter: 0,
+        }}
+      >
+        <Stego.Section>
+          <Stego.Paragraph align="center" fontSize="12pt" spaceBefore="216pt" spaceAfter="24pt">
+            {String(ctx.project.metadata.title ?? ctx.project.id).toUpperCase()}
+          </Stego.Paragraph>
+
+          {ctx.project.metadata.author ? (
+            <Stego.Paragraph align="center" fontSize="12pt" spaceAfter="24pt">
+              by
+            </Stego.Paragraph>
+          ) : null}
+
+          {ctx.project.metadata.author ? (
+            <Stego.Paragraph align="center" fontSize="12pt">
+              {String(ctx.project.metadata.author)}
+            </Stego.Paragraph>
+          ) : null}
+        </Stego.Section>
+
+        {chapterGroups.length > 0 ? <Stego.PageBreak /> : null}
+
+        {chapterGroups.map((group, index) => (
+          <Stego.Section role="chapter" bodyStyle={{ firstLineIndent: "0.5in" }}>
+            {index > 0 ? <Stego.PageBreak /> : null}
+            {group.value ? (
+              <>
+                <Stego.Paragraph align="center" fontSize="12pt" spaceBefore="144pt" spaceAfter="24pt">
+                  {formatChapterNumber(group.value)}
+                </Stego.Paragraph>
+                {hasChapterTitle(group.first.metadata.chapter_title) ? (
+                  <Stego.Paragraph align="center" fontSize="12pt" spaceAfter="24pt">
+                    {String(group.first.metadata.chapter_title).trim().toUpperCase()}
+                  </Stego.Paragraph>
+                ) : null}
+              </>
+            ) : null}
+            {group.items.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+          </Stego.Section>
+        ))}
+      </Stego.Document>
+    );
+  }
+);
+
+function asString(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return undefined;
+}
+
+function hasChapterTitle(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function formatChapterNumber(value: string): string {
+  return \`Chapter \${value}\`;
+}
+`;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

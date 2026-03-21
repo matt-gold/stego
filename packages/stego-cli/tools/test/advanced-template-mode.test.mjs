@@ -63,7 +63,7 @@ export default defineTemplate((ctx) => (
   writeFile(path.join(projectRoot, "templates", "print.template.tsx"), `import { defineTemplate } from "@stego-labs/engine";
 
 export default defineTemplate(
-  { targets: ["docx", "pdf"] as const },
+  { targets: ["docx", "pdf", "latex"] },
   (ctx, Stego) => (
     <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
       <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
@@ -77,7 +77,7 @@ export default defineTemplate(
   writeFile(path.join(projectRoot, "templates", "ebook.template.tsx"), `import { defineTemplate } from "@stego-labs/engine";
 
 export default defineTemplate(
-  { targets: ["epub"] as const },
+  { targets: ["epub"] },
   (ctx, Stego) => (
     <Stego.Document>
       <Stego.Heading level={1}>EBOOK TEMPLATE</Stego.Heading>
@@ -176,9 +176,15 @@ test("export resolves the unique matching advanced template for presentation tar
     });
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 
+    const latex = runCli(["export", "--project", projectId, "--format", "latex"], {
+      env: { PATH: `${tempDir}:${process.env.PATH || ""}` }
+    });
+    assert.equal(latex.status, 0, `${latex.stdout}\n${latex.stderr}`);
+
     const printMarkdown = fs.readFileSync(path.join(projectRoot, "dist", `${projectId}.print.md`), "utf8");
     assert.match(printMarkdown, /PRINT TEMPLATE/);
     assert.equal(fs.existsSync(path.join(projectRoot, "dist", "exports", `${projectId}.pdf`)), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "dist", "exports", `${projectId}.tex`)), true);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -210,7 +216,7 @@ test("export errors clearly when multiple discovered templates support the same 
     `import { defineTemplate } from "@stego-labs/engine";
 
 export default defineTemplate(
-  { targets: ["pdf"] as const },
+  { targets: ["pdf"] },
   (_ctx, Stego) => (
     <Stego.Document>
       <Stego.Heading level={1}>ALT PRINT TEMPLATE</Stego.Heading>

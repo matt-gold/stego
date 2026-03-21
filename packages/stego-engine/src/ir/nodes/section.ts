@@ -1,15 +1,18 @@
-import type { AlignValue, IndentValue, InsetValue, SpacingValue, StegoNode, StegoSectionNode } from "../types.ts";
+import type {
+  BodyStyle,
+  HeadingStyle,
+  HeadingStyleMap,
+  StegoNode,
+  StegoSectionNode
+} from "../types.ts";
 
 export function createSectionNode(
   props: {
     role?: StegoSectionNode["role"];
     id?: string;
-    spaceBefore?: SpacingValue;
-    spaceAfter?: SpacingValue;
-    insetLeft?: InsetValue;
-    insetRight?: InsetValue;
-    firstLineIndent?: IndentValue;
-    align?: AlignValue;
+    bodyStyle?: BodyStyle;
+    headingStyle?: HeadingStyle;
+    headingStyles?: HeadingStyleMap;
   },
   children: StegoNode[]
 ): StegoSectionNode {
@@ -17,12 +20,9 @@ export function createSectionNode(
     kind: "section",
     role: props.role,
     id: props.id,
-    spaceBefore: props.spaceBefore,
-    spaceAfter: props.spaceAfter,
-    insetLeft: props.insetLeft,
-    insetRight: props.insetRight,
-    firstLineIndent: props.firstLineIndent,
-    align: props.align,
+    bodyStyle: props.bodyStyle,
+    headingStyle: props.headingStyle,
+    headingStyles: props.headingStyles,
     children
   };
 }
