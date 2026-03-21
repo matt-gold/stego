@@ -487,23 +487,40 @@ export default defineTemplate(
         parSpaceBefore={0}
         parSpaceAfter={0}
       >
-        <Stego.Heading level={1} align="center" spaceAfter={24}>
-          {String(ctx.project.metadata.title ?? ctx.project.id)}
-        </Stego.Heading>
-
-        {ctx.project.metadata.author ? (
-          <Stego.Paragraph align="center" spaceAfter={36}>
-            {String(ctx.project.metadata.author)}
+        <Stego.Section>
+          <Stego.Paragraph align="center" fontSize="12pt" spaceBefore="216pt" spaceAfter="24pt">
+            {String(ctx.project.metadata.title ?? ctx.project.id).toUpperCase()}
           </Stego.Paragraph>
-        ) : null}
+
+          {ctx.project.metadata.author ? (
+            <Stego.Paragraph align="center" fontSize="12pt" spaceAfter="24pt">
+              by
+            </Stego.Paragraph>
+          ) : null}
+
+          {ctx.project.metadata.author ? (
+            <Stego.Paragraph align="center" fontSize="12pt">
+              {String(ctx.project.metadata.author)}
+            </Stego.Paragraph>
+          ) : null}
+        </Stego.Section>
+
+        {chapterGroups.length > 0 ? <Stego.PageBreak /> : null}
 
         {chapterGroups.map((group, index) => (
           <Stego.Section role="chapter" firstLineIndent="0.5in">
             {index > 0 ? <Stego.PageBreak /> : null}
             {group.value ? (
-              <Stego.Heading level={2} align="center" spaceBefore={24} spaceAfter={24}>
-                {formatChapterHeading(group.value, group.first.metadata.chapter_title)}
-              </Stego.Heading>
+              <>
+                <Stego.Paragraph align="center" fontSize="12pt" spaceBefore="144pt" spaceAfter="24pt">
+                  {formatChapterNumber(group.value)}
+                </Stego.Paragraph>
+                {hasChapterTitle(group.first.metadata.chapter_title) ? (
+                  <Stego.Paragraph align="center" fontSize="12pt" spaceAfter="24pt">
+                    {String(group.first.metadata.chapter_title).trim().toUpperCase()}
+                  </Stego.Paragraph>
+                ) : null}
+              </>
             ) : null}
             {group.items.map((leaf) => <Stego.Markdown leaf={leaf} />)}
           </Stego.Section>
@@ -523,9 +540,12 @@ function asString(value: unknown): string | undefined {
   return undefined;
 }
 
-function formatChapterHeading(value: string, rawTitle: unknown): string {
-  const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
-  return title ? \`Chapter \${value}: \${title}\` : \`Chapter \${value}\`;
+function hasChapterTitle(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function formatChapterNumber(value: string): string {
+  return \`Chapter \${value}\`;
 }
 `;
 }

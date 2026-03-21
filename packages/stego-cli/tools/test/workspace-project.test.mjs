@@ -122,7 +122,14 @@ test("new-project creates scaffold and returns JSON envelope", () => {
     const manuscriptTemplateSource = fs.readFileSync(path.join(projectRoot, "templates", "manuscript.template.tsx"), "utf8");
     assert.match(manuscriptTemplateSource, /\{ targets: \["docx"\] \}/);
     assert.match(manuscriptTemplateSource, /fontFamily="Times New Roman"/);
+    assert.match(manuscriptTemplateSource, /fontSize="12pt"/);
     assert.match(manuscriptTemplateSource, /lineSpacing=\{2\}/);
+    assert.match(manuscriptTemplateSource, /parSpaceBefore=\{0\}/);
+    assert.match(manuscriptTemplateSource, /parSpaceAfter=\{0\}/);
+    assert.match(manuscriptTemplateSource, /\{chapterGroups\.length > 0 \? <Stego\.PageBreak \/> : null\}/);
+    assert.match(manuscriptTemplateSource, /fontSize="12pt" spaceBefore="144pt" spaceAfter="24pt"/);
+    assert.match(manuscriptTemplateSource, /firstLineIndent="0\.5in"/);
+    assert.doesNotMatch(manuscriptTemplateSource, /<Stego\.Heading/);
 
     const projectJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "stego-project.json"), "utf8"));
     assert.equal("compileStructure" in projectJson, false);
