@@ -1,5 +1,11 @@
 # @stego-labs/shared
 
+## 1.1.0
+
+### Minor Changes
+
+- a882ceb: Add a first-class LaTeX target, print typography controls, markdown block normalization, and improved multi-template export support in the extension and project scaffolds.
+
 ## 1.0.5
 
 ### Patch Changes
