@@ -14,6 +14,7 @@ export function lowerToPandocPresentationBackendDocument(
   context: TemplateContext,
 ): RenderDocumentResult {
   const layout = normalizePageLayout(document);
+  const page = buildPresentationPageLayout(layout);
   const written = writePandocMarkdown(document.children, context.allLeaves, {
     spaceBefore: layout.spaceBefore,
     spaceAfter: layout.spaceAfter,
@@ -28,14 +29,14 @@ export function lowerToPandocPresentationBackendDocument(
       requiredFilters: ["image-layout", "block-layout"],
     },
     presentation: {
-      page: buildPresentationPageLayout(layout),
+      page,
       blockMarkers: written.blockMarkers,
       features: {
         usesBlockFontFamily: written.usesBlockFontFamily,
         usesBlockLineSpacing: written.usesBlockLineSpacing,
         usesUnderline: written.usesUnderline,
         usesTextColor: written.usesTextColor,
-        requiresNamedFontEngine: Boolean(layout.fontFamily || written.usesBlockFontFamily),
+        requiresNamedFontEngine: Boolean(page.fontFamily || written.usesBlockFontFamily),
       },
     },
   };

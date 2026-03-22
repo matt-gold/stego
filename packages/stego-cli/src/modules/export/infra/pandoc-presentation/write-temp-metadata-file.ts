@@ -7,7 +7,7 @@ export function writeTempMetadataFile(metadata: Record<string, unknown>): {
   path: string;
   cleanup: () => void;
 } {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-template-export-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-export-metadata-"));
   const metadataFilePath = path.join(tempDir, "metadata.yaml");
   fs.writeFileSync(metadataFilePath, yaml.dump(metadata), "utf8");
   return {
