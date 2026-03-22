@@ -1,5 +1,13 @@
 # @stego-labs/engine
 
+## 1.1.1
+
+### Patch Changes
+
+- af43c8c: Rename the render-plan contract to a backend document and move target-specific export preparation from the engine into a clearer CLI presentation-export pipeline.
+- Updated dependencies [af43c8c]
+  - @stego-labs/shared@1.1.1
+
 ## 1.1.0
 
 ### Minor Changes
