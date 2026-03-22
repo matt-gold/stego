@@ -29,10 +29,11 @@ export async function exportTemplateProject(input: ExportTemplateProjectInput): 
   const format = normalizeExportTarget(input.format);
   const built = await buildTemplateProject(input.project, input.templatePath, input.artifactPaths);
   assertDeclaredTargetsSupportFormat(input.templatePath, built.declaredTargets, format);
-  const prepared = format === "md"
+  const presentationFormat = format === "md" ? null : format;
+  const prepared = presentationFormat === null
     ? null
     : prepareRenderedExport({
-      format,
+      format: presentationFormat,
       backendDocument: built.backendDocument,
       project: input.project,
       markdownPath: built.markdownPath,
