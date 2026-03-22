@@ -130,11 +130,11 @@ test('build uses the project template and splitBy inherits missing chapter metad
     assert.equal(buildResult.status, 0, `${buildResult.stdout}\n${buildResult.stderr}`);
 
     const outputPath = path.join(projectRoot, 'dist', `${projectId}.md`);
-    const renderPlanPath = path.join(projectRoot, 'dist', `${projectId}.render-plan.json`);
+    const backendDocumentPath = path.join(projectRoot, 'dist', `${projectId}.backend-document.json`);
     const built = fs.readFileSync(outputPath, 'utf8');
 
     assert.equal(fs.existsSync(outputPath), true);
-    assert.equal(fs.existsSync(renderPlanPath), true);
+    assert.equal(fs.existsSync(backendDocumentPath), true);
     assert.match(built, /^## Chapter 1: Arrival$/m);
     assert.match(built, /^## Chapter 2: Fork$/m);
     const chapterOneHeadingCount = (built.match(/^## Chapter 1: Arrival$/gm) || []).length;

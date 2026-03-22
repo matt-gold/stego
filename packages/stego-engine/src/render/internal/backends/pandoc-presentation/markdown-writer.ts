@@ -4,7 +4,7 @@ import {
   injectLeafHeadingAnchors,
   type LeafHeadingTarget
 } from "@stego-labs/shared/domain/content";
-import { createDocxLayoutBookmarkName, type DocxBlockLayoutSpec } from "@stego-labs/shared/domain/layout";
+import { createPresentationMarkerId } from "@stego-labs/shared/domain/presentation";
 import type {
   AlignValue,
   ColorValue,
@@ -18,7 +18,8 @@ import type {
   StegoInlineNode,
   StegoNode
 } from "../../../../ir/index.ts";
-import { normalizeHexColor, toDocxColor } from "../../../../style/index.ts";
+import type { PresentationBlockMarker } from "../../../public/types.ts";
+import { normalizeHexColor } from "../../../../style/index.ts";
 import type { LeafRecord } from "../../../../template/index.ts";
 import { formatSizeValue, formatSpacingValue } from "../../normalize/index.ts";
 
@@ -38,20 +39,20 @@ export function writePandocMarkdown(
   } = {}
 ): {
   markdown: string;
-  docxBlockLayouts: DocxBlockLayoutSpec[];
+  blockMarkers: PresentationBlockMarker[];
   usesBlockFontFamily: boolean;
   usesBlockLineSpacing: boolean;
-  usesBlockUnderline: boolean;
-  usesBlockTextColor: boolean;
+  usesUnderline: boolean;
+  usesTextColor: boolean;
 } {
   const blocks: string[] = [];
   const context = {
-    docxBlockLayoutIndex: 0,
-    docxBlockLayouts: [] as DocxBlockLayoutSpec[],
+    presentationMarkerIndex: 0,
+    blockMarkers: [] as PresentationBlockMarker[],
     usesBlockFontFamily: false,
     usesBlockLineSpacing: false,
-    usesBlockUnderline: false,
-    usesBlockTextColor: false,
+    usesUnderline: false,
+    usesTextColor: false,
     defaultParagraphSpaceBefore: formatSpacingValue(options.spaceBefore ?? 0),
     defaultParagraphSpaceAfter: formatSpacingValue(options.spaceAfter ?? 0),
     leaves: new Map(leaves.map((leaf) => [leaf.id, {
@@ -75,11 +76,11 @@ export function writePandocMarkdown(
 
   return {
     markdown: `${blocks.join("\n\n").replace(/\n{3,}/g, "\n\n")}\n`,
-    docxBlockLayouts: context.docxBlockLayouts,
+    blockMarkers: context.blockMarkers,
     usesBlockFontFamily: context.usesBlockFontFamily,
     usesBlockLineSpacing: context.usesBlockLineSpacing,
-    usesBlockUnderline: context.usesBlockUnderline,
-    usesBlockTextColor: context.usesBlockTextColor
+    usesUnderline: context.usesUnderline,
+    usesTextColor: context.usesTextColor
   };
 }
 
@@ -89,9 +90,9 @@ function renderNode(node: StegoNode, context: RenderContext): string {
     case "fragment":
       return node.children.map((child) => renderNode(child, context)).filter(Boolean).join("\n\n");
     case "keepTogether": {
-      const markerId = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
-      context.docxBlockLayouts.push({
-        bookmarkName: markerId,
+      const markerId = createPresentationMarkerId(++context.presentationMarkerIndex);
+      context.blockMarkers.push({
+        markerId,
         keepTogether: true
       });
       const body = node.children.map((child) => renderNode(child, context)).filter(Boolean).join("\n\n");
@@ -108,7 +109,7 @@ function renderNode(node: StegoNode, context: RenderContext): string {
       return attrs ? `::: ${attrs}\n${body}\n:::` : body;
     }
     case "heading": {
-      const layout = toDocxBlockLayout({
+      const layout = toPresentationBlockMarker({
         spaceBefore: node.spaceBefore,
         spaceAfter: node.spaceAfter,
         insetLeft: node.insetLeft,
@@ -127,9 +128,9 @@ function renderNode(node: StegoNode, context: RenderContext): string {
       if (!layout) {
         return body;
       }
-      const markerId = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
-      context.docxBlockLayouts.push({
-        bookmarkName: markerId,
+      const markerId = createPresentationMarkerId(++context.presentationMarkerIndex);
+      context.blockMarkers.push({
+        markerId,
         ...layout
       });
       trackBlockStyleUsage(context, layout);
@@ -159,7 +160,7 @@ function renderNode(node: StegoNode, context: RenderContext): string {
         },
         context,
       );
-      const markerId = getOrCreateDocxBlockLayoutMarker(context, {
+      const markerId = getOrCreatePresentationMarker(context, {
         spaceBefore: spacing.spaceBefore,
         spaceAfter: spacing.spaceAfter,
         insetLeft: node.insetLeft,
@@ -193,7 +194,7 @@ function renderNode(node: StegoNode, context: RenderContext): string {
         },
         context,
       );
-      const markerId = getOrCreateDocxBlockLayoutMarker(context, {
+      const markerId = getOrCreatePresentationMarker(context, {
         spaceBefore: spacing.spaceBefore,
         spaceAfter: spacing.spaceAfter,
         insetLeft: node.insetLeft,
@@ -220,7 +221,7 @@ function renderNode(node: StegoNode, context: RenderContext): string {
     }
     case "markdownHeading": {
       const body = renderMarkdownHeadingNode(node);
-      const layout = toDocxBlockLayout({
+      const layout = toPresentationBlockMarker({
         spaceBefore: node.spaceBefore,
         spaceAfter: node.spaceAfter,
         insetLeft: node.insetLeft,
@@ -238,9 +239,9 @@ function renderNode(node: StegoNode, context: RenderContext): string {
       if (!layout) {
         return body;
       }
-      const markerId = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
-      context.docxBlockLayouts.push({
-        bookmarkName: markerId,
+      const markerId = createPresentationMarkerId(++context.presentationMarkerIndex);
+      context.blockMarkers.push({
+        markerId,
         ...layout
       });
       trackBlockStyleUsage(context, layout);
@@ -290,15 +291,15 @@ function renderNode(node: StegoNode, context: RenderContext): string {
       if (!node.align) {
         return body;
       }
-      const markerId = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
-      context.docxBlockLayouts.push({
-        bookmarkName: markerId,
+      const markerId = createPresentationMarkerId(++context.presentationMarkerIndex);
+      context.blockMarkers.push({
+        markerId,
         align: node.align
       });
       return `::: {#${markerId}}\n${body}\n:::`;
     }
     case "pageBreak":
-      return renderDocxLayoutMarker(context, { pageBreak: true }, ["data-page-break=true"]);
+      return renderPresentationMarker(context, { pageBreak: true }, ["data-page-break=true"]);
     case "pageNumber":
       throw new Error("<Stego.PageNumber /> may only appear inside <Stego.PageTemplate /> in V1.");
     case "text":
@@ -309,12 +310,12 @@ function renderNode(node: StegoNode, context: RenderContext): string {
 }
 
 type RenderContext = {
-  docxBlockLayoutIndex: number;
-  docxBlockLayouts: DocxBlockLayoutSpec[];
+  presentationMarkerIndex: number;
+  blockMarkers: PresentationBlockMarker[];
   usesBlockFontFamily: boolean;
   usesBlockLineSpacing: boolean;
-  usesBlockUnderline: boolean;
-  usesBlockTextColor: boolean;
+  usesUnderline: boolean;
+  usesTextColor: boolean;
   defaultParagraphSpaceBefore?: string;
   defaultParagraphSpaceAfter?: string;
   leaves: Map<string, LeafIndexEntry>;
@@ -432,10 +433,10 @@ function escapeInlineText(value: string): string {
   return value.replace(/([\[\]\\])/g, "\\$1");
 }
 
-function getOrCreateDocxBlockLayoutMarker(
+function getOrCreatePresentationMarker(
   context: RenderContext,
   input: {
-    bookmarkName?: string;
+    markerId?: string;
     spaceBefore?: SpacingValue;
     spaceAfter?: SpacingValue;
     insetLeft?: InsetValue;
@@ -452,22 +453,22 @@ function getOrCreateDocxBlockLayoutMarker(
     color?: ColorValue;
   }
 ): string | undefined {
-  const layout = toDocxBlockLayout(input);
+  const layout = toPresentationBlockMarker(input);
   if (!layout) {
     return undefined;
   }
-  const bookmarkName = input.bookmarkName || createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
-  context.docxBlockLayouts.push({
-    bookmarkName,
+  const markerId = input.markerId || createPresentationMarkerId(++context.presentationMarkerIndex);
+  context.blockMarkers.push({
+    markerId,
     ...layout
   });
   trackBlockStyleUsage(context, layout);
-  return bookmarkName;
+  return markerId;
 }
 
 function trackBlockStyleUsage(
   context: RenderContext,
-  layout: Omit<DocxBlockLayoutSpec, "bookmarkName">
+  layout: Omit<PresentationBlockMarker, "markerId">
 ): void {
   if (layout.fontFamily) {
     context.usesBlockFontFamily = true;
@@ -476,30 +477,30 @@ function trackBlockStyleUsage(
     context.usesBlockLineSpacing = true;
   }
   if (layout.underline) {
-    context.usesBlockUnderline = true;
+    context.usesUnderline = true;
   }
   if (layout.color) {
-    context.usesBlockTextColor = true;
+    context.usesTextColor = true;
   }
 }
 
-function renderDocxLayoutMarker(
+function renderPresentationMarker(
   context: RenderContext,
-  layout: Omit<DocxBlockLayoutSpec, "bookmarkName">,
+  layout: Omit<PresentationBlockMarker, "markerId">,
   extraTokens: string[] = [],
   body = ""
 ): string {
-  const bookmarkName = createDocxLayoutBookmarkName(++context.docxBlockLayoutIndex);
-  context.docxBlockLayouts.push({
-    bookmarkName,
+  const markerId = createPresentationMarkerId(++context.presentationMarkerIndex);
+  context.blockMarkers.push({
+    markerId,
     ...layout
   });
   trackBlockStyleUsage(context, layout);
-  const attrs = renderRawAttrs({ id: bookmarkName, tokens: extraTokens });
+  const attrs = renderRawAttrs({ id: markerId, tokens: extraTokens });
   return body ? `::: ${attrs}\n${body}\n:::` : `::: ${attrs}\n:::`;
 }
 
-function toDocxBlockLayout(input: {
+function toPresentationBlockMarker(input: {
   spaceBefore?: SpacingValue;
   spaceAfter?: SpacingValue;
   insetLeft?: InsetValue;
@@ -514,7 +515,7 @@ function toDocxBlockLayout(input: {
   underline?: boolean;
   smallCaps?: boolean;
   color?: ColorValue;
-}): Omit<DocxBlockLayoutSpec, "bookmarkName"> | undefined {
+}): Omit<PresentationBlockMarker, "markerId"> | undefined {
   const spaceBefore = formatSpacingValue(input.spaceBefore);
   const spaceAfter = formatSpacingValue(input.spaceAfter);
   const insetLeft = formatSpacingValue(input.insetLeft);
@@ -528,7 +529,7 @@ function toDocxBlockLayout(input: {
   const italic = input.italic === true ? true : undefined;
   const underline = input.underline === true ? true : undefined;
   const smallCaps = input.smallCaps === true ? true : undefined;
-  const color = toDocxColor(input.color);
+  const color = normalizeHexColor(input.color);
 
   if (
     !spaceBefore

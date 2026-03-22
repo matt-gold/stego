@@ -6,7 +6,7 @@ It provides four public areas:
 
 - `ir`: the intermediate representation for Stego documents
 - `template`: TSX-facing authoring API
-- `compile` and `render`: project loading, template evaluation, and Pandoc-oriented render planning
+- `compile` and `render`: project loading, template evaluation, and Pandoc-oriented backend documentning
 
 Templates are plain TSX with normal JavaScript. They compile ordered leaves from `content/` into a manuscript.
 

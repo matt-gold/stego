@@ -20,7 +20,7 @@ Open `content/manuscript/` in order, or build the compiled manual:
 stego build --project stego-docs
 ```
 
-To inspect the template render plan directly:
+To inspect the template backend document directly:
 
 ```bash
 stego template build --project stego-docs

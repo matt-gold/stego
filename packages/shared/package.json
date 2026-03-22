@@ -48,6 +48,10 @@
       "types": "./dist/domain/layout/index.d.ts",
       "default": "./dist/domain/layout/index.js"
     },
+    "./domain/presentation": {
+      "types": "./dist/domain/presentation/index.d.ts",
+      "default": "./dist/domain/presentation/index.js"
+    },
     "./domain/project": {
       "types": "./dist/domain/project/index.d.ts",
       "default": "./dist/domain/project/index.js"
@@ -84,6 +88,9 @@
       ],
       "domain/layout": [
         "dist/domain/layout/index.d.ts"
+      ],
+      "domain/presentation": [
+        "dist/domain/presentation/index.d.ts"
       ],
       "domain/project": [
         "dist/domain/project/index.d.ts"

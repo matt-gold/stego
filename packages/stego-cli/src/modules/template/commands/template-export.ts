@@ -37,7 +37,7 @@ export function registerTemplateExportCommand(registry: CommandRegistry): void {
       });
 
       writeText(`Template build markdown: ${result.markdownPath}`);
-      writeText(`Template render plan: ${result.renderPlanPath}`);
+      writeText(`Template backend document: ${result.backendDocumentPath}`);
       writeText(`Template export output: ${result.outputPath}`);
     }
   });

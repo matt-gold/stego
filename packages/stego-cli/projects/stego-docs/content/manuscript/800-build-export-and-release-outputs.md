@@ -36,7 +36,7 @@ kind: chapter
 
 In the default lane, that means `templates/book.template.tsx`.
 
-In advanced template mode, Stego auto-discovers `templates/*.template.tsx`, compiles each discovered template once, and writes one markdown/render-plan artifact pair per template.
+In advanced template mode, Stego auto-discovers `templates/*.template.tsx`, compiles each discovered template once, and writes one markdown/backend-document artifact pair per template.
 
 The build is deterministic because Stego sorts leaves by optional filename prefixes when present and otherwise falls back to stable path order, while structure, headings, frontmatter, and backmatter come from template code.
 
@@ -47,7 +47,7 @@ Generated files in `dist/` should not be hand-edited.
 `stego template build` writes two debug artifacts:
 
 - `dist/<project-id>.template.md`
-- `dist/<project-id>.template.render-plan.json`
+- `dist/<project-id>.template.backend-document.json`
 
 Use them when you are authoring or debugging a template with `@stego-labs/engine`.
 
