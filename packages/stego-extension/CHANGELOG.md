@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [af43c8c]
+  - @stego-labs/shared@1.1.1
+
 ## 1.1.0
 
 ### Patch Changes
