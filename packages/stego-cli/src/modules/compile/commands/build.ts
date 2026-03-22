@@ -43,11 +43,11 @@ export function registerBuildCommand(registry: CommandRegistry): void {
           explicitTemplatePath,
           {
             markdownFileName: `${project.id}.md`,
-            renderPlanFileName: `${project.id}.render-plan.json`
+            backendDocumentFileName: `${project.id}.backend-document.json`
           }
         );
         writeText(`Build output: ${result.markdownPath}`);
-        writeText(`Build render plan: ${result.renderPlanPath}`);
+        writeText(`Build backend document: ${result.backendDocumentPath}`);
         return;
       }
 
@@ -69,7 +69,7 @@ export function registerBuildCommand(registry: CommandRegistry): void {
         const results = await planner.buildDiscoveredTemplates(inspection);
         for (const result of results) {
           writeText(`Build output (${formatTemplateTargets(result.templateName, result.declaredTargets)}): ${result.markdownPath}`);
-          writeText(`Build render plan (${result.templateName}): ${result.renderPlanPath}`);
+          writeText(`Build backend document (${result.templateName}): ${result.backendDocumentPath}`);
         }
 
         if (inspection.issues.some((issue) => issue.level === "error")) {

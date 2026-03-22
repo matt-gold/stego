@@ -6,14 +6,14 @@ import type { ProjectContext } from "../../project/index.ts";
 
 export type TemplateBuildArtifactPaths = {
   markdownFileName?: string;
-  renderPlanFileName?: string;
+  backendDocumentFileName?: string;
 };
 
 export type BuildTemplateProjectResult = {
   declaredTargets: readonly PresentationTarget[] | null;
   markdownPath: string;
-  renderPlanPath: string;
-  renderPlan: RenderDocumentResult;
+  backendDocumentPath: string;
+  backendDocument: RenderDocumentResult;
 };
 
 export async function buildTemplateProject(
@@ -27,7 +27,7 @@ export async function buildTemplateProject(
     templatePath
   });
 
-  const renderPlan = renderDocument({
+  const backendDocument = renderDocument({
     document: compiled.document,
     projectRoot: project.root,
     context: compiled.context
@@ -35,17 +35,17 @@ export async function buildTemplateProject(
 
   fs.mkdirSync(project.distDir, { recursive: true });
   const markdownPath = path.join(project.distDir, artifactPaths.markdownFileName || `${project.id}.template.md`);
-  const renderPlanPath = path.join(
+  const backendDocumentPath = path.join(
     project.distDir,
-    artifactPaths.renderPlanFileName || `${project.id}.template.render-plan.json`
+    artifactPaths.backendDocumentFileName || `${project.id}.template.backend-document.json`
   );
-  fs.writeFileSync(markdownPath, renderPlan.markdown, "utf8");
-  fs.writeFileSync(renderPlanPath, `${JSON.stringify(renderPlan, null, 2)}\n`, "utf8");
+  fs.writeFileSync(markdownPath, backendDocument.source.markdown, "utf8");
+  fs.writeFileSync(backendDocumentPath, `${JSON.stringify(backendDocument, null, 2)}\n`, "utf8");
 
   return {
     declaredTargets: compiled.declaredTargets,
     markdownPath,
-    renderPlanPath,
-    renderPlan
+    backendDocumentPath,
+    backendDocument
   };
 }

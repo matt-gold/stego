@@ -46,11 +46,11 @@ export function registerExportCommand(registry: CommandRegistry): void {
           explicitOutputPath: readStringOption(context.options, "output"),
           artifactPaths: {
             markdownFileName: `${project.id}.md`,
-            renderPlanFileName: `${project.id}.render-plan.json`
+            backendDocumentFileName: `${project.id}.backend-document.json`
           }
         });
         writeText(`Export build markdown: ${exported.markdownPath}`);
-        writeText(`Export render plan: ${exported.renderPlanPath}`);
+        writeText(`Export backend document: ${exported.backendDocumentPath}`);
         writeText(`Export output: ${exported.outputPath}`);
         return;
       }
@@ -72,7 +72,7 @@ export function registerExportCommand(registry: CommandRegistry): void {
           inspection
         );
         writeText(`Export build markdown: ${exported.markdownPath}`);
-        writeText(`Export render plan: ${exported.renderPlanPath}`);
+        writeText(`Export backend document: ${exported.backendDocumentPath}`);
         writeText(`Export output: ${exported.outputPath}`);
       } finally {
         planner.dispose();

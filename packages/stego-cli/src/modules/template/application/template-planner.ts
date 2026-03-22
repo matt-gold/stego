@@ -1,7 +1,5 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import * as yaml from "js-yaml";
 import {
   buildTemplateContext,
   evaluateTemplate,
@@ -19,7 +17,7 @@ import {
   type ExportTarget,
   type PresentationTarget
 } from "@stego-labs/shared/domain/templates";
-import { runExport } from "../../export/index.ts";
+import { prepareRenderedExport, runExport } from "../../export/index.ts";
 import type { ProjectContext } from "../../project/index.ts";
 import type { Issue } from "../../quality/index.ts";
 
@@ -37,7 +35,7 @@ type LoadedTemplateState = {
 
 type CompiledTemplateState = LoadedTemplateState & {
   context: TemplateContext;
-  renderPlan: RenderDocumentResult;
+  backendDocument: RenderDocumentResult;
 };
 
 export type TemplateInspection = {
@@ -50,7 +48,7 @@ export type PlannedTemplateArtifact = {
   templateName: string;
   declaredTargets: readonly PresentationTarget[] | null;
   markdownPath: string;
-  renderPlanPath: string;
+  backendDocumentPath: string;
 };
 
 export type PlannedTemplateExport = PlannedTemplateArtifact & {
@@ -252,25 +250,24 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
 
     const compiled = await compileTemplate(matches[0]);
     const artifacts = writePlannedTemplateArtifacts(project, compiled);
-    const metadataFilePath = Object.keys(compiled.renderPlan.metadata).length > 0
-      ? writeTempMetadataFile(compiled.renderPlan.metadata)
-      : null;
+    const prepared = prepareRenderedExport({
+      format: normalizedFormat,
+      backendDocument: compiled.backendDocument,
+      project,
+      markdownPath: artifacts.markdownPath,
+    });
 
     try {
       const exported = await runExport({
         project,
         format: normalizedFormat,
         inputPath: artifacts.markdownPath,
-        inputFormat: compiled.renderPlan.inputFormat,
-        resourcePaths: [
-          ...compiled.renderPlan.resourcePaths,
-          project.contentDir,
-          path.dirname(artifacts.markdownPath)
-        ],
-        requiredFilters: compiled.renderPlan.requiredFilters,
+        inputFormat: prepared.inputFormat,
+        resourcePaths: prepared.resourcePaths,
+        requiredFilters: prepared.requiredFilters,
         explicitOutputPath,
-        extraArgs: metadataFilePath ? ["--metadata-file", metadataFilePath] : [],
-        postprocess: compiled.renderPlan.postprocess
+        extraArgs: prepared.extraArgs,
+        postprocess: prepared.postprocess
       });
 
       return {
@@ -279,9 +276,7 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
         format: normalizedFormat
       };
     } finally {
-      if (metadataFilePath) {
-        fs.rmSync(path.dirname(metadataFilePath), { recursive: true, force: true });
-      }
+      prepared.cleanup();
     }
   }
 
@@ -323,7 +318,7 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
       });
       contextCache = context;
       const document = evaluateTemplate(template.template, context);
-      const renderPlan = renderDocument({
+      const backendDocument = renderDocument({
         document,
         projectRoot: project.root,
         context
@@ -332,7 +327,7 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
       return {
         ...template,
         context,
-        renderPlan
+        backendDocument
       };
     })();
 
@@ -398,17 +393,17 @@ function writePlannedTemplateArtifacts(
     ? project.id
     : `${project.id}.${compiled.templateName}`;
   const markdownPath = path.join(project.distDir, `${artifactStem}.md`);
-  const renderPlanPath = path.join(project.distDir, `${artifactStem}.render-plan.json`);
+  const backendDocumentPath = path.join(project.distDir, `${artifactStem}.backend-document.json`);
 
-  fs.writeFileSync(markdownPath, compiled.renderPlan.markdown, "utf8");
-  fs.writeFileSync(renderPlanPath, `${JSON.stringify(compiled.renderPlan, null, 2)}\n`, "utf8");
+  fs.writeFileSync(markdownPath, compiled.backendDocument.source.markdown, "utf8");
+  fs.writeFileSync(backendDocumentPath, `${JSON.stringify(compiled.backendDocument, null, 2)}\n`, "utf8");
 
   return {
     templatePath: compiled.templatePath,
     templateName: compiled.templateName,
     declaredTargets: compiled.declaredTargets,
     markdownPath,
-    renderPlanPath
+    backendDocumentPath
   };
 }
 
@@ -418,13 +413,6 @@ function normalizeExportTarget(value: string): ExportTarget {
     throw new CliError("INVALID_USAGE", `Unsupported export format '${value}'. Use md, docx, pdf, epub, or latex.`);
   }
   return normalized;
-}
-
-function writeTempMetadataFile(metadata: Record<string, unknown>): string {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-template-export-"));
-  const metadataFilePath = path.join(tempDir, "metadata.yaml");
-  fs.writeFileSync(metadataFilePath, yaml.dump(metadata), "utf8");
-  return metadataFilePath;
 }
 
 function formatTemplateLoadError(templatePath: string, error: unknown): string {

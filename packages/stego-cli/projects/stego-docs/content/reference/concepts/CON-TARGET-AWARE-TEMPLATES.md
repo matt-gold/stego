@@ -13,7 +13,7 @@ kind: reference
 - Print templates can set `bodyStyle.spaceBefore` and `bodyStyle.spaceAfter` on `Stego.Document` or `Stego.Section` to control inherited paragraph spacing for both explicit `Stego.Paragraph` nodes and markdown-authored paragraphs.
 - `fontFamily` in PDF exports requires `xelatex` so Stego can honor the requested named font reliably. `latex` exports share the same print backend but emit `.tex` directly.
 - Multiple templates per project are discovered from `templates/*.template.tsx`.
-- `stego build` compiles every discovered template and writes per-template markdown and render-plan artifacts.
+- `stego build` compiles every discovered template and writes per-template markdown and backend-document artifacts.
 - `stego export --format docx|pdf|epub|latex` selects the unique matching discovered template and fails on ambiguity.
 - Markdown is a special-case export artifact and stays on the deterministic default template path unless you explicitly bypass it with `--template`.
 

@@ -65,7 +65,7 @@ stego template build -p fiction-example
 stego template export -p fiction-example --format pdf
 ```
 
-`template build` writes a compiled markdown artifact and a render-plan JSON file to `dist/` so you can inspect exactly what `@stego-labs/engine` produced for one explicit template.
+`template build` writes a compiled markdown artifact and a backend-document JSON file to `dist/` so you can inspect exactly what `@stego-labs/engine` produced for one explicit template.
 
 ## Create a new project
 

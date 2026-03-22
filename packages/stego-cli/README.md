@@ -81,7 +81,7 @@ Current behavior:
 - `md` is the low-fidelity compiled/debug artifact: useful for inspection, diffing, and portable handoff, but not a full presentation-fidelity target for all Stego layout primitives
 - `md` is a special-case export artifact: it stays on the deterministic default template path unless you explicitly bypass it with `--template`
 - `docx`, `pdf`, and `epub` are the presentation targets when you need richer layout fidelity
-- `dist/<project-id>.template.md` and `dist/<project-id>.template.render-plan.json` are written for inspection during `template build`
+- `dist/<project-id>.template.md` and `dist/<project-id>.template.backend-document.json` are written for inspection during `template build`
 
 ### Default vs advanced templates
 
@@ -93,7 +93,7 @@ Default projects keep the low-friction path:
 Advanced template mode is for sophisticated projects that want target-aware templates, multiple templates per project, or a narrowed Stego API:
 
 - Stego auto-discovers `templates/*.template.tsx`
-- `stego build` compiles every discovered template once and writes per-template markdown/render-plan artifacts
+- `stego build` compiles every discovered template once and writes per-template markdown/backend-document artifacts
 - `stego export --format docx|pdf|epub|latex` chooses the unique matching discovered template
 - if more than one discovered template supports the same presentation target, export fails with an ambiguity error until you pass `--template`
 - `stego template build` and `stego template export` remain the direct single-template debug/bypass commands

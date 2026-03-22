@@ -202,16 +202,16 @@ export default defineTemplate((ctx) => (
     assert.equal(compiled.context.allBranches.find((branch) => branch.id === "reference/characters")?.leaves.length, 1);
     assert.equal(compiled.context.content.branches.find((branch) => branch.id === "reference")?.branches[0]?.id, "reference/characters");
 
-    assert.match(rendered.markdown, /Body\./);
-    assert.doesNotMatch(rendered.markdown, /CMT-0001/);
-    assert.match(rendered.markdown, /#CH-ONE/);
-    assert.match(rendered.markdown, /CH-ONE--opening/);
+    assert.match(rendered.source.markdown, /Body\./);
+    assert.doesNotMatch(rendered.source.markdown, /CMT-0001/);
+    assert.match(rendered.source.markdown, /#CH-ONE/);
+    assert.match(rendered.source.markdown, /CH-ONE--opening/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
-test("renderDocument emits keep-together, layout, footer page-number metadata, and image attrs", () => {
+test("renderDocument emits presentation markers, page regions, and image attrs", () => {
   const document = engine.Stego.Document({
     page: { size: "letter", margin: "1in" },
     bodyStyle: {
@@ -277,50 +277,43 @@ test("renderDocument emits keep-together, layout, footer page-number metadata, a
       allBranches: []
     }
   });
-  assert.equal(rendered.backend, "pandoc-latex");
-  assert.equal(rendered.inputFormat, "markdown-implicit_figures");
-  assert.deepEqual(rendered.metadata.geometry, ["paper=letterpaper", "margin=1in"]);
-  assert.equal(rendered.metadata.mainfont, "Times New Roman");
-  assert.equal(rendered.metadata.fontsize, "12pt");
-  assert.ok(Array.isArray(rendered.metadata["header-includes"]));
-  assert.equal(rendered.metadata["header-includes"].some((entry) => entry.includes("\\usepackage{setspace}")), true);
-  assert.equal(rendered.metadata["header-includes"].some((entry) => entry.includes("\\setstretch{2}")), true);
-  assert.match(rendered.markdown, /data-page-break=true/);
-  assert.match(rendered.markdown, /data-keep-together=true/);
-  assert.match(rendered.markdown, /data-space-before=18pt/);
-  assert.match(rendered.markdown, /data-space-after=12pt/);
-  assert.match(rendered.markdown, /data-inset-left=24pt/);
-  assert.match(rendered.markdown, /data-inset-right=24pt/);
-  assert.match(rendered.markdown, /data-first-line-indent=1.5em/);
-  assert.match(rendered.markdown, /data-first-line-indent=2em/);
-  assert.match(rendered.markdown, /data-line-spacing=1.5/);
-  assert.match(rendered.markdown, /data-font-family="Georgia"/);
-  assert.match(rendered.markdown, /data-font-size=11pt/);
-  assert.match(rendered.markdown, /data-font-weight=normal/);
-  assert.match(rendered.markdown, /data-underline=true/);
-  assert.match(rendered.markdown, /data-color="#333333"/);
-  assert.match(rendered.markdown, /data-layout=block/);
-  assert.deepEqual(rendered.requiredFilters, ["image-layout", "block-layout"]);
-  assert.equal(Array.isArray(rendered.postprocess.docx.blockLayouts), true);
-  assert.equal(rendered.postprocess.docx.blockLayouts.length >= 4, true);
-  assert.deepEqual(rendered.postprocess.docx.documentStyle, {
-    fontFamily: "Times New Roman",
-    fontSizePt: 12,
-    lineSpacing: 2,
-    spaceBefore: "0pt",
-    spaceAfter: "0pt"
-  });
-  assert.equal(rendered.postprocess.docx.blockLayouts.some((entry) => entry.keepTogether === true), true);
+  assert.equal(rendered.backend, "pandoc-presentation");
+  assert.equal(rendered.source.inputFormat, "markdown-implicit_figures");
+  assert.deepEqual(rendered.source.requiredFilters, ["image-layout", "block-layout"]);
+  assert.deepEqual(rendered.presentation.page.geometry, ["paper=letterpaper", "margin=1in"]);
+  assert.equal(rendered.presentation.page.fontFamily, "Times New Roman");
+  assert.equal(rendered.presentation.page.fontSize, "12pt");
+  assert.equal(rendered.presentation.page.lineSpacing, 2);
+  assert.equal(rendered.presentation.page.spaceBefore, "0pt");
+  assert.equal(rendered.presentation.page.spaceAfter, "0pt");
+  assert.match(rendered.source.markdown, /data-page-break=true/);
+  assert.match(rendered.source.markdown, /data-keep-together=true/);
+  assert.match(rendered.source.markdown, /data-space-before=18pt/);
+  assert.match(rendered.source.markdown, /data-space-after=12pt/);
+  assert.match(rendered.source.markdown, /data-inset-left=24pt/);
+  assert.match(rendered.source.markdown, /data-inset-right=24pt/);
+  assert.match(rendered.source.markdown, /data-first-line-indent=1.5em/);
+  assert.match(rendered.source.markdown, /data-first-line-indent=2em/);
+  assert.match(rendered.source.markdown, /data-line-spacing=1.5/);
+  assert.match(rendered.source.markdown, /data-font-family="Georgia"/);
+  assert.match(rendered.source.markdown, /data-font-size=11pt/);
+  assert.match(rendered.source.markdown, /data-font-weight=normal/);
+  assert.match(rendered.source.markdown, /data-underline=true/);
+  assert.match(rendered.source.markdown, /data-color="#333333"/);
+  assert.match(rendered.source.markdown, /data-layout=block/);
+  assert.equal(Array.isArray(rendered.presentation.blockMarkers), true);
+  assert.equal(rendered.presentation.blockMarkers.length >= 4, true);
+  assert.equal(rendered.presentation.blockMarkers.some((entry) => entry.keepTogether === true), true);
   assert.equal(
-    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceBefore === "18pt" && entry.firstLineIndent === "1.5em" && entry.lineSpacing === 1.5),
+    rendered.presentation.blockMarkers.some((entry) => entry.spaceBefore === "18pt" && entry.firstLineIndent === "1.5em" && entry.lineSpacing === 1.5),
     true
   );
   assert.equal(
-    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceBefore === "24pt" && entry.spaceAfter === "18pt" && entry.fontFamily === "Georgia" && entry.underline === true),
+    rendered.presentation.blockMarkers.some((entry) => entry.spaceBefore === "24pt" && entry.spaceAfter === "18pt" && entry.fontFamily === "Georgia" && entry.underline === true),
     true
   );
   assert.equal(
-    rendered.postprocess.docx.blockLayouts.some((entry) =>
+    rendered.presentation.blockMarkers.some((entry) =>
       entry.align === "center"
       && entry.fontSizePt === 11
       && entry.spaceBefore === "18pt"
@@ -329,8 +322,10 @@ test("renderDocument emits keep-together, layout, footer page-number metadata, a
     ),
     true
   );
-  assert.equal(rendered.postprocess.docx.blockLayouts.some((entry) => entry.pageBreak === true), true);
-  assert.equal(rendered.postprocess.pdf.requiresXelatex, true);
+  assert.equal(rendered.presentation.blockMarkers.some((entry) => entry.pageBreak === true), true);
+  assert.equal(rendered.presentation.features.requiresNamedFontEngine, true);
+  assert.equal("metadata" in rendered, false);
+  assert.equal("postprocess" in rendered, false);
 });
 
 test("renderDocument turns markdown into block IR and applies section paragraph defaults", () => {
@@ -367,13 +362,13 @@ Second paragraph.`
     }
   });
 
-  assert.match(rendered.markdown, /# Heading/);
-  assert.match(rendered.markdown, /data-space-after=12pt/);
-  assert.match(rendered.markdown, /First paragraph with \*markdown\*\./);
-  assert.match(rendered.markdown, /- item one/);
-  assert.match(rendered.markdown, /Second paragraph\./);
+  assert.match(rendered.source.markdown, /# Heading/);
+  assert.match(rendered.source.markdown, /data-space-after=12pt/);
+  assert.match(rendered.source.markdown, /First paragraph with \*markdown\*\./);
+  assert.match(rendered.source.markdown, /- item one/);
+  assert.match(rendered.source.markdown, /Second paragraph\./);
   assert.equal(
-    rendered.postprocess.docx.blockLayouts.some((entry) => entry.spaceAfter === "12pt"),
+    rendered.presentation.blockMarkers.some((entry) => entry.spaceAfter === "12pt"),
     true
   );
 });
@@ -424,9 +419,9 @@ test("renderDocument resolves grouped heading and body styles for markdown and e
     }
   });
 
-  assert.match(rendered.markdown, /data-font-weight=normal/);
-  assert.match(rendered.markdown, /data-underline=true/);
-  assert.match(rendered.markdown, /data-color="#222222"/);
-  assert.match(rendered.markdown, /data-first-line-indent=0.5in/);
-  assert.match(rendered.markdown, /data-space-after=12pt/);
+  assert.match(rendered.source.markdown, /data-font-weight=normal/);
+  assert.match(rendered.source.markdown, /data-underline=true/);
+  assert.match(rendered.source.markdown, /data-color="#222222"/);
+  assert.match(rendered.source.markdown, /data-first-line-indent=0.5in/);
+  assert.match(rendered.source.markdown, /data-space-after=12pt/);
 });

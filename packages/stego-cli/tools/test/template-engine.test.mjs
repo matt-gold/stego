@@ -92,7 +92,7 @@ function asString(value) {
   return projectRoot;
 }
 
-test("template build writes markdown and render-plan artifacts", () => {
+test("template build writes markdown and backend-document artifacts", () => {
   const projectId = `template-build-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(projectId);
 
@@ -101,9 +101,9 @@ test("template build writes markdown and render-plan artifacts", () => {
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 
     const markdownPath = path.join(projectRoot, "dist", `${projectId}.template.md`);
-    const renderPlanPath = path.join(projectRoot, "dist", `${projectId}.template.render-plan.json`);
+    const backendDocumentPath = path.join(projectRoot, "dist", `${projectId}.template.backend-document.json`);
     assert.equal(fs.existsSync(markdownPath), true);
-    assert.equal(fs.existsSync(renderPlanPath), true);
+    assert.equal(fs.existsSync(backendDocumentPath), true);
 
     const markdown = fs.readFileSync(markdownPath, "utf8");
     assert.match(markdown, /Chapter 1/);

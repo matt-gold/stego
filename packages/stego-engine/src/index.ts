@@ -19,5 +19,13 @@ export type {
 export { compileProject, buildTemplateContext } from "./compile/index.ts";
 export type { CompileProjectInput, CompileProjectResult, BuildTemplateContextInput } from "./compile/index.ts";
 export { renderDocument } from "./render/index.ts";
-export type { RenderDocumentInput, RenderDocumentResult } from "./render/index.ts";
+export type {
+  RenderDocumentInput,
+  RenderDocumentResult,
+  PandocPresentationBackendDocument,
+  PresentationPageLayout,
+  PresentationBlockMarker,
+  PresentationBlockAlign,
+  PresentationFeatureUsage
+} from "./render/index.ts";
 export type { ExportTarget, PresentationTarget } from "@stego-labs/shared/domain/templates";

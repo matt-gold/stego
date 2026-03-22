@@ -1,22 +1,22 @@
-import type { PageRegionSpec } from "../../../../ir/index.ts";
-import type { NormalizedPageLayout } from "../../normalize/index.ts";
+import type {
+  PresentationFeatureUsage,
+  PresentationPageLayout,
+} from "@stego-labs/engine";
+import type { PageRegionSpec } from "@stego-labs/engine";
 
-export function buildLatexMetadata(
-  layout: NormalizedPageLayout,
-  options: {
-    usesBlockFontFamily?: boolean;
-    usesBlockLineSpacing?: boolean;
-    usesBlockUnderline?: boolean;
-    usesBlockTextColor?: boolean;
-  } = {}
+export function prepareLatexMetadata(
+  page: PresentationPageLayout,
+  features: PresentationFeatureUsage,
 ): Record<string, unknown> {
   const metadata: Record<string, unknown> = {};
-  if (layout.geometry.length > 0) {
-    metadata.geometry = layout.geometry;
+  if (page.geometry.length > 0) {
+    metadata.geometry = page.geometry;
   }
-  const fontFamily = normalizeFontFamily(layout.fontFamily);
-  const fontSize = normalizeFontSize(layout.fontSize);
-  const lineSpacing = normalizeLineSpacing(layout.lineSpacing);
+
+  const fontFamily = normalizeFontFamily(page.fontFamily);
+  const fontSize = normalizeFontSize(page.fontSize);
+  const lineSpacing = normalizeLineSpacing(page.lineSpacing);
+
   if (fontFamily) {
     metadata.mainfont = fontFamily;
   }
@@ -25,27 +25,27 @@ export function buildLatexMetadata(
   }
 
   const headerIncludes: string[] = [];
-  if (fontFamily || options.usesBlockFontFamily) {
+  if (fontFamily || features.usesBlockFontFamily) {
     headerIncludes.push("\\usepackage{fontspec}");
   }
-  if (lineSpacing !== undefined || options.usesBlockLineSpacing) {
+  if (lineSpacing !== undefined || features.usesBlockLineSpacing) {
     headerIncludes.push("\\usepackage{setspace}");
   }
-  if (options.usesBlockTextColor) {
+  if (features.usesTextColor) {
     headerIncludes.push("\\usepackage{xcolor}");
   }
-  if (options.usesBlockUnderline) {
+  if (features.usesUnderline) {
     headerIncludes.push("\\usepackage[normalem]{ulem}");
   }
   if (lineSpacing !== undefined) {
     headerIncludes.push(`\\setstretch{${lineSpacing}}`);
   }
-  if (layout.header || layout.footer) {
+  if (page.header || page.footer) {
     headerIncludes.push("\\usepackage{fancyhdr}");
     headerIncludes.push("\\pagestyle{fancy}");
     headerIncludes.push("\\fancyhf{}");
-    headerIncludes.push(...renderRegion("head", layout.header));
-    headerIncludes.push(...renderRegion("foot", layout.footer));
+    headerIncludes.push(...renderRegion("head", page.header));
+    headerIncludes.push(...renderRegion("foot", page.footer));
     headerIncludes.push("\\renewcommand{\\headrulewidth}{0pt}");
     headerIncludes.push("\\renewcommand{\\footrulewidth}{0pt}");
   }

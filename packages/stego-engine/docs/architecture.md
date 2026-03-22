@@ -8,9 +8,9 @@
 - `template/internal/`: JSX runtime, child normalization, and template loading
 - `compile/public/`: project compilation entrypoints
 - `compile/internal/`: filesystem loading and context assembly
-- `render/public/`: render-plan entrypoints
+- `render/public/`: backend-document entrypoints
 - `render/internal/`: normalization and backend lowering
 
-The template layer targets Stego IR, not HTML or the DOM. The render layer lowers IR into a Pandoc-oriented render plan so page furniture and image/layout metadata can be expressed without leaking backend-specific syntax into the author-facing API.
+The template layer targets Stego IR, not HTML or the DOM. The render layer lowers IR into a Pandoc-oriented backend document so page furniture and image/layout metadata can be expressed without leaking backend-specific syntax into the author-facing API.
 
 `internal/` code is private to its top-level module and must not be imported from outside that module.

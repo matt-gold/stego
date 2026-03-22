@@ -141,9 +141,9 @@ test("build auto-discovers advanced templates and writes per-template artifacts"
     assert.match(defaultMarkdown, /BOOK DEFAULT/);
     assert.match(printMarkdown, /PRINT TEMPLATE/);
     assert.match(ebookMarkdown, /EBOOK TEMPLATE/);
-    assert.equal(fs.existsSync(path.join(projectRoot, "dist", `${projectId}.render-plan.json`)), true);
-    assert.equal(fs.existsSync(path.join(projectRoot, "dist", `${projectId}.print.render-plan.json`)), true);
-    assert.equal(fs.existsSync(path.join(projectRoot, "dist", `${projectId}.ebook.render-plan.json`)), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "dist", `${projectId}.backend-document.json`)), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "dist", `${projectId}.print.backend-document.json`)), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "dist", `${projectId}.ebook.backend-document.json`)), true);
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   }

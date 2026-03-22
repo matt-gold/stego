@@ -26,7 +26,7 @@ export function registerTemplateBuildCommand(registry: CommandRegistry): void {
 
       const result = await buildTemplateProject(project, readStringOption(context.options, "template"));
       writeText(`Template build markdown: ${result.markdownPath}`);
-      writeText(`Template render plan: ${result.renderPlanPath}`);
+      writeText(`Template backend document: ${result.backendDocumentPath}`);
     }
   });
 }
