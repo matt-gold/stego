@@ -222,6 +222,7 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
     if (normalizedFormat === "md") {
       throw new CliError("INVALID_USAGE", "Discovered template export only resolves presentation targets. Use the default markdown export path instead.");
     }
+    const presentationFormat = normalizedFormat;
 
     const resolvedInspection = inspection || await inspectDiscoveredTemplates();
     const blockingIssues = resolvedInspection.issues.filter((issue) => issue.level === "error");
@@ -233,25 +234,25 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
     }
 
     const matches = resolvedInspection.templates.filter((template) =>
-      supportsDiscoveredPresentationTarget(template, normalizedFormat, resolvedInspection.templates.length)
+      supportsDiscoveredPresentationTarget(template, presentationFormat, resolvedInspection.templates.length)
     );
     if (matches.length === 0) {
       throw new CliError(
         "INVALID_CONFIGURATION",
-        `No auto-discovered template supports '${normalizedFormat}'. Add defineTemplate({ targets: ["${normalizedFormat}"] }, render) or pass --template <path>.`
+        `No auto-discovered template supports '${presentationFormat}'. Add defineTemplate({ targets: ["${presentationFormat}"] }, render) or pass --template <path>.`
       );
     }
     if (matches.length > 1) {
       throw new CliError(
         "INVALID_CONFIGURATION",
-        `Multiple auto-discovered templates support '${normalizedFormat}': ${matches.map((entry) => entry.relativeTemplatePath).join(", ")}. Use --template <path> until output profiles exist.`
+        `Multiple auto-discovered templates support '${presentationFormat}': ${matches.map((entry) => entry.relativeTemplatePath).join(", ")}. Use --template <path> until output profiles exist.`
       );
     }
 
     const compiled = await compileTemplate(matches[0]);
     const artifacts = writePlannedTemplateArtifacts(project, compiled);
     const prepared = prepareRenderedExport({
-      format: normalizedFormat,
+      format: presentationFormat,
       backendDocument: compiled.backendDocument,
       project,
       markdownPath: artifacts.markdownPath,
@@ -273,7 +274,7 @@ export function createTemplatePlanner(project: ProjectContext): TemplatePlanner 
       return {
         ...artifacts,
         outputPath: exported.outputPath,
-        format: normalizedFormat
+        format: presentationFormat
       };
     } finally {
       prepared.cleanup();
