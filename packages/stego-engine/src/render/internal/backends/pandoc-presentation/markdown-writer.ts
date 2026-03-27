@@ -186,6 +186,26 @@ function renderNode(node: StegoNode, context: RenderContext): string {
       const body = renderInlineChildren(node.children, context);
       return attrs ? `::: ${attrs}\n${body}\n:::` : body;
     }
+    case "spacer": {
+      const extraTokens = [`data-spacer-lines=${String(node.lines)}`];
+      const fontSize = formatFontSizeValue(node.fontSize);
+      const lineSpacing = formatLineSpacingValue(node.lineSpacing);
+      if (fontSize) {
+        extraTokens.push(`data-font-size=${fontSize}`);
+      }
+      if (lineSpacing !== undefined) {
+        extraTokens.push(`data-line-spacing=${String(lineSpacing)}`);
+      }
+      return renderPresentationMarker(
+        context,
+        {
+          spacerLines: node.lines,
+          fontSizePt: formatFontSizeInPoints(node.fontSize),
+          lineSpacing,
+        },
+        extraTokens,
+      );
+    }
     case "markdownParagraph": {
       const spacing = normalizeParagraphSpacingForDefaults(
         {

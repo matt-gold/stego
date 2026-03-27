@@ -49,7 +49,7 @@ stego validate -p fiction-example
 stego build -p fiction-example
 stego check-stage -p fiction-example --stage revise
 stego export -p fiction-example --format md
-stego metadata read projects/fiction-example/content/manuscript/100-the-commission.md --format json
+stego metadata read projects/fiction-example/content/manuscript/10-the-commission.md --format json
 ```
 
 `stego new` supports `--dir <content-relative-dir>` for the target branch directory, `--i <prefix>` for an optional numeric prefix override, `--filename <name>` for an explicit filename, and `--id <leaf-id>` for an explicit leaf id.

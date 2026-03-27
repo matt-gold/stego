@@ -196,6 +196,8 @@ function visitNode(
     case "paragraph":
       validateFlatBodyStyle("Paragraph", node, targets, capabilities);
       return;
+    case "spacer":
+      return;
     case "markdownParagraph":
       validateFlatBodyStyle("MarkdownParagraph", node, targets, capabilities);
       return;

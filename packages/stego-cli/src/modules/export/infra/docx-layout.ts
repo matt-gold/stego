@@ -117,6 +117,9 @@ export function applyDocxLayoutToDocumentXml(source: string, specs: DocxBlockLay
       if (group.spec.pageBreak && insertStandalonePageBreak(body, group.spec.bookmarkName, document)) {
         changed = true;
       }
+      if (group.spec.spacerLines && insertStandaloneSpacer(body, group.spec, document)) {
+        changed = true;
+      }
       continue;
     }
     if (applySpecToParagraphs(paragraphs, group.spec)) {
@@ -267,6 +270,52 @@ function insertStandalonePageBreak(body: XmlElement, bookmarkName: string, docum
   return false;
 }
 
+function insertStandaloneSpacer(body: XmlElement, spec: DocxBlockLayoutSpec, document: XmlDocument): boolean {
+  const lines = spec.spacerLines;
+  if (!lines || !Number.isInteger(lines) || lines < 1) {
+    return false;
+  }
+
+  for (let index = 0; index < body.childNodes.length; index += 1) {
+    const child = body.childNodes.item(index);
+    if (child?.nodeType !== ELEMENT_NODE) {
+      continue;
+    }
+    const element = child as XmlElement;
+    if (element.nodeName !== "w:bookmarkStart" || element.getAttribute("w:name") !== spec.bookmarkName) {
+      continue;
+    }
+
+    const paragraph = document.createElement("w:p");
+    const paragraphProperties = findOrCreateParagraphProperties(paragraph, document);
+    const spacing = findOrCreateChild(paragraphProperties, "w:spacing", document);
+
+    const lineSpacing = normalizeLineSpacing(spec.lineSpacing);
+    if (lineSpacing !== undefined) {
+      setAttributeValue(spacing, "w:line", String(Math.round(240 * lineSpacing)));
+      setAttributeValue(spacing, "w:lineRule", "auto");
+    }
+
+    const spacerAfter = toSpacerAfterTwips(spec);
+    if (spacerAfter !== undefined) {
+      setAttributeValue(spacing, "w:after", spacerAfter);
+    }
+
+    const run = document.createElement("w:r");
+    paragraph.appendChild(run);
+
+    const insertBefore = element.nextSibling;
+    if (insertBefore) {
+      body.insertBefore(paragraph, insertBefore);
+    } else {
+      body.appendChild(paragraph);
+    }
+    return true;
+  }
+
+  return false;
+}
+
 function uniqueParagraphs(paragraphs: XmlElement[]): XmlElement[] {
   const seen = new Set<XmlElement>();
   const unique: XmlElement[] = [];
@@ -321,7 +370,8 @@ function setParagraphSpacing(paragraph: XmlElement, spec: DocxBlockLayoutSpec): 
 }
 
 function setParagraphLineSpacing(paragraph: XmlElement, lineSpacing: number | undefined): boolean {
-  if (lineSpacing === undefined) {
+  const normalized = normalizeLineSpacing(lineSpacing);
+  if (normalized === undefined) {
     return false;
   }
   const document = paragraph.ownerDocument;
@@ -331,7 +381,7 @@ function setParagraphLineSpacing(paragraph: XmlElement, lineSpacing: number | un
 
   const paragraphProperties = findOrCreateParagraphProperties(paragraph, document);
   const spacing = findOrCreateChild(paragraphProperties, "w:spacing", document);
-  const lineTwips = String(Math.round(240 * lineSpacing));
+  const lineTwips = String(Math.round(240 * normalized));
   let changed = false;
   if (setAttributeValue(spacing, "w:line", lineTwips)) {
     changed = true;
@@ -436,12 +486,13 @@ function setParagraphRunTypography(paragraph: XmlElement, spec: DocxBlockLayoutS
 }
 
 function setStyleLineSpacing(paragraphProperties: XmlElement, lineSpacing: number | undefined, document: XmlDocument): boolean {
-  if (lineSpacing === undefined) {
+  const normalized = normalizeLineSpacing(lineSpacing);
+  if (normalized === undefined) {
     return false;
   }
   const spacing = findOrCreateChild(paragraphProperties, "w:spacing", document);
   let changed = false;
-  if (setAttributeValue(spacing, "w:line", String(Math.round(240 * lineSpacing)))) {
+  if (setAttributeValue(spacing, "w:line", String(Math.round(240 * normalized)))) {
     changed = true;
   }
   if (setAttributeValue(spacing, "w:lineRule", "auto")) {
@@ -593,6 +644,24 @@ function setRunColor(
     changed = true;
   }
   return changed;
+}
+
+function toSpacerAfterTwips(spec: DocxBlockLayoutSpec): string | undefined {
+  const lines = spec.spacerLines;
+  if (!lines || !Number.isInteger(lines) || lines < 2) {
+    return undefined;
+  }
+
+  const fontSizePt = spec.fontSizePt && Number.isFinite(spec.fontSizePt) && spec.fontSizePt > 0
+    ? spec.fontSizePt
+    : DEFAULT_EM_IN_POINTS;
+  const lineSpacing = normalizeLineSpacing(spec.lineSpacing) ?? 1.2;
+  const lineHeightTwips = Math.round(fontSizePt * 20 * lineSpacing);
+  return String(lineHeightTwips * (lines - 1));
+}
+
+function normalizeLineSpacing(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function setBooleanRunProperty(

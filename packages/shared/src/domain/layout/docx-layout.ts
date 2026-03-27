@@ -26,4 +26,5 @@ export type DocxBlockLayoutSpec = {
   smallCaps?: boolean;
   color?: string;
   keepTogether?: boolean;
+  spacerLines?: number;
 };

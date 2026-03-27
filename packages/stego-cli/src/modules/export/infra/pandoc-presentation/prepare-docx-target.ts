@@ -62,6 +62,7 @@ function toDocxBlockLayoutSpec(marker: PresentationBlockMarker): DocxBlockLayout
     smallCaps: marker.smallCaps,
     color: toDocxColor(marker.color),
     keepTogether: marker.keepTogether,
+    spacerLines: marker.spacerLines,
   };
 }
 

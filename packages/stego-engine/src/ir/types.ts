@@ -60,6 +60,7 @@ export type StegoNode =
   | StegoSectionNode
   | StegoHeadingNode
   | StegoParagraphNode
+  | StegoSpacerNode
   | StegoMarkdownParagraphNode
   | StegoMarkdownHeadingNode
   | StegoMarkdownBlockNode
@@ -134,6 +135,13 @@ export type StegoParagraphNode = {
   fontSize?: FontSizeValue;
   lineSpacing?: LineSpacingValue;
   children: StegoInlineNode[];
+};
+
+export type StegoSpacerNode = {
+  kind: "spacer";
+  lines: number;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
 };
 
 export type StegoMarkdownParagraphNode = {

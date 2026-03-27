@@ -5,6 +5,7 @@ export { createKeepTogetherNode } from "./nodes/keep-together.ts";
 export { createSectionNode } from "./nodes/section.ts";
 export { createHeadingNode } from "./nodes/heading.ts";
 export { createParagraphNode } from "./nodes/paragraph.ts";
+export { createSpacerNode } from "./nodes/spacer.ts";
 export { createMarkdownParagraphNode } from "./nodes/markdown-paragraph.ts";
 export { createMarkdownHeadingNode } from "./nodes/markdown-heading.ts";
 export { createMarkdownBlockNode } from "./nodes/markdown-block.ts";

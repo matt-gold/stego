@@ -27,6 +27,7 @@ local function append_css_rule(existing, rule)
 end
 
 local function apply_html_styles(el)
+  local spacer_lines = get_layout_value(el, "spacer-lines")
   local space_before = get_layout_value(el, "space-before")
   local space_after = get_layout_value(el, "space-after")
   local inset_left = get_layout_value(el, "inset-left")
@@ -44,11 +45,29 @@ local function apply_html_styles(el)
   local keep_together = get_layout_value(el, "keep-together")
   local page_break = get_layout_value(el, "page-break")
 
-  if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not font_family and not font_size and not line_spacing and not font_weight and not italic and not underline and not small_caps and not color and not keep_together and not page_break then
+  if not spacer_lines and not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not font_family and not font_size and not line_spacing and not font_weight and not italic and not underline and not small_caps and not color and not keep_together and not page_break then
     return nil
   end
 
   local style = get_attr(el, "style") or ""
+  if spacer_lines then
+    local line_count = tonumber(spacer_lines)
+    if line_count and line_count > 0 then
+      local height
+      if font_size then
+        local amount = tonumber((font_size:gsub("pt$", "")))
+        local spacing = tonumber(line_spacing or "1.2")
+        if amount and spacing and spacing > 0 then
+          height = tostring(amount * spacing * line_count) .. "pt"
+        end
+      end
+      if not height then
+        height = "calc(" .. tostring(line_count) .. " * 1lh)"
+      end
+      style = append_css_rule(style, "height:" .. height .. ";")
+      style = append_css_rule(style, "margin:0;")
+    end
+  end
   if space_before then
     style = append_css_rule(style, "margin-top:" .. space_before .. ";")
   end
@@ -141,6 +160,7 @@ local function latex_font_size_command(font_size, line_spacing)
 end
 
 local function apply_latex_layout(block)
+  local spacer_lines = get_layout_value(block, "spacer-lines")
   local space_before = get_layout_value(block, "space-before")
   local space_after = get_layout_value(block, "space-after")
   local inset_left = get_layout_value(block, "inset-left")
@@ -157,6 +177,20 @@ local function apply_latex_layout(block)
   local color = get_layout_value(block, "color")
   local keep_together = get_layout_value(block, "keep-together")
   local page_break = get_layout_value(block, "page-break")
+
+  if spacer_lines then
+    local line_count = tonumber(spacer_lines)
+    if not line_count or line_count <= 0 then
+      return nil
+    end
+
+    local amount = font_size and tonumber((font_size:gsub("pt$", ""))) or nil
+    local spacing = tonumber(line_spacing or "1.2")
+    if amount and spacing and spacing > 0 then
+      return pandoc.RawBlock("latex", "\\vspace*{" .. tostring(amount * spacing * line_count) .. "pt}")
+    end
+    return pandoc.RawBlock("latex", "\\vspace*{" .. tostring(line_count) .. "\\baselineskip}")
+  end
 
   if not space_before and not space_after and not inset_left and not inset_right and not first_line_indent and not align and not font_family and not font_size and not line_spacing and not font_weight and not italic and not underline and not small_caps and not color and not keep_together and not page_break then
     return nil

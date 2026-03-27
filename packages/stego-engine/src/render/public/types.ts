@@ -38,6 +38,7 @@ export type PresentationBlockMarker = {
   smallCaps?: boolean;
   color?: string;
   keepTogether?: boolean;
+  spacerLines?: number;
 };
 
 export type PresentationFeatureUsage = {

@@ -9,6 +9,7 @@ import {
   createMarkdownHeadingNode,
   createMarkdownParagraphNode,
   createParagraphNode,
+  createSpacerNode,
   createSectionNode,
   type BodyStyle,
   type HeadingStyle,
@@ -22,6 +23,7 @@ import {
 } from "../../../ir/index.ts";
 import { mergeBodyStyle, mergeHeadingStyle, mergeHeadingStyleMap, resolveHeadingDefaults } from "../../../style/index.ts";
 import type { TemplateContext } from "../../../template/index.ts";
+import { parseStegoMarkdownDirective } from "./parse-stego-markdown-directive.ts";
 
 type MarkdownToken = ReturnType<MarkdownIt["parse"]>[number];
 
@@ -108,6 +110,13 @@ function expandNode(
       return [createResolvedHeadingNode(node, defaults)];
     case "paragraph":
       return [createResolvedParagraphNode(node, defaults.bodyStyle)];
+    case "spacer":
+      return [
+        createSpacerNode(node.lines, {
+          fontSize: node.fontSize ?? defaults.bodyStyle?.fontSize,
+          lineSpacing: node.lineSpacing ?? defaults.bodyStyle?.lineSpacing,
+        }),
+      ];
     case "markdown":
       return expandMarkdownNode(node, context, defaults);
     case "plainText":
@@ -291,7 +300,17 @@ function splitMarkdownIntoBlocks(
       const map = token.map || tokens[index + 1]?.map;
       const paragraphSource = sliceSourceByMap(lines, map);
       if (paragraphSource) {
-        blocks.push(createMarkdownParagraphNode(paragraphSource, defaults.bodyStyle || {}));
+        const parsedDirective = parseStegoMarkdownDirective(paragraphSource);
+        if (parsedDirective?.kind === "spacer") {
+          blocks.push(
+            createSpacerNode(parsedDirective.lines, {
+              fontSize: defaults.bodyStyle?.fontSize,
+              lineSpacing: defaults.bodyStyle?.lineSpacing,
+            }),
+          );
+        } else {
+          blocks.push(createMarkdownParagraphNode(paragraphSource, defaults.bodyStyle || {}));
+        }
       }
       index = closeIndex + 1;
       continue;
@@ -317,6 +336,23 @@ function splitMarkdownIntoBlocks(
       }
       index = closeIndex + 1;
       continue;
+    }
+
+    if (token.type === "html_block") {
+      const directiveSource = sliceSourceByMap(lines, token.map);
+      if (directiveSource) {
+        const parsedDirective = parseStegoMarkdownDirective(directiveSource);
+        if (parsedDirective?.kind === "spacer") {
+          blocks.push(
+            createSpacerNode(parsedDirective.lines, {
+              fontSize: defaults.bodyStyle?.fontSize,
+              lineSpacing: defaults.bodyStyle?.lineSpacing,
+            }),
+          );
+          index += 1;
+          continue;
+        }
+      }
     }
 
     const endIndex = findOpaqueBlockEnd(tokens, index);

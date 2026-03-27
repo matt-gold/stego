@@ -425,3 +425,77 @@ test("renderDocument resolves grouped heading and body styles for markdown and e
   assert.match(rendered.source.markdown, /data-first-line-indent=0.5in/);
   assert.match(rendered.source.markdown, /data-space-after=12pt/);
 });
+
+test("renderDocument parses stego-spacer blocks in markdown and emits spacer markers", () => {
+  const document = engine.Stego.Document({
+    bodyStyle: {
+      fontSize: "12pt",
+      lineSpacing: 2,
+    },
+    children: [
+      engine.Stego.Markdown({
+        source: `Sincerely,
+
+<stego-spacer lines="3" />
+
+Matt Gold`
+      })
+    ]
+  });
+
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: []
+    }
+  });
+
+  assert.match(rendered.source.markdown, /data-spacer-lines=3/);
+  assert.match(rendered.source.markdown, /data-font-size=12pt/);
+  assert.match(rendered.source.markdown, /data-line-spacing=2/);
+  assert.equal(
+    rendered.presentation.blockMarkers.some((entry) =>
+      entry.spacerLines === 3
+      && entry.fontSizePt === 12
+      && entry.lineSpacing === 2
+    ),
+    true
+  );
+});
+
+test("renderDocument rejects invalid stego markdown directives", () => {
+  const createContext = () => ({
+    project: { id: "demo", root: "/tmp/demo", metadata: {} },
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: []
+  });
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "<stego-spacer></stego-spacer>" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /self-closing syntax/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "<stego-spacer lines={3} />" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /quoted HTML-style values/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "<stego-foo />" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /Supported directives: stego-spacer/i);
+});

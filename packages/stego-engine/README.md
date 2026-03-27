@@ -114,6 +114,23 @@ Built-in leaf renderers:
 
 That means markdown paragraphs now participate in paragraph spacing defaults instead of bypassing Stego layout semantics entirely.
 
+Markdown also supports a small Stego-owned directive surface for block-level layout hints:
+
+```md
+Best regards,
+
+<stego-spacer lines="3" />
+
+Jane Doe
+```
+
+In V1:
+
+- only `<stego-spacer />` is supported
+- it must be self-closing
+- `lines` is optional and uses quoted HTML-style syntax
+- repeated blank lines in markdown still do not acquire special spacing semantics
+
 Internal links target leaf ids by default:
 
 ```tsx
