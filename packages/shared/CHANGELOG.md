@@ -1,5 +1,15 @@
 # @stego-labs/shared
 
+## 1.2.0
+
+### Minor Changes
+
+- 4e62b53: Rename the render-plan contract to a backend document and move target-specific export preparation from the engine into a clearer CLI presentation-export pipeline.
+
+### Patch Changes
+
+- 142c6a3: [codex] Add markdown spacer directive and renumber scaffold leaves
+
 ## 1.1.1
 
 ### Patch Changes
