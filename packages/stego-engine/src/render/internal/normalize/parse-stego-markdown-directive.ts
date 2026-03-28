@@ -13,6 +13,13 @@ export function parseStegoMarkdownDirective(source: string): ParsedStegoMarkdown
     return null;
   }
 
+  // Only treat stego tags as block directives when they occupy the whole block.
+  // Inline stego-span content is handled later in the markdown writer, even when
+  // it appears at the beginning of a paragraph.
+  if (!looksLikeStandaloneDirectiveBlock(trimmed)) {
+    return null;
+  }
+
   const pairedMatch = trimmed.match(PAIRED_DIRECTIVE_PATTERN);
   if (pairedMatch) {
     const tag = pairedMatch[1].toLowerCase();
@@ -92,4 +99,16 @@ function extractDirectiveTag(source: string): string | null {
     return null;
   }
   return `<${match[1].replace(/\s+/g, "")}>`;
+}
+
+function looksLikeStandaloneDirectiveBlock(source: string): boolean {
+  if (/^<\s*stego-[a-z0-9-]+(?:\s+[^>]*)?\s*\/\s*>$/i.test(source)) {
+    return true;
+  }
+
+  if (/^<\s*stego-[a-z0-9-]+\b/i.test(source) && /<\s*\/\s*stego-[a-z0-9-]+\s*>$/i.test(source)) {
+    return true;
+  }
+
+  return false;
 }

@@ -362,7 +362,7 @@ local function apply_latex_inline_styles(span)
     table.insert(before, "\\color[HTML]{" .. color:gsub("#", "") .. "}")
   end
 
-  local result = { pandoc.RawInline("latex", table.concat(before, "")) }
+  local result = { pandoc.RawInline("latex", table.concat(before, "") .. " ") }
   if underline == "true" then
     table.insert(result, pandoc.RawInline("latex", "\\uline{"))
   end

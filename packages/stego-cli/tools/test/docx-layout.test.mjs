@@ -317,6 +317,43 @@ test("docx layout postprocessor applies heading run emphasis and color overrides
   assert.match(rewritten, /<w:color w:val="333333"\/>/);
 });
 
+test("docx layout postprocessor preserves character-style font family and size overrides", () => {
+  const source = `<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:bookmarkStart w:id="10" w:name="stego-layout-1"/>
+    <w:p>
+      <w:r>
+        <w:rPr>
+          <w:rStyle w:val="StegoSpan6"/>
+          <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+          <w:sz w:val="24"/>
+          <w:szCs w:val="24"/>
+        </w:rPr>
+        <w:t>Styled</w:t>
+      </w:r>
+      <w:r><w:t> Plain</w:t></w:r>
+    </w:p>
+    <w:bookmarkEnd w:id="10"/>
+  </w:body>
+</w:document>`;
+
+  const rewritten = applyDocxLayoutToDocumentXml(source, [{
+    bookmarkName: "stego-layout-1",
+    fontFamily: "Times New Roman",
+    fontSizePt: 12,
+  }]);
+
+  assert.match(
+    rewritten,
+    /<w:r>\s*<w:rPr>\s*<w:rStyle w:val="StegoSpan6"\/>\s*<\/w:rPr>\s*<w:t>Styled<\/w:t>\s*<\/w:r>/
+  );
+  assert.match(
+    rewritten,
+    /<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"\/><w:sz w:val="24"\/><w:szCs w:val="24"\/><\/w:rPr><w:t> Plain<\/w:t><\/w:r>/
+  );
+});
+
 test("docx layout postprocessor creates header and footer parts with page regions and character styles", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-docx-layout-"));
   const docxPath = path.join(tempDir, "template.docx");

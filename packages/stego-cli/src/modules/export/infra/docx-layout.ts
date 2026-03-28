@@ -550,11 +550,20 @@ function setParagraphRunTypography(paragraph: XmlElement, spec: DocxBlockLayoutS
       continue;
     }
     const runProperties = findOrCreateChild(child, "w:rPr", document, true);
-    if (setRunFontFamily(runProperties, spec.fontFamily, document)) {
-      changed = true;
-    }
-    if (setRunFontSize(runProperties, spec.fontSizePt, document)) {
-      changed = true;
+    if (runHasCharacterStyle(runProperties)) {
+      if (clearRunFontFamily(runProperties)) {
+        changed = true;
+      }
+      if (clearRunFontSize(runProperties)) {
+        changed = true;
+      }
+    } else {
+      if (setRunFontFamily(runProperties, spec.fontFamily, document)) {
+        changed = true;
+      }
+      if (setRunFontSize(runProperties, spec.fontSizePt, document)) {
+        changed = true;
+      }
     }
     if (setRunFontWeight(runProperties, spec.fontWeight, document)) {
       changed = true;
@@ -632,6 +641,18 @@ function setRunFontFamily(runProperties: XmlElement, fontFamily: string | undefi
   return changed;
 }
 
+function clearRunFontFamily(runProperties: XmlElement): boolean {
+  let changed = false;
+  for (const child of [...elementChildren(runProperties)]) {
+    if (child.nodeName !== "w:rFonts") {
+      continue;
+    }
+    runProperties.removeChild(child);
+    changed = true;
+  }
+  return changed;
+}
+
 function setRunFontSize(runProperties: XmlElement, fontSizePt: number | undefined, document: XmlDocument): boolean {
   if (fontSizePt === undefined || !Number.isFinite(fontSizePt) || fontSizePt <= 0) {
     return false;
@@ -644,6 +665,18 @@ function setRunFontSize(runProperties: XmlElement, fontSizePt: number | undefine
   }
   const sizeCs = findOrCreateChild(runProperties, "w:szCs", document);
   if (setAttributeValue(sizeCs, "w:val", halfPoints)) {
+    changed = true;
+  }
+  return changed;
+}
+
+function clearRunFontSize(runProperties: XmlElement): boolean {
+  let changed = false;
+  for (const child of [...elementChildren(runProperties)]) {
+    if (child.nodeName !== "w:sz" && child.nodeName !== "w:szCs") {
+      continue;
+    }
+    runProperties.removeChild(child);
     changed = true;
   }
   return changed;
@@ -762,6 +795,10 @@ function setBooleanRunProperty(
 ): boolean {
   const property = findOrCreateChild(runProperties, propertyName, document);
   return setAttributeValue(property, "w:val", enabled ? "1" : "0");
+}
+
+function runHasCharacterStyle(runProperties: XmlElement): boolean {
+  return findFirstElement(runProperties, "w:rStyle") !== null;
 }
 
 function clearRunColor(runProperties: XmlElement): boolean {

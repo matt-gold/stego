@@ -554,6 +554,8 @@ test("renderDocument parses stego-span inline directives in markdown content", (
 
 Very <stego-span font-weight="bold" underline>important</stego-span> text.
 
+<stego-span underline>If</stego-span> <stego-span italic>you</stego-span> start the paragraph with a span.
+
 - <stego-span small-caps>List item</stego-span>`
       })
     ]
@@ -572,7 +574,8 @@ Very <stego-span font-weight="bold" underline>important</stego-span> text.
 
   assert.match(rendered.source.markdown, /\[Title\]\{custom-style="StegoSpan1" data-italic=true data-color="#666666"\}/);
   assert.match(rendered.source.markdown, /\[important\]\{custom-style="StegoSpan2" data-font-weight=bold data-underline=true\}/);
-  assert.match(rendered.source.markdown, /- \[List item\]\{custom-style="StegoSpan3" data-small-caps=true\}/);
+  assert.match(rendered.source.markdown, /\[If\]\{custom-style="StegoSpan3" data-underline=true\} \[you\]\{custom-style="StegoSpan4" data-italic=true\} start the paragraph with a span\./);
+  assert.match(rendered.source.markdown, /- \[List item\]\{custom-style="StegoSpan5" data-small-caps=true\}/);
   assert.deepEqual(rendered.presentation.inlineStyles, [
     {
       styleId: "StegoSpan1",
@@ -596,6 +599,26 @@ Very <stego-span font-weight="bold" underline>important</stego-span> text.
     },
     {
       styleId: "StegoSpan3",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: undefined,
+      italic: undefined,
+      underline: true,
+      smallCaps: undefined,
+      color: undefined,
+    },
+    {
+      styleId: "StegoSpan4",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: undefined,
+      italic: true,
+      underline: undefined,
+      smallCaps: undefined,
+      color: undefined,
+    },
+    {
+      styleId: "StegoSpan5",
       fontFamily: undefined,
       fontSizePt: undefined,
       fontWeight: undefined,
