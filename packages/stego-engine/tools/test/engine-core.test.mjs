@@ -226,7 +226,18 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
       fontWeight: "normal"
     },
     children: [
-      engine.Stego.PageTemplate({ footer: { right: engine.Stego.PageNumber() } }),
+      engine.Stego.PageTemplate({
+        header: {
+          left: "Funny Business",
+          center: engine.Stego.Span({ italic: true, color: "#666666", children: "Draft" }),
+        },
+        footer: {
+          right: [
+            "Page ",
+            engine.Stego.PageNumber(),
+          ],
+        },
+      }),
       engine.Stego.PageBreak(),
       engine.Stego.KeepTogether({
         children: [
@@ -254,7 +265,15 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
         children: [
           engine.Stego.Heading({ level: 2, children: "Inset heading" }),
           engine.Stego.Paragraph({ children: "Section body paragraph" }),
-          engine.Stego.Paragraph({ align: "center", firstLineIndent: "2em", fontSize: "11pt", children: "Inset paragraph" })
+          engine.Stego.Paragraph({
+            align: "center",
+            firstLineIndent: "2em",
+            fontSize: "11pt",
+            children: [
+              "Inset ",
+              engine.Stego.Span({ fontWeight: "bold", underline: true, children: "paragraph" }),
+            ],
+          })
         ]
       }),
       engine.Stego.Image({
@@ -278,7 +297,7 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
     }
   });
   assert.equal(rendered.backend, "pandoc-presentation");
-  assert.equal(rendered.source.inputFormat, "markdown-implicit_figures");
+  assert.equal(rendered.source.inputFormat, "markdown+bracketed_spans-implicit_figures");
   assert.deepEqual(rendered.source.requiredFilters, ["image-layout", "block-layout"]);
   assert.deepEqual(rendered.presentation.page.geometry, ["paper=letterpaper", "margin=1in"]);
   assert.equal(rendered.presentation.page.fontFamily, "Times New Roman");
@@ -286,6 +305,15 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
   assert.equal(rendered.presentation.page.lineSpacing, 2);
   assert.equal(rendered.presentation.page.spaceBefore, "0pt");
   assert.equal(rendered.presentation.page.spaceAfter, "0pt");
+  assert.deepEqual(rendered.presentation.page.header?.left, [{ kind: "text", value: "Funny Business" }]);
+  assert.equal(rendered.presentation.page.header?.center?.[0]?.kind, "span");
+  assert.equal(rendered.presentation.page.header?.center?.[0]?.italic, true);
+  assert.equal(rendered.presentation.page.header?.center?.[0]?.color, "#666666");
+  assert.deepEqual(rendered.presentation.page.header?.center?.[0]?.children, [{ kind: "text", value: "Draft" }]);
+  assert.deepEqual(rendered.presentation.page.footer?.right, [
+    { kind: "text", value: "Page " },
+    { kind: "pageNumber" },
+  ]);
   assert.match(rendered.source.markdown, /data-page-break=true/);
   assert.match(rendered.source.markdown, /data-keep-together=true/);
   assert.match(rendered.source.markdown, /data-space-before=18pt/);
@@ -300,9 +328,21 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
   assert.match(rendered.source.markdown, /data-font-weight=normal/);
   assert.match(rendered.source.markdown, /data-underline=true/);
   assert.match(rendered.source.markdown, /data-color="#333333"/);
+  assert.match(rendered.source.markdown, /\{custom-style="StegoSpan1" data-font-weight=bold data-underline=true\}/);
   assert.match(rendered.source.markdown, /data-layout=block/);
   assert.equal(Array.isArray(rendered.presentation.blockMarkers), true);
   assert.equal(rendered.presentation.blockMarkers.length >= 4, true);
+  assert.equal(rendered.presentation.inlineStyles.length, 1);
+  assert.deepEqual(rendered.presentation.inlineStyles[0], {
+    styleId: "StegoSpan1",
+    fontWeight: "bold",
+    italic: undefined,
+    underline: true,
+    smallCaps: undefined,
+    color: undefined,
+    fontFamily: undefined,
+    fontSizePt: undefined,
+  });
   assert.equal(rendered.presentation.blockMarkers.some((entry) => entry.keepTogether === true), true);
   assert.equal(
     rendered.presentation.blockMarkers.some((entry) => entry.spaceBefore === "18pt" && entry.firstLineIndent === "1.5em" && entry.lineSpacing === 1.5),
@@ -324,6 +364,8 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
   );
   assert.equal(rendered.presentation.blockMarkers.some((entry) => entry.pageBreak === true), true);
   assert.equal(rendered.presentation.features.requiresNamedFontEngine, true);
+  assert.equal(rendered.presentation.features.usesUnderline, true);
+  assert.equal(rendered.presentation.features.usesTextColor, true);
   assert.equal("metadata" in rendered, false);
   assert.equal("postprocess" in rendered, false);
 });

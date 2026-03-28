@@ -16,9 +16,10 @@ import type {
   LineSpacingValue,
   SpacingValue,
   StegoInlineNode,
+  StegoSpanNode,
   StegoNode
 } from "../../../../ir/index.ts";
-import type { PresentationBlockMarker } from "../../../public/types.ts";
+import type { PresentationBlockMarker, PresentationInlineStyleSpec } from "../../../public/types.ts";
 import { normalizeHexColor } from "../../../../style/index.ts";
 import type { LeafRecord } from "../../../../template/index.ts";
 import { formatSizeValue, formatSpacingValue } from "../../normalize/index.ts";
@@ -40,6 +41,7 @@ export function writePandocMarkdown(
 ): {
   markdown: string;
   blockMarkers: PresentationBlockMarker[];
+  inlineStyles: PresentationInlineStyleSpec[];
   usesBlockFontFamily: boolean;
   usesBlockLineSpacing: boolean;
   usesUnderline: boolean;
@@ -48,7 +50,10 @@ export function writePandocMarkdown(
   const blocks: string[] = [];
   const context = {
     presentationMarkerIndex: 0,
+    inlineStyleIndex: 0,
     blockMarkers: [] as PresentationBlockMarker[],
+    inlineStyles: [] as PresentationInlineStyleSpec[],
+    inlineStyleIds: new Map<string, string>(),
     usesBlockFontFamily: false,
     usesBlockLineSpacing: false,
     usesUnderline: false,
@@ -77,6 +82,7 @@ export function writePandocMarkdown(
   return {
     markdown: `${blocks.join("\n\n").replace(/\n{3,}/g, "\n\n")}\n`,
     blockMarkers: context.blockMarkers,
+    inlineStyles: context.inlineStyles,
     usesBlockFontFamily: context.usesBlockFontFamily,
     usesBlockLineSpacing: context.usesBlockLineSpacing,
     usesUnderline: context.usesUnderline,
@@ -324,14 +330,25 @@ function renderNode(node: StegoNode, context: RenderContext): string {
       throw new Error("<Stego.PageNumber /> may only appear inside <Stego.PageTemplate /> in V1.");
     case "text":
       return escapeInlineText(node.value);
+    case "span":
+      return renderSpan(node, context);
     case "link":
       return renderLink(node, context);
+    default:
+      return assertNever(node);
   }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected node kind: ${String(value)}`);
 }
 
 type RenderContext = {
   presentationMarkerIndex: number;
+  inlineStyleIndex: number;
   blockMarkers: PresentationBlockMarker[];
+  inlineStyles: PresentationInlineStyleSpec[];
+  inlineStyleIds: Map<string, string>;
   usesBlockFontFamily: boolean;
   usesBlockLineSpacing: boolean;
   usesUnderline: boolean;
@@ -376,12 +393,17 @@ function renderMarkdownHeadingNode(
 }
 
 function renderInlineChildren(children: StegoInlineNode[], context: RenderContext): string {
-  return children.map((child) => {
-    if (child.kind === "text") {
-      return escapeInlineText(child.value);
-    }
-    return renderLink(child, context);
-  }).join("");
+  return children.map((child) => renderInlineNode(child, context)).join("");
+}
+
+function renderInlineNode(node: StegoInlineNode, context: RenderContext): string {
+  if (node.kind === "text") {
+    return escapeInlineText(node.value);
+  }
+  if (node.kind === "link") {
+    return renderLink(node, context);
+  }
+  return renderSpan(node, context);
 }
 
 function renderLink(node: Extract<StegoInlineNode, { kind: "link" }>, context: RenderContext): string {
@@ -408,6 +430,40 @@ function renderLink(node: Extract<StegoInlineNode, { kind: "link" }>, context: R
     ? renderInlineChildren(node.children, context)
     : escapeInlineText(resolveLeafLabel(target));
   return `[${label}](${href})`;
+}
+
+function renderSpan(node: StegoSpanNode, context: RenderContext): string {
+  const body = renderInlineChildren(node.children, context);
+  const style = toPresentationInlineStyle(node);
+  if (!style) {
+    return body;
+  }
+
+  trackInlineStyleUsage(context, style);
+  const styleId = getOrCreateInlineStyle(context, style);
+  const tokens = [`custom-style=${quoteAttrValue(styleId)}`];
+  if (style.fontFamily) {
+    tokens.push(`data-font-family=${quoteAttrValue(style.fontFamily)}`);
+  }
+  if (style.fontSizePt !== undefined) {
+    tokens.push(`data-font-size=${formatFontSizeValue(`${style.fontSizePt}pt`)}`);
+  }
+  if (style.fontWeight !== undefined) {
+    tokens.push(`data-font-weight=${style.fontWeight}`);
+  }
+  if (style.italic !== undefined) {
+    tokens.push(`data-italic=${String(style.italic)}`);
+  }
+  if (style.underline !== undefined) {
+    tokens.push(`data-underline=${String(style.underline)}`);
+  }
+  if (style.smallCaps !== undefined) {
+    tokens.push(`data-small-caps=${String(style.smallCaps)}`);
+  }
+  if (style.color) {
+    tokens.push(`data-color=${quoteAttrValue(style.color)}`);
+  }
+  return `[${body}]{${tokens.join(" ")}}`;
 }
 
 function resolveLeafLabel(target: LeafIndexEntry): string {
@@ -504,6 +560,21 @@ function trackBlockStyleUsage(
   }
 }
 
+function trackInlineStyleUsage(
+  context: RenderContext,
+  style: Omit<PresentationInlineStyleSpec, "styleId">,
+): void {
+  if (style.fontFamily) {
+    context.usesBlockFontFamily = true;
+  }
+  if (style.underline) {
+    context.usesUnderline = true;
+  }
+  if (style.color) {
+    context.usesTextColor = true;
+  }
+}
+
 function renderPresentationMarker(
   context: RenderContext,
   layout: Omit<PresentationBlockMarker, "markerId">,
@@ -586,6 +657,64 @@ function toPresentationBlockMarker(input: {
     smallCaps,
     color
   };
+}
+
+function toPresentationInlineStyle(input: {
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  fontWeight?: FontWeightValue;
+  italic?: boolean;
+  underline?: boolean;
+  smallCaps?: boolean;
+  color?: ColorValue;
+}): Omit<PresentationInlineStyleSpec, "styleId"> | undefined {
+  const fontFamily = formatFontFamilyValue(input.fontFamily);
+  const fontSizePt = formatFontSizeInPoints(input.fontSize);
+  const fontWeight = input.fontWeight;
+  const italic = input.italic;
+  const underline = input.underline;
+  const smallCaps = input.smallCaps;
+  const color = normalizeHexColor(input.color);
+  if (
+    !fontFamily
+    && fontSizePt === undefined
+    && fontWeight === undefined
+    && italic === undefined
+    && underline === undefined
+    && smallCaps === undefined
+    && color === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    fontFamily,
+    fontSizePt,
+    fontWeight,
+    italic,
+    underline,
+    smallCaps,
+    color,
+  };
+}
+
+function getOrCreateInlineStyle(
+  context: RenderContext,
+  style: Omit<PresentationInlineStyleSpec, "styleId">,
+): string {
+  const key = JSON.stringify(style);
+  const existing = context.inlineStyleIds.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const styleId = `StegoSpan${++context.inlineStyleIndex}`;
+  context.inlineStyleIds.set(key, styleId);
+  context.inlineStyles.push({
+    styleId,
+    ...style,
+  });
+  return styleId;
 }
 
 function renderBlockAttrs(input: {

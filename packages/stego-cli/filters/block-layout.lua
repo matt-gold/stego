@@ -125,6 +125,53 @@ local function apply_html_styles(el)
   return el
 end
 
+local function apply_html_inline_styles(span)
+  local font_family = get_layout_value(span, "font-family")
+  local font_size = get_layout_value(span, "font-size")
+  local font_weight = get_layout_value(span, "font-weight")
+  local italic = get_layout_value(span, "italic")
+  local underline = get_layout_value(span, "underline")
+  local small_caps = get_layout_value(span, "small-caps")
+  local color = get_layout_value(span, "color")
+
+  if not font_family and not font_size and not font_weight and not italic and not underline and not small_caps and not color then
+    return nil
+  end
+
+  local style = get_attr(span, "style") or ""
+  if font_family then
+    style = append_css_rule(style, "font-family:" .. font_family .. ";")
+  end
+  if font_size then
+    style = append_css_rule(style, "font-size:" .. font_size .. ";")
+  end
+  if font_weight then
+    style = append_css_rule(style, "font-weight:" .. font_weight .. ";")
+  end
+  if italic == "true" then
+    style = append_css_rule(style, "font-style:italic;")
+  elseif italic == "false" then
+    style = append_css_rule(style, "font-style:normal;")
+  end
+  if underline == "true" then
+    style = append_css_rule(style, "text-decoration:underline;")
+  elseif underline == "false" then
+    style = append_css_rule(style, "text-decoration:none;")
+  end
+  if small_caps == "true" then
+    style = append_css_rule(style, "font-variant-caps:small-caps;")
+  elseif small_caps == "false" then
+    style = append_css_rule(style, "font-variant-caps:normal;")
+  end
+  if color then
+    style = append_css_rule(style, "color:" .. color .. ";")
+  end
+  if style ~= "" then
+    span.attributes["style"] = style
+  end
+  return span
+end
+
 local function latex_alignment_command(align)
   if align == "left" then
     return "\\raggedright"
@@ -275,6 +322,60 @@ local function apply_latex_layout(block)
   return blocks
 end
 
+local function apply_latex_inline_styles(span)
+  local font_family = get_layout_value(span, "font-family")
+  local font_size = get_layout_value(span, "font-size")
+  local font_weight = get_layout_value(span, "font-weight")
+  local italic = get_layout_value(span, "italic")
+  local underline = get_layout_value(span, "underline")
+  local small_caps = get_layout_value(span, "small-caps")
+  local color = get_layout_value(span, "color")
+
+  if not font_family and not font_size and not font_weight and not italic and not underline and not small_caps and not color then
+    return nil
+  end
+
+  local before = { "{" }
+  if font_family then
+    table.insert(before, "\\fontspec{" .. font_family:gsub("([\\{}])", "\\%1") .. "}")
+  end
+  local font_size_command = latex_font_size_command(font_size, nil)
+  if font_size_command then
+    table.insert(before, font_size_command)
+  end
+  if font_weight == "bold" then
+    table.insert(before, "\\bfseries")
+  elseif font_weight == "normal" then
+    table.insert(before, "\\mdseries")
+  end
+  if italic == "true" then
+    table.insert(before, "\\itshape")
+  elseif italic == "false" then
+    table.insert(before, "\\upshape")
+  end
+  if small_caps == "true" then
+    table.insert(before, "\\scshape")
+  elseif small_caps == "false" then
+    table.insert(before, "\\normalfont")
+  end
+  if color then
+    table.insert(before, "\\color[HTML]{" .. color:gsub("#", "") .. "}")
+  end
+
+  local result = { pandoc.RawInline("latex", table.concat(before, "")) }
+  if underline == "true" then
+    table.insert(result, pandoc.RawInline("latex", "\\uline{"))
+  end
+  for _, inline in ipairs(span.content) do
+    table.insert(result, inline)
+  end
+  if underline == "true" then
+    table.insert(result, pandoc.RawInline("latex", "}"))
+  end
+  table.insert(result, pandoc.RawInline("latex", "}"))
+  return result
+end
+
 function Div(div)
   if FORMAT:match("latex") then
     return apply_latex_layout(div)
@@ -291,6 +392,16 @@ function Header(header)
   end
   if FORMAT:match("html") or FORMAT:match("epub") or FORMAT:match("revealjs") then
     return apply_html_styles(header)
+  end
+  return nil
+end
+
+function Span(span)
+  if FORMAT:match("latex") then
+    return apply_latex_inline_styles(span)
+  end
+  if FORMAT:match("html") or FORMAT:match("epub") or FORMAT:match("revealjs") then
+    return apply_html_inline_styles(span)
   end
   return nil
 end

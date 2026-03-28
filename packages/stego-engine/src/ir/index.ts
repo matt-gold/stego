@@ -15,5 +15,6 @@ export { createImageNode } from "./nodes/image.ts";
 export { createPageBreakNode } from "./nodes/page-break.ts";
 export { createPageTemplateNode } from "./nodes/page-template.ts";
 export { createPageNumberNode } from "./nodes/page-number.ts";
+export { createSpanNode } from "./nodes/span.ts";
 export { createTextNode } from "./nodes/text.ts";
 export { createLinkNode } from "./nodes/link.ts";

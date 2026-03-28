@@ -110,6 +110,8 @@ function expandNode(
       return [createResolvedHeadingNode(node, defaults)];
     case "paragraph":
       return [createResolvedParagraphNode(node, defaults.bodyStyle)];
+    case "span":
+      return [node];
     case "spacer":
       return [
         createSpacerNode(node.lines, {

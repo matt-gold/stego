@@ -17,6 +17,7 @@ import {
   HEADING_LEVELS,
   HEADING_STYLE_CAPABILITIES,
   normalizeHexColor,
+  SPAN_STYLE_CAPABILITIES,
 } from "../../style/index.ts";
 import type {
   BranchMetadata,
@@ -126,7 +127,7 @@ function validateDocumentTargets(
   }
 
   const capabilities = resolveSupportedCapabilities(declaredTargets);
-  visitNode(document, declaredTargets, capabilities);
+  visitNode(document, declaredTargets, capabilities, false);
 }
 
 function resolveSupportedCapabilities(targets: readonly PresentationTarget[]): Record<TemplateCapability, boolean> {
@@ -156,7 +157,8 @@ function resolveSupportedCapabilities(targets: readonly PresentationTarget[]): R
 function visitNode(
   node: StegoNode,
   targets: readonly PresentationTarget[],
-  capabilities: Record<TemplateCapability, boolean>
+  capabilities: Record<TemplateCapability, boolean>,
+  inPageRegion: boolean,
 ): void {
   switch (node.kind) {
     case "document":
@@ -167,18 +169,18 @@ function visitNode(
       validateHeadingStyle("Document.headingStyle", node.headingStyle, targets, capabilities);
       validateHeadingStyleMap("Document.headingStyles", node.headingStyles, targets, capabilities);
       for (const child of node.children) {
-        visitNode(child, targets, capabilities);
+        visitNode(child, targets, capabilities, false);
       }
       return;
     case "fragment":
       for (const child of node.children) {
-        visitNode(child, targets, capabilities);
+        visitNode(child, targets, capabilities, inPageRegion);
       }
       return;
     case "keepTogether":
       assertCapability("keepTogether", "KeepTogether", targets, capabilities);
       for (const child of node.children) {
-        visitNode(child, targets, capabilities);
+        visitNode(child, targets, capabilities, false);
       }
       return;
     case "section":
@@ -186,15 +188,27 @@ function visitNode(
       validateHeadingStyle("Section.headingStyle", node.headingStyle, targets, capabilities);
       validateHeadingStyleMap("Section.headingStyles", node.headingStyles, targets, capabilities);
       for (const child of node.children) {
-        visitNode(child, targets, capabilities);
+        visitNode(child, targets, capabilities, false);
       }
       return;
     case "heading":
       validateFlatBodyStyle("Heading", node, targets, capabilities);
       validateFlatHeadingStyle("Heading", node, targets, capabilities);
+      for (const child of node.children) {
+        visitNode(child, targets, capabilities, false);
+      }
       return;
     case "paragraph":
       validateFlatBodyStyle("Paragraph", node, targets, capabilities);
+      for (const child of node.children) {
+        visitNode(child, targets, capabilities, false);
+      }
+      return;
+    case "span":
+      validateStyleFields("Span", node, SPAN_STYLE_CAPABILITIES, targets, capabilities);
+      for (const child of node.children) {
+        visitNode(child, targets, capabilities, inPageRegion);
+      }
       return;
     case "spacer":
       return;
@@ -224,12 +238,28 @@ function visitNode(
       visitRegion(node.footer, targets, capabilities);
       return;
     case "pageNumber":
+      if (!inPageRegion) {
+        throw new TemplateContractError(
+          "invalid-render-result",
+          "<Stego.PageNumber /> may only appear inside <Stego.PageTemplate /> in V1.",
+        );
+      }
       assertCapability("pageNumber", "PageNumber", targets, capabilities);
       return;
     case "markdown":
     case "plainText":
-    case "link":
     case "text":
+      return;
+    case "link":
+      if (inPageRegion) {
+        throw new TemplateContractError(
+          "invalid-render-result",
+          "<Stego.Link /> is not supported inside <Stego.PageTemplate /> regions in V1.",
+        );
+      }
+      for (const child of node.children) {
+        visitNode(child, targets, capabilities, false);
+      }
       return;
     default:
       return assertNever(node);
@@ -245,9 +275,11 @@ function visitRegion(
     return;
   }
 
-  for (const child of [region.left, region.center, region.right]) {
-    if (child) {
-      visitNode(child, targets, capabilities);
+  for (const children of [region.left, region.center, region.right]) {
+    if (children) {
+      for (const child of children) {
+        visitNode(child, targets, capabilities, true);
+      }
     }
   }
 }

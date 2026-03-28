@@ -1,12 +1,24 @@
 import fs from "node:fs";
 import JSZip from "jszip";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
-import type { DocxBlockLayoutSpec, DocxDocumentStyleSpec } from "@stego-labs/shared/domain/layout";
+import type {
+  DocxBlockLayoutSpec,
+  DocxCharacterStyleSpec,
+  DocxDocumentStyleSpec,
+  DocxPageRegion,
+  DocxPageRegionNode,
+  DocxPageTemplateSpec,
+} from "@stego-labs/shared/domain/layout";
 
 const DOCUMENT_XML_PATH = "word/document.xml";
 const STYLES_XML_PATH = "word/styles.xml";
+const CONTENT_TYPES_XML_PATH = "[Content_Types].xml";
+const DOCUMENT_RELS_XML_PATH = "word/_rels/document.xml.rels";
+const HEADER_XML_PATH = "word/header1.xml";
+const FOOTER_XML_PATH = "word/footer1.xml";
 const ELEMENT_NODE = 1;
 const DEFAULT_EM_IN_POINTS = 12;
+const DEFAULT_USABLE_PAGE_WIDTH_TWIPS = 9360;
 const PANDOC_BODY_PARAGRAPH_STYLE_IDS = ["BodyText", "FirstParagraph", "Compact"] as const;
 const PANDOC_HEADING_STYLE_IDS = ["Heading1", "Heading2", "Heading3", "Heading4", "Heading5", "Heading6"] as const;
 const PANDOC_HEADING_CHARACTER_STYLE_IDS = [
@@ -23,6 +35,8 @@ type XmlElement = XmlDocument["documentElement"];
 type DocxLayoutPostprocess = {
   blockLayouts?: DocxBlockLayoutSpec[];
   documentStyle?: DocxDocumentStyleSpec;
+  characterStyles?: DocxCharacterStyleSpec[];
+  pageTemplate?: DocxPageTemplateSpec;
 };
 
 export async function applyDocxLayout(
@@ -30,7 +44,12 @@ export async function applyDocxLayout(
   input: DocxBlockLayoutSpec[] | DocxLayoutPostprocess = []
 ): Promise<void> {
   const postprocess = normalizePostprocess(input);
-  if ((postprocess.blockLayouts?.length || 0) === 0 && !postprocess.documentStyle) {
+  if (
+    (postprocess.blockLayouts?.length || 0) === 0
+    && !postprocess.documentStyle
+    && (postprocess.characterStyles?.length || 0) === 0
+    && !postprocess.pageTemplate
+  ) {
     return;
   }
 
@@ -47,14 +66,24 @@ export async function applyDocxLayout(
     }
   }
 
-  if (postprocess.documentStyle) {
+  if (postprocess.documentStyle || (postprocess.characterStyles?.length || 0) > 0) {
     const stylesXml = archive.file(STYLES_XML_PATH);
     const source = stylesXml
       ? await stylesXml.async("string")
       : `<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:styles>`;
-    const rewritten = applyDocxDocumentStyleToStylesXml(source, postprocess.documentStyle);
+    const rewritten = applyDocxStylesToStylesXml(source, {
+      documentStyle: postprocess.documentStyle,
+      characterStyles: postprocess.characterStyles,
+    });
     if (rewritten !== source) {
       archive.file(STYLES_XML_PATH, rewritten);
+      changed = true;
+    }
+  }
+
+  if (postprocess.pageTemplate) {
+    const pageTemplateChanged = await applyDocxPageTemplateToArchive(archive, postprocess.pageTemplate);
+    if (pageTemplateChanged) {
       changed = true;
     }
   }
@@ -138,6 +167,24 @@ export function applyDocxDocumentStyleToStylesXml(
   source: string,
   style: DocxDocumentStyleSpec | undefined
 ): string {
+  return applyDocxStylesToStylesXml(source, { documentStyle: style });
+}
+
+function applyDocxStylesToStylesXml(
+  source: string,
+  input: {
+    documentStyle?: DocxDocumentStyleSpec;
+    characterStyles?: DocxCharacterStyleSpec[];
+  },
+): string {
+  if (
+    !input.documentStyle
+    && (!input.characterStyles || input.characterStyles.length === 0)
+  ) {
+    return source;
+  }
+
+  const style = input.documentStyle;
   if (
     !style
     || (
@@ -148,7 +195,9 @@ export function applyDocxDocumentStyleToStylesXml(
       && style.spaceAfter === undefined
     )
   ) {
-    return source;
+    if (!input.characterStyles || input.characterStyles.length === 0) {
+      return source;
+    }
   }
 
   const document = new DOMParser().parseFromString(source, "application/xml");
@@ -157,31 +206,39 @@ export function applyDocxDocumentStyleToStylesXml(
     return source;
   }
 
-  const normalStyle = findOrCreateNormalParagraphStyle(root, document);
-  const paragraphProperties = findOrCreateChild(normalStyle, "w:pPr", document);
-  const runProperties = findOrCreateChild(normalStyle, "w:rPr", document);
-
   let changed = false;
-  if (setStyleLineSpacing(paragraphProperties, style.lineSpacing, document)) {
-    changed = true;
+  if (style) {
+    const normalStyle = findOrCreateNormalParagraphStyle(root, document);
+    const paragraphProperties = findOrCreateChild(normalStyle, "w:pPr", document);
+    const runProperties = findOrCreateChild(normalStyle, "w:rPr", document);
+
+    if (setStyleLineSpacing(paragraphProperties, style.lineSpacing, document)) {
+      changed = true;
+    }
+    if (setStyleParagraphSpacing(paragraphProperties, style.spaceBefore, style.spaceAfter, document)) {
+      changed = true;
+    }
+    if (setRunFontFamily(runProperties, style.fontFamily, document)) {
+      changed = true;
+    }
+    if (setRunFontSize(runProperties, style.fontSizePt, document)) {
+      changed = true;
+    }
+    if (applyPandocBodyParagraphStyleDefaults(root, style, document)) {
+      changed = true;
+    }
+    if (applyPandocHeadingStyleDefaults(root, style, document)) {
+      changed = true;
+    }
+    if (applyPandocHeadingCharacterStyleDefaults(root, style, document)) {
+      changed = true;
+    }
   }
-  if (setStyleParagraphSpacing(paragraphProperties, style.spaceBefore, style.spaceAfter, document)) {
-    changed = true;
-  }
-  if (setRunFontFamily(runProperties, style.fontFamily, document)) {
-    changed = true;
-  }
-  if (setRunFontSize(runProperties, style.fontSizePt, document)) {
-    changed = true;
-  }
-  if (applyPandocBodyParagraphStyleDefaults(root, style, document)) {
-    changed = true;
-  }
-  if (applyPandocHeadingStyleDefaults(root, style, document)) {
-    changed = true;
-  }
-  if (applyPandocHeadingCharacterStyleDefaults(root, style, document)) {
-    changed = true;
+
+  if (input.characterStyles && input.characterStyles.length > 0) {
+    if (applyCharacterStyles(root, input.characterStyles, document)) {
+      changed = true;
+    }
   }
 
   if (!changed) {
@@ -781,6 +838,526 @@ function applyPandocHeadingCharacterStyleDefaults(
   }
 
   return changed;
+}
+
+function applyCharacterStyles(
+  root: XmlElement,
+  styles: DocxCharacterStyleSpec[],
+  document: XmlDocument,
+): boolean {
+  let changed = false;
+  for (const style of styles) {
+    const element = findOrCreateCharacterStyle(root, style.styleId, document);
+    const runProperties = findOrCreateChild(element, "w:rPr", document);
+    if (setRunFontFamily(runProperties, style.fontFamily, document)) {
+      changed = true;
+    }
+    if (setRunFontSize(runProperties, style.fontSizePt, document)) {
+      changed = true;
+    }
+    if (setRunFontWeight(runProperties, style.fontWeight, document)) {
+      changed = true;
+    }
+    if (setRunItalic(runProperties, style.italic, document)) {
+      changed = true;
+    }
+    if (setRunUnderline(runProperties, style.underline, document)) {
+      changed = true;
+    }
+    if (setRunSmallCaps(runProperties, style.smallCaps, document)) {
+      changed = true;
+    }
+    if (setRunColor(runProperties, style.color, document)) {
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function findOrCreateCharacterStyle(root: XmlElement, styleId: string, document: XmlDocument): XmlElement {
+  const existing = findStyleById(root, styleId);
+  if (existing) {
+    return existing;
+  }
+
+  const style = document.createElement("w:style");
+  style.setAttribute("w:type", "character");
+  style.setAttribute("w:styleId", styleId);
+  style.setAttribute("w:customStyle", "1");
+
+  const name = document.createElement("w:name");
+  name.setAttribute("w:val", styleId);
+  style.appendChild(name);
+
+  root.appendChild(style);
+  return style;
+}
+
+async function applyDocxPageTemplateToArchive(
+  archive: JSZip,
+  pageTemplate: DocxPageTemplateSpec,
+): Promise<boolean> {
+  const documentXml = archive.file(DOCUMENT_XML_PATH);
+  const contentTypesXml = archive.file(CONTENT_TYPES_XML_PATH);
+  if (!documentXml || !contentTypesXml) {
+    return false;
+  }
+
+  const documentSource = await documentXml.async("string");
+  const contentTypesSource = await contentTypesXml.async("string");
+  const relsFile = archive.file(DOCUMENT_RELS_XML_PATH);
+  const relsSource = relsFile
+    ? await relsFile.async("string")
+    : `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+
+  const documentModel = new DOMParser().parseFromString(documentSource, "application/xml");
+  const relsModel = new DOMParser().parseFromString(relsSource, "application/xml");
+  const contentTypesModel = new DOMParser().parseFromString(contentTypesSource, "application/xml");
+
+  const documentRoot = documentModel.documentElement;
+  const body = findFirstElement(documentRoot, "w:body");
+  const relsRoot = relsModel.documentElement;
+  const contentTypesRoot = contentTypesModel.documentElement;
+  if (!documentRoot || !body || !relsRoot || !contentTypesRoot) {
+    return false;
+  }
+
+  if (!documentRoot.getAttribute("xmlns:r")) {
+    documentRoot.setAttribute("xmlns:r", "http://schemas.openxmlformats.org/officeDocument/2006/relationships");
+  }
+
+  const sectPr = findOrCreateBodySectionProperties(body, documentModel);
+  let changed = false;
+
+  if (pageTemplate.header) {
+    const headerRelId = ensureRelationship(
+      relsRoot,
+      "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header",
+      "header1.xml",
+      relsModel,
+    );
+    if (setSectionReference(sectPr, "w:headerReference", headerRelId, documentModel)) {
+      changed = true;
+    }
+    archive.file(HEADER_XML_PATH, buildPageRegionPartXml(documentModel, pageTemplate.header, pageTemplate, "header"));
+    if (ensureContentTypeOverride(
+      contentTypesRoot,
+      "/word/header1.xml",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml",
+      contentTypesModel,
+    )) {
+      changed = true;
+    }
+    changed = true;
+  }
+
+  if (pageTemplate.footer) {
+    const footerRelId = ensureRelationship(
+      relsRoot,
+      "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer",
+      "footer1.xml",
+      relsModel,
+    );
+    if (setSectionReference(sectPr, "w:footerReference", footerRelId, documentModel)) {
+      changed = true;
+    }
+    archive.file(FOOTER_XML_PATH, buildPageRegionPartXml(documentModel, pageTemplate.footer, pageTemplate, "footer"));
+    if (ensureContentTypeOverride(
+      contentTypesRoot,
+      "/word/footer1.xml",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml",
+      contentTypesModel,
+    )) {
+      changed = true;
+    }
+    changed = true;
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  archive.file(DOCUMENT_XML_PATH, new XMLSerializer().serializeToString(documentModel));
+  archive.file(DOCUMENT_RELS_XML_PATH, new XMLSerializer().serializeToString(relsModel));
+  archive.file(CONTENT_TYPES_XML_PATH, new XMLSerializer().serializeToString(contentTypesModel));
+  return true;
+}
+
+function findOrCreateBodySectionProperties(body: XmlElement, document: XmlDocument): XmlElement {
+  const existing = findFirstElement(body, "w:sectPr");
+  if (existing) {
+    return existing;
+  }
+  const sectPr = document.createElement("w:sectPr");
+  body.appendChild(sectPr);
+  return sectPr;
+}
+
+function ensureRelationship(
+  relsRoot: XmlElement,
+  type: string,
+  target: string,
+  document: XmlDocument,
+): string {
+  for (const child of elementChildren(relsRoot)) {
+    if (child.getAttribute("Type") === type && child.getAttribute("Target") === target) {
+      return child.getAttribute("Id") || "";
+    }
+  }
+
+  const relationship = document.createElement("Relationship");
+  const id = nextRelationshipId(relsRoot);
+  relationship.setAttribute("Id", id);
+  relationship.setAttribute("Type", type);
+  relationship.setAttribute("Target", target);
+  relsRoot.appendChild(relationship);
+  return id;
+}
+
+function nextRelationshipId(relsRoot: XmlElement): string {
+  let maxId = 0;
+  for (const child of elementChildren(relsRoot)) {
+    const id = child.getAttribute("Id");
+    const match = id ? id.match(/^rId(\d+)$/) : null;
+    if (match) {
+      maxId = Math.max(maxId, Number(match[1]));
+    }
+  }
+  return `rId${maxId + 1}`;
+}
+
+function ensureContentTypeOverride(
+  root: XmlElement,
+  partName: string,
+  contentType: string,
+  document: XmlDocument,
+): boolean {
+  for (const child of elementChildren(root)) {
+    if (child.nodeName === "Override" && child.getAttribute("PartName") === partName) {
+      return false;
+    }
+  }
+  const override = document.createElement("Override");
+  override.setAttribute("PartName", partName);
+  override.setAttribute("ContentType", contentType);
+  root.appendChild(override);
+  return true;
+}
+
+function setSectionReference(
+  sectPr: XmlElement,
+  elementName: "w:headerReference" | "w:footerReference",
+  relationshipId: string,
+  document: XmlDocument,
+): boolean {
+  for (const child of [...elementChildren(sectPr)]) {
+    if (child.nodeName === elementName && child.getAttribute("w:type") === "default") {
+      if (child.getAttribute("r:id") === relationshipId) {
+        return false;
+      }
+      child.setAttribute("r:id", relationshipId);
+      return true;
+    }
+  }
+  const reference = document.createElement(elementName);
+  reference.setAttribute("w:type", "default");
+  reference.setAttribute("r:id", relationshipId);
+  sectPr.appendChild(reference);
+  return true;
+}
+
+function buildPageRegionPartXml(
+  sourceDocument: XmlDocument,
+  region: DocxPageRegion,
+  pageTemplate: DocxPageTemplateSpec,
+  kind: "header" | "footer",
+): string {
+  const document = new DOMParser().parseFromString(
+    kind === "header"
+      ? `<?xml version="1.0" encoding="UTF-8"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:hdr>`
+      : `<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:ftr>`,
+    "application/xml",
+  );
+  const root = document.documentElement;
+  const paragraph = document.createElement("w:p");
+  root.appendChild(paragraph);
+
+  const defaults = {
+    fontFamily: pageTemplate.defaultFontFamily,
+    fontSizePt: pageTemplate.defaultFontSizePt,
+    lineSpacing: pageTemplate.defaultLineSpacing,
+  };
+  appendPageRegionParagraph(document, sourceDocument, paragraph, region, defaults);
+
+  return new XMLSerializer().serializeToString(document);
+}
+
+function appendPageRegionParagraph(
+  document: XmlDocument,
+  sourceDocument: XmlDocument,
+  paragraph: XmlElement,
+  region: DocxPageRegion,
+  defaults: {
+    fontFamily?: string;
+    fontSizePt?: number;
+    lineSpacing?: number;
+  },
+): void {
+  const paragraphProperties = findOrCreateParagraphProperties(paragraph, document);
+  if (defaults.lineSpacing !== undefined) {
+    setParagraphLineSpacing(paragraph, defaults.lineSpacing);
+  }
+
+  const left = region.left || [];
+  const center = region.center || [];
+  const right = region.right || [];
+  const hasLeft = left.length > 0;
+  const hasCenter = center.length > 0;
+  const hasRight = right.length > 0;
+  const populatedCount = [hasLeft, hasCenter, hasRight].filter(Boolean).length;
+
+  if (populatedCount <= 1) {
+    const alignment = hasCenter ? "center" : hasRight ? "right" : "left";
+    if (alignment !== "left") {
+      const justification = findOrCreateChild(paragraphProperties, "w:jc", document);
+      setAttributeValue(justification, "w:val", alignment);
+    }
+    appendRegionRuns(document, paragraph, hasLeft ? left : hasCenter ? center : right, defaults);
+    return;
+  }
+
+  configurePageRegionTabs(
+    document,
+    paragraphProperties,
+    resolveUsablePageWidthTwips(sourceDocument),
+    hasCenter,
+    hasRight,
+  );
+
+  if (hasLeft) {
+    appendRegionRuns(document, paragraph, left, defaults);
+  }
+  if (hasCenter) {
+    appendTabRun(document, paragraph);
+    appendRegionRuns(document, paragraph, center, defaults);
+  }
+  if (hasRight) {
+    appendTabRun(document, paragraph);
+    appendRegionRuns(document, paragraph, right, defaults);
+  }
+}
+
+function configurePageRegionTabs(
+  document: XmlDocument,
+  paragraphProperties: XmlElement,
+  usableWidthTwips: number,
+  includeCenter: boolean,
+  includeRight: boolean,
+): void {
+  const tabs = findOrCreateChild(paragraphProperties, "w:tabs", document);
+  for (const child of [...elementChildren(tabs)]) {
+    tabs.removeChild(child);
+  }
+
+  if (includeCenter) {
+    const centerTab = document.createElement("w:tab");
+    centerTab.setAttribute("w:val", "center");
+    centerTab.setAttribute("w:pos", String(Math.round(usableWidthTwips / 2)));
+    tabs.appendChild(centerTab);
+  }
+
+  if (includeRight) {
+    const rightTab = document.createElement("w:tab");
+    rightTab.setAttribute("w:val", "right");
+    rightTab.setAttribute("w:pos", String(usableWidthTwips));
+    tabs.appendChild(rightTab);
+  }
+}
+
+function resolveUsablePageWidthTwips(document: XmlDocument): number {
+  const body = findFirstElement(document.documentElement, "w:body");
+  const sectionProperties = findFirstElement(body, "w:sectPr");
+  if (!sectionProperties) {
+    return DEFAULT_USABLE_PAGE_WIDTH_TWIPS;
+  }
+
+  const pageSize = findFirstElement(sectionProperties, "w:pgSz");
+  const pageMargins = findFirstElement(sectionProperties, "w:pgMar");
+  const pageWidth = parsePositiveInteger(pageSize?.getAttribute("w:w"));
+  const marginLeft = parsePositiveInteger(pageMargins?.getAttribute("w:left"));
+  const marginRight = parsePositiveInteger(pageMargins?.getAttribute("w:right"));
+
+  if (pageWidth === undefined || marginLeft === undefined || marginRight === undefined) {
+    return DEFAULT_USABLE_PAGE_WIDTH_TWIPS;
+  }
+
+  const usableWidth = pageWidth - marginLeft - marginRight;
+  return usableWidth > 0 ? usableWidth : DEFAULT_USABLE_PAGE_WIDTH_TWIPS;
+}
+
+function parsePositiveInteger(value: string | null | undefined): number | undefined {
+  if (!value || !/^\d+$/.test(value)) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function appendTabRun(document: XmlDocument, paragraph: XmlElement): void {
+  const run = document.createElement("w:r");
+  const tab = document.createElement("w:tab");
+  run.appendChild(tab);
+  paragraph.appendChild(run);
+}
+
+function appendRegionRuns(
+  document: XmlDocument,
+  paragraph: XmlElement,
+  nodes: DocxPageRegionNode[],
+  inherited: {
+    fontFamily?: string;
+    fontSizePt?: number;
+    fontWeight?: "normal" | "bold";
+    italic?: boolean;
+    underline?: boolean;
+    smallCaps?: boolean;
+    color?: string;
+  },
+): void {
+  for (const node of nodes) {
+    if (node.kind === "text") {
+      paragraph.appendChild(createStyledTextRun(document, node.value, inherited));
+      continue;
+    }
+    if (node.kind === "pageNumber") {
+      appendPageNumberField(document, paragraph, inherited);
+      continue;
+    }
+    appendRegionRuns(document, paragraph, node.children, mergeRunStyle(inherited, node));
+  }
+}
+
+function createStyledTextRun(
+  document: XmlDocument,
+  value: string,
+  style: {
+    fontFamily?: string;
+    fontSizePt?: number;
+    fontWeight?: "normal" | "bold";
+    italic?: boolean;
+    underline?: boolean;
+    smallCaps?: boolean;
+    color?: string;
+  },
+): XmlElement {
+  const run = document.createElement("w:r");
+  const runProperties = findOrCreateChild(run, "w:rPr", document, true);
+  setRunFontFamily(runProperties, style.fontFamily, document);
+  setRunFontSize(runProperties, style.fontSizePt, document);
+  setRunFontWeight(runProperties, style.fontWeight, document);
+  setRunItalic(runProperties, style.italic, document);
+  setRunUnderline(runProperties, style.underline, document);
+  setRunSmallCaps(runProperties, style.smallCaps, document);
+  setRunColor(runProperties, style.color, document);
+  const text = document.createElement("w:t");
+  if (/^\s|\s$|\s{2,}/.test(value)) {
+    text.setAttribute("xml:space", "preserve");
+  }
+  text.appendChild(document.createTextNode(value));
+  run.appendChild(text);
+  return run;
+}
+
+function appendPageNumberField(
+  document: XmlDocument,
+  paragraph: XmlElement,
+  style: {
+    fontFamily?: string;
+    fontSizePt?: number;
+    fontWeight?: "normal" | "bold";
+    italic?: boolean;
+    underline?: boolean;
+    smallCaps?: boolean;
+    color?: string;
+  },
+): void {
+  paragraph.appendChild(createFieldRun(document, "begin", undefined, style));
+  paragraph.appendChild(createFieldRun(document, undefined, " PAGE ", style, true));
+  paragraph.appendChild(createFieldRun(document, "separate", undefined, style));
+  paragraph.appendChild(createStyledTextRun(document, "1", style));
+  paragraph.appendChild(createFieldRun(document, "end", undefined, style));
+}
+
+function createFieldRun(
+  document: XmlDocument,
+  fieldType: "begin" | "separate" | "end" | undefined,
+  instruction: string | undefined,
+  style: {
+    fontFamily?: string;
+    fontSizePt?: number;
+    fontWeight?: "normal" | "bold";
+    italic?: boolean;
+    underline?: boolean;
+    smallCaps?: boolean;
+    color?: string;
+  },
+  preserveSpace = false,
+): XmlElement {
+  const run = document.createElement("w:r");
+  const runProperties = findOrCreateChild(run, "w:rPr", document, true);
+  setRunFontFamily(runProperties, style.fontFamily, document);
+  setRunFontSize(runProperties, style.fontSizePt, document);
+  setRunFontWeight(runProperties, style.fontWeight, document);
+  setRunItalic(runProperties, style.italic, document);
+  setRunUnderline(runProperties, style.underline, document);
+  setRunSmallCaps(runProperties, style.smallCaps, document);
+  setRunColor(runProperties, style.color, document);
+
+  if (fieldType) {
+    const fldChar = document.createElement("w:fldChar");
+    fldChar.setAttribute("w:fldCharType", fieldType);
+    run.appendChild(fldChar);
+    return run;
+  }
+
+  const instr = document.createElement("w:instrText");
+  if (preserveSpace) {
+    instr.setAttribute("xml:space", "preserve");
+  }
+  instr.appendChild(document.createTextNode(instruction || ""));
+  run.appendChild(instr);
+  return run;
+}
+
+function mergeRunStyle(
+  base: {
+    fontFamily?: string;
+    fontSizePt?: number;
+    fontWeight?: "normal" | "bold";
+    italic?: boolean;
+    underline?: boolean;
+    smallCaps?: boolean;
+    color?: string;
+  },
+  override: {
+    fontFamily?: string;
+    fontSizePt?: number;
+    fontWeight?: "normal" | "bold";
+    italic?: boolean;
+    underline?: boolean;
+    smallCaps?: boolean;
+    color?: string;
+  },
+) {
+  return {
+    fontFamily: override.fontFamily !== undefined ? override.fontFamily : base.fontFamily,
+    fontSizePt: override.fontSizePt !== undefined ? override.fontSizePt : base.fontSizePt,
+    fontWeight: override.fontWeight !== undefined ? override.fontWeight : base.fontWeight,
+    italic: override.italic !== undefined ? override.italic : base.italic,
+    underline: override.underline !== undefined ? override.underline : base.underline,
+    smallCaps: override.smallCaps !== undefined ? override.smallCaps : base.smallCaps,
+    color: override.color !== undefined ? override.color : base.color,
+  };
 }
 
 function findParagraphStyleById(root: XmlElement, styleId: string): XmlElement | undefined {

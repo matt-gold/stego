@@ -366,16 +366,6 @@ function parseOrderFromFilename(chapterPath: string, relativePath: string, issue
   if (!match) {
     return null;
   }
-  if (match[1].length < 3) {
-    issues.push(
-      makeIssue(
-        "warning",
-        "ordering",
-        `Filename prefix '${match[1]}' is valid but non-standard. Prefer zero-padded prefixes like 001, 010, 100 for consistent ordering.`,
-        relativePath
-      )
-    );
-  }
   return Number(match[1]);
 }
 

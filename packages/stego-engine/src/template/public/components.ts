@@ -14,6 +14,7 @@ import {
   createPlainTextNode,
   createParagraphNode,
   createSectionNode,
+  createSpanNode,
   type AlignValue,
   type FontFamilyValue,
   type FontSizeValue,
@@ -48,6 +49,7 @@ import type { LeafMetadata, LeafRecord } from "./types.ts";
 import type { PresentationTarget, TemplateCapability } from "@stego-labs/shared/domain/templates";
 import { TARGET_CAPABILITIES } from "@stego-labs/shared/domain/templates";
 import { normalizeChildren, normalizeInlineChildren } from "../internal/normalizeChildren.ts";
+import { normalizePageRegionChildren } from "../internal/normalizePageRegionChildren.ts";
 
 export type DocumentProps = {
   page?: PageSpec;
@@ -105,6 +107,17 @@ export type ImageProps = {
   layout?: "block" | "inline";
   align?: AlignValue;
   caption?: string;
+};
+
+export type SpanProps = {
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  fontWeight?: FontWeightValue;
+  italic?: boolean;
+  underline?: boolean;
+  smallCaps?: boolean;
+  color?: ColorValue;
+  children?: unknown;
 };
 
 type CapabilityMap = typeof TARGET_CAPABILITIES;
@@ -210,6 +223,12 @@ type NarrowParagraphProps<TTargets extends PresentationTarget> = {
   align?: AlignValue;
 }> & NarrowFontProps<TTargets>;
 
+type NarrowSpanProps<TTargets extends PresentationTarget> = {
+  children?: unknown;
+} & GatedProps<TTargets, "fontFamily", { fontFamily?: FontFamilyValue; }>
+  & GatedProps<TTargets, "fontSize", { fontSize?: FontSizeValue; }>
+  & NarrowHeadingEmphasisProps<TTargets>;
+
 type NarrowImageProps<TTargets extends PresentationTarget> = {
   src: string;
   alt?: string;
@@ -226,6 +245,7 @@ type NarrowDocumentComponent<TTargets extends PresentationTarget> = (props: Narr
 type NarrowSectionComponent<TTargets extends PresentationTarget> = (props: NarrowSectionProps<TTargets>) => StegoSectionNode;
 type NarrowHeadingComponent<TTargets extends PresentationTarget> = (props: NarrowHeadingProps<TTargets>) => StegoHeadingNode;
 type NarrowParagraphComponent<TTargets extends PresentationTarget> = (props: NarrowParagraphProps<TTargets>) => StegoParagraphNode;
+type NarrowSpanComponent<TTargets extends PresentationTarget> = (props: NarrowSpanProps<TTargets>) => ReturnType<typeof Span>;
 type NarrowImageComponent<TTargets extends PresentationTarget> = (props: NarrowImageProps<TTargets>) => StegoImageNode;
 type MaybeComponent<
   TKey extends string,
@@ -242,6 +262,7 @@ export type StegoApi<TTargets extends PresentationTarget> = {
   Section: NarrowSectionComponent<TTargets>;
   Heading: NarrowHeadingComponent<TTargets>;
   Paragraph: NarrowParagraphComponent<TTargets>;
+  Span: NarrowSpanComponent<TTargets>;
   Markdown: typeof Markdown;
   PlainText: typeof PlainText;
   Link: typeof Link;
@@ -287,6 +308,10 @@ export function Heading(props: HeadingProps): StegoHeadingNode {
 
 export function Paragraph(props: ParagraphProps): StegoParagraphNode {
   return createParagraphNode(props, normalizeInlineChildren(props.children));
+}
+
+export function Span(props: SpanProps) {
+  return createSpanNode(props, normalizeInlineChildren(props.children));
 }
 
 export function Markdown<TMetadata extends LeafMetadata>(
@@ -338,10 +363,24 @@ export function PageBreak(): StegoPageBreakNode {
 }
 
 export function PageTemplate(props: {
-  header?: PageRegionSpec;
-  footer?: PageRegionSpec;
+  header?: { left?: unknown; center?: unknown; right?: unknown };
+  footer?: { left?: unknown; center?: unknown; right?: unknown };
 }): StegoPageTemplateNode {
-  return createPageTemplateNode(props.header, props.footer);
+  const header: PageRegionSpec | undefined = props.header
+    ? {
+        left: normalizePageRegionChildren(props.header.left),
+        center: normalizePageRegionChildren(props.header.center),
+        right: normalizePageRegionChildren(props.header.right),
+      }
+    : undefined;
+  const footer: PageRegionSpec | undefined = props.footer
+    ? {
+        left: normalizePageRegionChildren(props.footer.left),
+        center: normalizePageRegionChildren(props.footer.center),
+        right: normalizePageRegionChildren(props.footer.right),
+      }
+    : undefined;
+  return createPageTemplateNode(header, footer);
 }
 
 export function PageNumber(): StegoPageNumberNode {
@@ -399,6 +438,7 @@ export const Stego = {
   Section,
   Heading,
   Paragraph,
+  Span,
   Markdown,
   PlainText,
   Link,

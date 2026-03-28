@@ -69,14 +69,17 @@ const printTemplate = defineTemplate(
         headingStyle={{ fontWeight: "bold", color: "#333333" }}
         headingStyles={{ 1: { spaceAfter: 18, fontFamily: "Georgia", underline: true } }}
       >
-        <PrintStego.PageTemplate footer={{ right: <PrintStego.PageNumber /> }} />
+        <PrintStego.PageTemplate
+          header={{ left: "Funny Business", center: <PrintStego.Span italic>Draft</PrintStego.Span> }}
+          footer={{ right: <>Page <PrintStego.PageNumber /></> }}
+        />
         <PrintStego.Section>
           <PrintStego.KeepTogether>
             <PrintStego.Heading level={1} fontWeight="normal" underline={false}>
               {ctx.project.metadata.title}
             </PrintStego.Heading>
             <PrintStego.Paragraph align="center" firstLineIndent="2em" lineSpacing={1.5}>
-              {ctx.project.metadata.author ?? "Anonymous"}
+              <PrintStego.Span smallCaps>{ctx.project.metadata.author ?? "Anonymous"}</PrintStego.Span>
             </PrintStego.Paragraph>
           </PrintStego.KeepTogether>
           {firstLeaf ? <PrintStego.Markdown leaf={firstLeaf} /> : null}
@@ -136,9 +139,12 @@ const epubTemplate = defineTemplate(
     // @ts-expect-error epub-only templates do not allow paragraph inset defaults
     EpubStego.Section({ bodyStyle: { insetLeft: "12pt" }, children: [] });
 
+    // @ts-expect-error epub-only templates do not allow font family on inline spans
+    EpubStego.Span({ fontFamily: "Times New Roman", children: "Styled" });
+
     return (
       <EpubStego.Document bodyStyle={{ fontSize: "12pt", lineSpacing: 1.5, spaceAfter: "12pt" }}>
-        <EpubStego.Paragraph>EPUB-safe body</EpubStego.Paragraph>
+        <EpubStego.Paragraph><EpubStego.Span italic>EPUB-safe body</EpubStego.Span></EpubStego.Paragraph>
       </EpubStego.Document>
     );
   }

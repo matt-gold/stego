@@ -174,6 +174,32 @@ test('validate does not warn for four-digit leaf prefixes', () => {
   }
 });
 
+test('validate does not warn for two-digit leaf prefixes', () => {
+  const projectId = `validate-two-digit-prefix-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'Two Digit Prefix Test',
+      requiredMetadata: ['status']
+    },
+    [
+      ['50-scene.md', '---\nid: CH-FIFTY\nstatus: draft\n---\n\nHello.\n']
+    ]
+  );
+
+  try {
+    const result = runCli(['validate', '--project', projectId]);
+    const output = `${result.stdout}\n${result.stderr}`;
+
+    assert.equal(result.status, 0, output);
+    assert.doesNotMatch(output, /non-standard/i);
+    assert.doesNotMatch(output, /zero-padded prefixes/i);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
 test('new infers next leaf prefix from the last two leaves', () => {
   const projectId = `new-leaf-infer-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(

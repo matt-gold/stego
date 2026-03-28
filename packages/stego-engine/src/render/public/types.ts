@@ -1,4 +1,4 @@
-import type { PageRegionSpec, StegoDocumentNode } from "../../ir/index.ts";
+import type { StegoDocumentNode } from "../../ir/index.ts";
 import type { TemplateContext } from "../../template/index.ts";
 
 export type RenderDocumentInput = {
@@ -16,8 +16,40 @@ export type PresentationPageLayout = {
   lineSpacing?: number;
   spaceBefore?: string;
   spaceAfter?: string;
-  header?: PageRegionSpec;
-  footer?: PageRegionSpec;
+  header?: PresentationPageRegion;
+  footer?: PresentationPageRegion;
+};
+
+export type PresentationInlineStyleSpec = {
+  styleId: string;
+  fontFamily?: string;
+  fontSizePt?: number;
+  fontWeight?: "normal" | "bold";
+  italic?: boolean;
+  underline?: boolean;
+  smallCaps?: boolean;
+  color?: string;
+};
+
+export type PresentationPageRegionNode =
+  | { kind: "text"; value: string }
+  | {
+      kind: "span";
+      fontFamily?: string;
+      fontSizePt?: number;
+      fontWeight?: "normal" | "bold";
+      italic?: boolean;
+      underline?: boolean;
+      smallCaps?: boolean;
+      color?: string;
+      children: PresentationPageRegionNode[];
+    }
+  | { kind: "pageNumber" };
+
+export type PresentationPageRegion = {
+  left?: PresentationPageRegionNode[];
+  center?: PresentationPageRegionNode[];
+  right?: PresentationPageRegionNode[];
 };
 
 export type PresentationBlockMarker = {
@@ -60,6 +92,7 @@ export type PandocPresentationBackendDocument = {
   presentation: {
     page: PresentationPageLayout;
     blockMarkers: PresentationBlockMarker[];
+    inlineStyles: PresentationInlineStyleSpec[];
     features: PresentationFeatureUsage;
   };
 };

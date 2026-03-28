@@ -9,7 +9,7 @@ export function normalizeChildren(input: unknown): StegoNode[] {
 export function normalizeInlineChildren(input: unknown): StegoInlineNode[] {
   const nodes = normalizeChildren(input);
   for (const node of nodes) {
-    if (node.kind !== "text" && node.kind !== "link") {
+    if (node.kind !== "text" && node.kind !== "link" && node.kind !== "span") {
       throw new Error(`Only inline children are supported here in V1. Received '${node.kind}'.`);
     }
   }

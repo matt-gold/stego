@@ -1,11 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import JSZip from "jszip";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(scriptDir, "..", "..");
-const { applyDocxLayoutToDocumentXml, applyDocxDocumentStyleToStylesXml } = await import(
+const { applyDocxLayout, applyDocxLayoutToDocumentXml, applyDocxDocumentStyleToStylesXml } = await import(
   pathToFileURL(path.join(packageRoot, "src", "modules", "export", "infra", "docx-layout.ts")).href
 );
 
@@ -293,4 +296,106 @@ test("docx layout postprocessor applies heading run emphasis and color overrides
   assert.match(rewritten, /<w:u w:val="single"\/>/);
   assert.match(rewritten, /<w:smallCaps w:val="1"\/>/);
   assert.match(rewritten, /<w:color w:val="333333"\/>/);
+});
+
+test("docx layout postprocessor creates header and footer parts with page regions and character styles", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-docx-layout-"));
+  const docxPath = path.join(tempDir, "template.docx");
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
+  zip.file(
+    "word/document.xml",
+    '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Body</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>',
+  );
+  zip.file("word/styles.xml", '<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:styles>');
+  fs.writeFileSync(docxPath, await zip.generateAsync({ type: "nodebuffer" }));
+
+  try {
+    await applyDocxLayout(docxPath, {
+      characterStyles: [{
+        styleId: "StegoSpan1",
+        italic: true,
+        color: "#666666",
+      }],
+      pageTemplate: {
+        header: {
+          left: [{ kind: "text", value: "Funny Business" }],
+          right: [{ kind: "text", value: "Page " }, { kind: "pageNumber" }],
+        },
+        footer: {
+          center: [{
+            kind: "span",
+            italic: true,
+            color: "#666666",
+            children: [{ kind: "text", value: "Draft" }],
+          }],
+        },
+        defaultFontFamily: "Times New Roman",
+        defaultFontSizePt: 12,
+        defaultLineSpacing: 2,
+      },
+    });
+
+    const archive = await JSZip.loadAsync(fs.readFileSync(docxPath));
+    const contentTypes = await archive.file("[Content_Types].xml").async("string");
+    const rels = await archive.file("word/_rels/document.xml.rels").async("string");
+    const documentXml = await archive.file("word/document.xml").async("string");
+    const headerXml = await archive.file("word/header1.xml").async("string");
+    const footerXml = await archive.file("word/footer1.xml").async("string");
+    const stylesXml = await archive.file("word/styles.xml").async("string");
+
+    assert.match(contentTypes, /PartName="\/word\/header1.xml"/);
+    assert.match(contentTypes, /PartName="\/word\/footer1.xml"/);
+    assert.match(rels, /Type="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/header" Target="header1.xml"/);
+    assert.match(rels, /Type="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/footer" Target="footer1.xml"/);
+    assert.match(documentXml, /<w:headerReference w:type="default" r:id="rId\d+"\/>/);
+    assert.match(documentXml, /<w:footerReference w:type="default" r:id="rId\d+"\/>/);
+    assert.doesNotMatch(headerXml, /<w:tbl>/);
+    assert.match(headerXml, /<w:tabs><w:tab w:val="right" w:pos="9360"\/><\/w:tabs>/);
+    assert.match(headerXml, /Funny Business/);
+    assert.match(headerXml, /<w:tab\/>/);
+    assert.match(headerXml, /<w:instrText xml:space="preserve"> PAGE <\/w:instrText>/);
+    assert.match(headerXml, /<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"\/>/);
+    assert.match(footerXml, /Draft/);
+    assert.match(footerXml, /<w:jc w:val="center"\/>/);
+    assert.doesNotMatch(footerXml, /<w:tabs>/);
+    assert.match(footerXml, /<w:i w:val="1"\/>/);
+    assert.match(footerXml, /<w:color w:val="#666666"\/>|<w:color w:val="666666"\/>/);
+    assert.match(stylesXml, /<w:style w:type="character" w:styleId="StegoSpan1" w:customStyle="1">/);
+    assert.match(stylesXml, /<w:i w:val="1"\/>/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("docx page regions use full-width paragraph alignment when only one slot is populated", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-docx-layout-"));
+  const docxPath = path.join(tempDir, "template.docx");
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
+  zip.file(
+    "word/document.xml",
+    '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Body</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>',
+  );
+  zip.file("word/styles.xml", '<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:styles>');
+  fs.writeFileSync(docxPath, await zip.generateAsync({ type: "nodebuffer" }));
+
+  try {
+    await applyDocxLayout(docxPath, {
+      pageTemplate: {
+        header: {
+          center: [{ kind: "text", value: "Centered" }],
+        },
+      },
+    });
+
+    const archive = await JSZip.loadAsync(fs.readFileSync(docxPath));
+    const headerXml = await archive.file("word/header1.xml").async("string");
+
+    assert.match(headerXml, /<w:jc w:val="center"\/>/);
+    assert.doesNotMatch(headerXml, /<w:tabs>/);
+    assert.match(headerXml, /Centered/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });
