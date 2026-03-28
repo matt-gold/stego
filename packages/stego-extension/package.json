@@ -2,7 +2,7 @@
   "name": "stego-extension",
   "displayName": "Stego",
   "description": "The official UI companion to Stego CLI, providing a user-friendly sidebar for managing manuscript, comments, project browsing, validation and export in VS Code.",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "publisher": "matt-gold",
   "license": "Apache-2.0",
@@ -208,7 +208,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
-    "@stego-labs/shared": "^1.1.1",
+    "@stego-labs/shared": "^1.2.0",
     "dayjs": "^1.11.19",
     "js-yaml": "^4.1.0",
     "markdown-it": "^14.1.1"

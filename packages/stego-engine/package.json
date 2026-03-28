@@ -1,6 +1,6 @@
 {
   "name": "@stego-labs/engine",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "type": "module",
   "description": "Template-driven document engine for Stego.",
   "license": "Apache-2.0",
@@ -46,7 +46,7 @@
     "check:module-apis": "node scripts/check-module-apis.mjs"
   },
   "dependencies": {
-    "@stego-labs/shared": "^1.1.1",
+    "@stego-labs/shared": "^1.2.0",
     "esbuild": "^0.25.11",
     "js-yaml": "^4.1.1",
     "markdown-it": "^14.1.1"
