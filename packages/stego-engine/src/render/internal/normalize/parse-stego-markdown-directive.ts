@@ -13,9 +13,13 @@ export function parseStegoMarkdownDirective(source: string): ParsedStegoMarkdown
     return null;
   }
 
-  if (PAIRED_DIRECTIVE_PATTERN.test(trimmed)) {
-    const tag = extractDirectiveTag(trimmed) || "stego directive";
-    throw new Error(`${tag} only supports self-closing syntax in V1.`);
+  const pairedMatch = trimmed.match(PAIRED_DIRECTIVE_PATTERN);
+  if (pairedMatch) {
+    const tag = pairedMatch[1].toLowerCase();
+    if (tag === "stego-span") {
+      return null;
+    }
+    throw new Error(`<${tag}> only supports self-closing syntax in V1.`);
   }
 
   const selfClosing = trimmed.match(SELF_CLOSING_DIRECTIVE_PATTERN);

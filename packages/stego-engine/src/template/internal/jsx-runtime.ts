@@ -12,6 +12,7 @@ import type {
   StegoPlainTextNode,
   StegoParagraphNode,
   StegoSectionNode,
+  StegoSpacerNode,
   StegoSpanNode,
   StegoTextNode
 } from "../../ir/index.ts";
@@ -27,6 +28,7 @@ export namespace JSX {
     | StegoSectionNode
     | StegoHeadingNode
     | StegoParagraphNode
+    | StegoSpacerNode
     | StegoMarkdownNode
     | StegoPlainTextNode
     | StegoImageNode

@@ -74,7 +74,7 @@ test("docx layout postprocessor applies paragraph spacing, inset, first-line ind
   assert.match(rewritten, /<w:szCs w:val="24"\/>/);
 });
 
-test("docx layout postprocessor inserts standalone page-break paragraphs for empty markers", () => {
+test("docx layout postprocessor applies pageBreakBefore to the first following paragraph for empty markers", () => {
   const source = `<?xml version="1.0" encoding="UTF-8"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -87,7 +87,26 @@ test("docx layout postprocessor inserts standalone page-break paragraphs for emp
 
   const rewritten = applyDocxLayoutToDocumentXml(source, [{ bookmarkName: "stego-layout-1", pageBreak: true }]);
 
-  assert.match(rewritten, /<w:bookmarkStart w:id="10" w:name="stego-layout-1"\/>\s*<w:p><w:r><w:br w:type="page"\/><\/w:r><\/w:p>\s*<w:bookmarkEnd w:id="10"\/>/);
+  assert.doesNotMatch(rewritten, /<w:br w:type="page"\/>/);
+  assert.match(
+    rewritten,
+    /<w:bookmarkStart w:id="10" w:name="stego-layout-1"\/>\s*<w:bookmarkEnd w:id="10"\/>\s*<w:p><w:pPr><w:pageBreakBefore\/><\/w:pPr><w:r><w:t>After<\/w:t><\/w:r><\/w:p>/
+  );
+});
+
+test("docx layout postprocessor treats trailing empty page-break markers as no-op", () => {
+  const source = `<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Before</w:t></w:r></w:p>
+    <w:bookmarkStart w:id="10" w:name="stego-layout-1"/>
+    <w:bookmarkEnd w:id="10"/>
+  </w:body>
+</w:document>`;
+
+  const rewritten = applyDocxLayoutToDocumentXml(source, [{ bookmarkName: "stego-layout-1", pageBreak: true }]);
+
+  assert.equal(rewritten, source);
 });
 
 test("docx layout postprocessor inserts standalone spacer paragraphs for empty markers", () => {

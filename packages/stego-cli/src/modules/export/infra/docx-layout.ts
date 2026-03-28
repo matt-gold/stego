@@ -143,7 +143,7 @@ export function applyDocxLayoutToDocumentXml(source: string, specs: DocxBlockLay
   for (const group of groups) {
     const paragraphs = uniqueParagraphs(group.paragraphs);
     if (paragraphs.length === 0) {
-      if (group.spec.pageBreak && insertStandalonePageBreak(body, group.spec.bookmarkName, document)) {
+      if (group.spec.pageBreak && applyEmptyMarkerPageBreak(body, group.spec.bookmarkName)) {
         changed = true;
       }
       if (group.spec.spacerLines && insertStandaloneSpacer(body, group.spec, document)) {
@@ -297,34 +297,67 @@ function applySpecToParagraphs(paragraphs: XmlElement[], spec: DocxBlockLayoutSp
   return changed;
 }
 
-function insertStandalonePageBreak(body: XmlElement, bookmarkName: string, document: XmlDocument): boolean {
+function applyEmptyMarkerPageBreak(body: XmlElement, bookmarkName: string): boolean {
+  const bookmarkStart = findBookmarkStart(body, bookmarkName);
+  if (!bookmarkStart) {
+    return false;
+  }
+
+  const bookmarkId = bookmarkStart.getAttribute("w:id");
+  const nextParagraph = findFirstParagraphAfterBookmarkRange(body, bookmarkStart, bookmarkId);
+  if (!nextParagraph) {
+    return false;
+  }
+
+  return ensureParagraphFlag(nextParagraph, "w:pageBreakBefore");
+}
+
+function findBookmarkStart(body: XmlElement, bookmarkName: string): XmlElement | null {
   for (let index = 0; index < body.childNodes.length; index += 1) {
     const child = body.childNodes.item(index);
     if (child?.nodeType !== ELEMENT_NODE) {
       continue;
     }
     const element = child as XmlElement;
-    if (element.nodeName !== "w:bookmarkStart" || element.getAttribute("w:name") !== bookmarkName) {
+    if (element.nodeName === "w:bookmarkStart" && element.getAttribute("w:name") === bookmarkName) {
+      return element;
+    }
+  }
+
+  return null;
+}
+
+function findFirstParagraphAfterBookmarkRange(
+  body: XmlElement,
+  bookmarkStart: XmlElement,
+  bookmarkId: string | null,
+): XmlElement | null {
+  let cursor = bookmarkStart.nextSibling;
+  let pastRange = !bookmarkId;
+
+  while (cursor) {
+    if (cursor.nodeType !== ELEMENT_NODE) {
+      cursor = cursor.nextSibling;
       continue;
     }
 
-    const pageBreakParagraph = document.createElement("w:p");
-    const run = document.createElement("w:r");
-    const breakElement = document.createElement("w:br");
-    breakElement.setAttribute("w:type", "page");
-    run.appendChild(breakElement);
-    pageBreakParagraph.appendChild(run);
-
-    const insertBefore = element.nextSibling;
-    if (insertBefore) {
-      body.insertBefore(pageBreakParagraph, insertBefore);
-    } else {
-      body.appendChild(pageBreakParagraph);
+    const element = cursor as XmlElement;
+    if (!pastRange) {
+      if (element.nodeName === "w:bookmarkEnd" && element.getAttribute("w:id") === bookmarkId) {
+        pastRange = true;
+      }
+      cursor = cursor.nextSibling;
+      continue;
     }
-    return true;
+
+    if (element.nodeName === "w:p") {
+      return element;
+    }
+
+    cursor = cursor.nextSibling;
   }
 
-  return false;
+  return null;
 }
 
 function insertStandaloneSpacer(body: XmlElement, spec: DocxBlockLayoutSpec, document: XmlDocument): boolean {

@@ -243,10 +243,11 @@ function renderNode(node: StegoNode, context: RenderContext): string {
         fontSize: node.fontSize,
         lineSpacing: node.lineSpacing
       });
-      return attrs ? `::: ${attrs}\n${node.source}\n:::` : node.source;
+      const source = replaceStegoMarkdownInlineDirectives(node.source, context);
+      return attrs ? `::: ${attrs}\n${source}\n:::` : source;
     }
     case "markdownHeading": {
-      const body = renderMarkdownHeadingNode(node);
+      const body = renderMarkdownHeadingNode(node, context);
       const layout = toPresentationBlockMarker({
         spaceBefore: node.spaceBefore,
         spaceAfter: node.spaceAfter,
@@ -290,7 +291,7 @@ function renderNode(node: StegoNode, context: RenderContext): string {
       return `::: ${attrs}\n${body}\n:::`;
     }
     case "markdownBlock":
-      return node.source;
+      return replaceStegoMarkdownInlineDirectives(node.source, context);
     case "markdown":
       return renderMarkdownNode(node);
     case "plainText":
@@ -384,12 +385,14 @@ function renderPlainTextNode(node: Extract<StegoNode, { kind: "plainText" }>): s
 
 function renderMarkdownHeadingNode(
   node: Extract<StegoNode, { kind: "markdownHeading" }>,
+  context: RenderContext,
 ): string {
+  const source = replaceStegoMarkdownInlineDirectives(node.source, context);
   if (!node.anchorId) {
-    return node.source;
+    return source;
   }
 
-  return applyHeadingAnchorToSource(node.source, node.anchorId);
+  return applyHeadingAnchorToSource(source, node.anchorId);
 }
 
 function renderInlineChildren(children: StegoInlineNode[], context: RenderContext): string {
@@ -435,6 +438,14 @@ function renderLink(node: Extract<StegoInlineNode, { kind: "link" }>, context: R
 function renderSpan(node: StegoSpanNode, context: RenderContext): string {
   const body = renderInlineChildren(node.children, context);
   const style = toPresentationInlineStyle(node);
+  return renderStyledInline(body, style, context);
+}
+
+function renderStyledInline(
+  body: string,
+  style: Omit<PresentationInlineStyleSpec, "styleId"> | undefined,
+  context: RenderContext,
+): string {
   if (!style) {
     return body;
   }
@@ -464,6 +475,259 @@ function renderSpan(node: StegoSpanNode, context: RenderContext): string {
     tokens.push(`data-color=${quoteAttrValue(style.color)}`);
   }
   return `[${body}]{${tokens.join(" ")}}`;
+}
+
+function replaceStegoMarkdownInlineDirectives(source: string, context: RenderContext): string {
+  if (!/<\s*\/?\s*stego-/i.test(source)) {
+    return source;
+  }
+
+  let output = "";
+  let cursor = 0;
+  while (cursor < source.length) {
+    const relativeIndex = source.slice(cursor).search(/<\s*\/?\s*stego-/i);
+    if (relativeIndex < 0) {
+      output += source.slice(cursor);
+      break;
+    }
+
+    const startIndex = cursor + relativeIndex;
+    output += source.slice(cursor, startIndex);
+    const tag = readStegoInlineTag(source, startIndex);
+
+    if (tag.closing) {
+      throw new Error(`Unexpected closing markdown directive '</${tag.name}>'.`);
+    }
+    if (tag.selfClosing) {
+      if (tag.name === "stego-spacer") {
+        throw new Error("<stego-spacer /> is only supported as a standalone block directive.");
+      }
+      if (tag.name === "stego-span") {
+        throw new Error("<stego-span> requires paired syntax in V1.");
+      }
+      throw new Error(`Unsupported markdown directive '<${tag.name} />'. Supported directives: stego-spacer, stego-span.`);
+    }
+    if (tag.name !== "stego-span") {
+      throw new Error(`Unsupported markdown directive '<${tag.name}>'. Supported directives: stego-spacer, stego-span.`);
+    }
+
+    const closeStart = findMatchingStegoSpanClose(source, tag.endIndex);
+    if (closeStart < 0) {
+      throw new Error("<stego-span> must be closed with </stego-span>.");
+    }
+
+    const closeTag = readStegoInlineTag(source, closeStart);
+    const inner = source.slice(tag.endIndex, closeStart);
+    output += renderStyledInline(
+      replaceStegoMarkdownInlineDirectives(inner, context),
+      parseStegoSpanStyle(tag.attributes),
+      context,
+    );
+    cursor = closeTag.endIndex;
+  }
+
+  return output;
+}
+
+function findMatchingStegoSpanClose(source: string, fromIndex: number): number {
+  let depth = 1;
+  let cursor = fromIndex;
+
+  while (cursor < source.length) {
+    const relativeIndex = source.slice(cursor).search(/<\s*\/?\s*stego-/i);
+    if (relativeIndex < 0) {
+      return -1;
+    }
+
+    const startIndex = cursor + relativeIndex;
+    const tag = readStegoInlineTag(source, startIndex);
+    cursor = tag.endIndex;
+
+    if (tag.name !== "stego-span") {
+      if (tag.selfClosing && tag.name === "stego-spacer") {
+        throw new Error("<stego-spacer /> is only supported as a standalone block directive.");
+      }
+      if (tag.selfClosing) {
+        throw new Error(`Unsupported markdown directive '<${tag.name} />'. Supported directives: stego-spacer, stego-span.`);
+      }
+      if (tag.closing) {
+        throw new Error(`Unexpected closing markdown directive '</${tag.name}>'.`);
+      }
+      throw new Error(`Unsupported markdown directive '<${tag.name}>'. Supported directives: stego-spacer, stego-span.`);
+    }
+
+    if (tag.closing) {
+      depth -= 1;
+      if (depth === 0) {
+        return startIndex;
+      }
+      continue;
+    }
+
+    if (tag.selfClosing) {
+      throw new Error("<stego-span> requires paired syntax in V1.");
+    }
+
+    depth += 1;
+  }
+
+  return -1;
+}
+
+function readStegoInlineTag(source: string, startIndex: number): {
+  name: string;
+  attributes: Record<string, string>;
+  closing: boolean;
+  selfClosing: boolean;
+  endIndex: number;
+} {
+  let index = startIndex + 1;
+  while (source[index] && /\s/.test(source[index])) {
+    index += 1;
+  }
+
+  let closing = false;
+  if (source[index] === "/") {
+    closing = true;
+    index += 1;
+    while (source[index] && /\s/.test(source[index])) {
+      index += 1;
+    }
+  }
+
+  const nameStart = index;
+  while (source[index] && /[A-Za-z0-9-]/.test(source[index])) {
+    index += 1;
+  }
+  const name = source.slice(nameStart, index).toLowerCase();
+
+  let inQuote = false;
+  let endIndex = index;
+  while (endIndex < source.length) {
+    const char = source[endIndex];
+    if (char === "\"") {
+      inQuote = !inQuote;
+    } else if (char === ">" && !inQuote) {
+      endIndex += 1;
+      break;
+    }
+    endIndex += 1;
+  }
+
+  const rawTag = source.slice(startIndex, endIndex);
+  const selfClosing = /\/\s*>$/.test(rawTag);
+  const attributeSource = rawTag
+    .replace(/^<\s*\/?\s*[A-Za-z0-9-]+\s*/u, "")
+    .replace(/\/?\s*>$/u, "")
+    .trim();
+
+  return {
+    name,
+    attributes: parseStegoInlineAttributes(attributeSource, rawTag),
+    closing,
+    selfClosing,
+    endIndex,
+  };
+}
+
+function parseStegoInlineAttributes(rawAttributes: string, source: string): Record<string, string> {
+  if (!rawAttributes) {
+    return {};
+  }
+
+  const attributes: Record<string, string> = {};
+  const attributePattern = /([a-zA-Z_:][a-zA-Z0-9:._-]*)\s*=\s*"([^"]*)"/g;
+  let consumed = "";
+  let match: RegExpExecArray | null;
+  attributePattern.lastIndex = 0;
+  while ((match = attributePattern.exec(rawAttributes)) !== null) {
+    consumed += match[0];
+    attributes[match[1]] = match[2];
+  }
+
+  const normalizedRaw = rawAttributes.replace(/\s+/g, "");
+  const normalizedConsumed = consumed.replace(/\s+/g, "");
+  if (normalizedRaw !== normalizedConsumed) {
+    throw new Error(`Invalid markdown directive syntax '${source}'. Attributes must use quoted HTML-style values.`);
+  }
+
+  return attributes;
+}
+
+function parseStegoSpanStyle(
+  attributes: Record<string, string>,
+): Omit<PresentationInlineStyleSpec, "styleId"> | undefined {
+  const allowed = new Set([
+    "font-family",
+    "fontFamily",
+    "font-size",
+    "fontSize",
+    "font-weight",
+    "fontWeight",
+    "italic",
+    "underline",
+    "small-caps",
+    "smallCaps",
+    "color",
+  ]);
+  const unsupported = Object.keys(attributes).filter((name) => !allowed.has(name));
+  if (unsupported.length > 0) {
+    throw new Error("Unsupported attributes on stego-span. Supported attributes: font-family, font-size, font-weight, italic, underline, small-caps, color.");
+  }
+
+  const fontWeight = coalesceAttribute(attributes, "font-weight", "fontWeight");
+  if (fontWeight !== undefined && fontWeight !== "normal" && fontWeight !== "bold") {
+    throw new Error(`Invalid stego-span font-weight value '${fontWeight}'. Expected 'normal' or 'bold'.`);
+  }
+
+  const italic = parseStegoSpanBooleanAttribute(attributes, "italic");
+  const underline = parseStegoSpanBooleanAttribute(attributes, "underline");
+  const smallCaps = parseStegoSpanBooleanAttribute(attributes, "small-caps", "smallCaps");
+  const color = coalesceAttribute(attributes, "color");
+  if (color !== undefined && !normalizeHexColor(color)) {
+    throw new Error(`Invalid stego-span color value '${color}'. Expected a hex color like '#666666'.`);
+  }
+
+  const fontSize = coalesceAttribute(attributes, "font-size", "fontSize");
+  if (fontSize !== undefined && formatFontSizeInPoints(fontSize as FontSizeValue) === undefined) {
+    throw new Error(`Invalid stego-span font-size value '${fontSize}'. Expected a pt value like '12pt'.`);
+  }
+
+  return toPresentationInlineStyle({
+    fontFamily: coalesceAttribute(attributes, "font-family", "fontFamily"),
+    fontSize: fontSize as FontSizeValue | undefined,
+    fontWeight: fontWeight as FontWeightValue | undefined,
+    italic,
+    underline,
+    smallCaps,
+    color: color as ColorValue | undefined,
+  });
+}
+
+function parseStegoSpanBooleanAttribute(
+  attributes: Record<string, string>,
+  ...names: string[]
+): boolean | undefined {
+  const value = coalesceAttribute(attributes, ...names);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  throw new Error(`Invalid stego-span ${names[0]} value '${value}'. Expected 'true' or 'false'.`);
+}
+
+function coalesceAttribute(attributes: Record<string, string>, ...names: string[]): string | undefined {
+  for (const name of names) {
+    if (attributes[name] !== undefined) {
+      return attributes[name];
+    }
+  }
+  return undefined;
 }
 
 function resolveLeafLabel(target: LeafIndexEntry): string {

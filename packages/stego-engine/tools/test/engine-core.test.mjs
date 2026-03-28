@@ -509,6 +509,104 @@ Matt Gold`
   );
 });
 
+test("renderDocument renders Stego.Spacer in templates using inherited body defaults", () => {
+  const document = engine.Stego.Document({
+    bodyStyle: {
+      fontSize: "12pt",
+      lineSpacing: 2,
+    },
+    children: [
+      engine.Stego.Paragraph({ children: "Sincerely," }),
+      engine.Stego.Spacer({ lines: 2 }),
+      engine.Stego.Paragraph({ children: "Matt Gold" }),
+    ]
+  });
+
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: []
+    }
+  });
+
+  assert.match(rendered.source.markdown, /data-spacer-lines=2/);
+  assert.match(rendered.source.markdown, /data-font-size=12pt/);
+  assert.match(rendered.source.markdown, /data-line-spacing=2/);
+  assert.equal(
+    rendered.presentation.blockMarkers.some((entry) =>
+      entry.spacerLines === 2
+      && entry.fontSizePt === 12
+      && entry.lineSpacing === 2
+    ),
+    true
+  );
+});
+
+test("renderDocument parses stego-span inline directives in markdown content", () => {
+  const document = engine.Stego.Document({
+    children: [
+      engine.Stego.Markdown({
+        source: `# <stego-span italic="true" color="#666666">Title</stego-span>
+
+Very <stego-span font-weight="bold" underline="true">important</stego-span> text.
+
+- <stego-span small-caps="true">List item</stego-span>`
+      })
+    ]
+  });
+
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: []
+    }
+  });
+
+  assert.match(rendered.source.markdown, /\[Title\]\{custom-style="StegoSpan1" data-italic=true data-color="#666666"\}/);
+  assert.match(rendered.source.markdown, /\[important\]\{custom-style="StegoSpan2" data-font-weight=bold data-underline=true\}/);
+  assert.match(rendered.source.markdown, /- \[List item\]\{custom-style="StegoSpan3" data-small-caps=true\}/);
+  assert.deepEqual(rendered.presentation.inlineStyles, [
+    {
+      styleId: "StegoSpan1",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: undefined,
+      italic: true,
+      underline: undefined,
+      smallCaps: undefined,
+      color: "#666666",
+    },
+    {
+      styleId: "StegoSpan2",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: "bold",
+      italic: undefined,
+      underline: true,
+      smallCaps: undefined,
+      color: undefined,
+    },
+    {
+      styleId: "StegoSpan3",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: undefined,
+      italic: undefined,
+      underline: undefined,
+      smallCaps: true,
+      color: undefined,
+    }
+  ]);
+});
+
 test("renderDocument rejects invalid stego markdown directives", () => {
   const createContext = () => ({
     project: { id: "demo", root: "/tmp/demo", metadata: {} },
@@ -540,4 +638,28 @@ test("renderDocument rejects invalid stego markdown directives", () => {
     projectRoot: "/tmp/demo",
     context: createContext()
   }), /Supported directives: stego-spacer/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "Hello <stego-span font-weight=\"heavy\">world</stego-span>" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /font-weight value 'heavy'/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "Hello <stego-span italic={true}>world</stego-span>" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /quoted HTML-style values/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "Hello <stego-span>world" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /must be closed/i);
 });

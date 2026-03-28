@@ -45,6 +45,7 @@ const legacyTemplate = defineTemplate((ctx: TemplateContext<LeafMeta, BranchMeta
       <Stego.KeepTogether>
         <Stego.Heading level={1}>{projectTitle}</Stego.Heading>
         <Stego.Paragraph align="center">{chapter ?? branchChapter ?? branchLabel ?? "Untitled"}</Stego.Paragraph>
+        <Stego.Spacer lines={2} />
       </Stego.KeepTogether>
       {firstLeaf ? <Stego.Markdown leaf={firstLeaf} /> : null}
     </Stego.Document>
@@ -78,6 +79,7 @@ const printTemplate = defineTemplate(
             <PrintStego.Heading level={1} fontWeight="normal" underline={false}>
               {ctx.project.metadata.title}
             </PrintStego.Heading>
+            <PrintStego.Spacer lines={2} />
             <PrintStego.Paragraph align="center" firstLineIndent="2em" lineSpacing={1.5}>
               <PrintStego.Span smallCaps>{ctx.project.metadata.author ?? "Anonymous"}</PrintStego.Span>
             </PrintStego.Paragraph>
@@ -142,9 +144,12 @@ const epubTemplate = defineTemplate(
     // @ts-expect-error epub-only templates do not allow font family on inline spans
     EpubStego.Span({ fontFamily: "Times New Roman", children: "Styled" });
 
+    EpubStego.Spacer({ lines: 2, lineSpacing: 1.5 });
+
     return (
       <EpubStego.Document bodyStyle={{ fontSize: "12pt", lineSpacing: 1.5, spaceAfter: "12pt" }}>
         <EpubStego.Paragraph><EpubStego.Span italic>EPUB-safe body</EpubStego.Span></EpubStego.Paragraph>
+        <EpubStego.Spacer />
       </EpubStego.Document>
     );
   }

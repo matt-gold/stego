@@ -13,6 +13,7 @@ import {
   createPageTemplateNode,
   createPlainTextNode,
   createParagraphNode,
+  createSpacerNode,
   createSectionNode,
   createSpanNode,
   type AlignValue,
@@ -42,6 +43,7 @@ import {
   type StegoPageTemplateNode,
   type StegoPlainTextNode,
   type StegoParagraphNode,
+  type StegoSpacerNode,
   type StegoSectionNode
 } from "../../ir/index.ts";
 import { groupCollectionItems, splitCollectionItems, type Group, type GroupSelector, type SplitGroup } from "../../collections/index.ts";
@@ -118,6 +120,12 @@ export type SpanProps = {
   smallCaps?: boolean;
   color?: ColorValue;
   children?: unknown;
+};
+
+export type SpacerProps = {
+  lines?: number;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
 };
 
 type CapabilityMap = typeof TARGET_CAPABILITIES;
@@ -246,6 +254,10 @@ type NarrowSectionComponent<TTargets extends PresentationTarget> = (props: Narro
 type NarrowHeadingComponent<TTargets extends PresentationTarget> = (props: NarrowHeadingProps<TTargets>) => StegoHeadingNode;
 type NarrowParagraphComponent<TTargets extends PresentationTarget> = (props: NarrowParagraphProps<TTargets>) => StegoParagraphNode;
 type NarrowSpanComponent<TTargets extends PresentationTarget> = (props: NarrowSpanProps<TTargets>) => ReturnType<typeof Span>;
+type NarrowSpacerProps<TTargets extends PresentationTarget> = {
+  lines?: number;
+} & NarrowFontProps<TTargets>;
+type NarrowSpacerComponent<TTargets extends PresentationTarget> = (props: NarrowSpacerProps<TTargets>) => StegoSpacerNode;
 type NarrowImageComponent<TTargets extends PresentationTarget> = (props: NarrowImageProps<TTargets>) => StegoImageNode;
 type MaybeComponent<
   TKey extends string,
@@ -262,6 +274,7 @@ export type StegoApi<TTargets extends PresentationTarget> = {
   Section: NarrowSectionComponent<TTargets>;
   Heading: NarrowHeadingComponent<TTargets>;
   Paragraph: NarrowParagraphComponent<TTargets>;
+  Spacer: NarrowSpacerComponent<TTargets>;
   Span: NarrowSpanComponent<TTargets>;
   Markdown: typeof Markdown;
   PlainText: typeof PlainText;
@@ -308,6 +321,13 @@ export function Heading(props: HeadingProps): StegoHeadingNode {
 
 export function Paragraph(props: ParagraphProps): StegoParagraphNode {
   return createParagraphNode(props, normalizeInlineChildren(props.children));
+}
+
+export function Spacer(props: SpacerProps = {}): StegoSpacerNode {
+  return createSpacerNode(props.lines ?? 1, {
+    fontSize: props.fontSize,
+    lineSpacing: props.lineSpacing,
+  });
 }
 
 export function Span(props: SpanProps) {
@@ -438,6 +458,7 @@ export const Stego = {
   Section,
   Heading,
   Paragraph,
+  Spacer,
   Span,
   Markdown,
   PlainText,
