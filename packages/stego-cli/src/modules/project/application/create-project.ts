@@ -138,7 +138,7 @@ Reference leaves live here.
 `
   );
 
-  const starterManuscriptPath = path.join(manuscriptDir, "100-hello-world.md");
+  const starterManuscriptPath = path.join(manuscriptDir, "10-hello-world.md");
   writeTextFile(
     starterManuscriptPath,
     `---

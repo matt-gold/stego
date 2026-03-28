@@ -245,7 +245,7 @@ fi
     const recordedArgs = fs.readFileSync(argsPath, "utf8").split(/\r?\n/).filter(Boolean);
     const fromIndex = recordedArgs.findIndex((entry) => entry === "--from");
     assert.ok(fromIndex >= 0, "Expected --from");
-    assert.equal(recordedArgs[fromIndex + 1], "markdown-implicit_figures");
+    assert.equal(recordedArgs[fromIndex + 1], "markdown+bracketed_spans-implicit_figures");
     const metadataIndex = recordedArgs.findIndex((entry) => entry === "--metadata-file");
     assert.ok(metadataIndex >= 0, "Expected --metadata-file");
     const luaFilters = recordedArgs

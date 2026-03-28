@@ -37,6 +37,16 @@ export const HEADING_STYLE_CAPABILITIES = {
   color: "textColor",
 } as const satisfies Partial<Record<keyof HeadingStyle, TemplateCapability>>;
 
+export const SPAN_STYLE_CAPABILITIES = {
+  fontFamily: "fontFamily",
+  fontSize: "fontSize",
+  fontWeight: "fontWeight",
+  italic: "italic",
+  underline: "underline",
+  smallCaps: "smallCaps",
+  color: "textColor",
+} as const;
+
 export function mergeBodyStyle(
   base?: BodyStyle,
   override?: BodyStyle,

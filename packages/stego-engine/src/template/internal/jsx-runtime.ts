@@ -12,6 +12,8 @@ import type {
   StegoPlainTextNode,
   StegoParagraphNode,
   StegoSectionNode,
+  StegoSpacerNode,
+  StegoSpanNode,
   StegoTextNode
 } from "../../ir/index.ts";
 import { Fragment } from "../public/components.ts";
@@ -26,12 +28,14 @@ export namespace JSX {
     | StegoSectionNode
     | StegoHeadingNode
     | StegoParagraphNode
+    | StegoSpacerNode
     | StegoMarkdownNode
     | StegoPlainTextNode
     | StegoImageNode
     | StegoPageBreakNode
     | StegoPageTemplateNode
     | StegoPageNumberNode
+    | StegoSpanNode
     | StegoTextNode
     | StegoLinkNode;
   export type ElementType = (props: any) => Element;

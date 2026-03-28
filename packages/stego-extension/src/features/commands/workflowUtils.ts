@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { errorToMessage } from '../../shared/errors';
+import { pickCliFailureDetails } from '../../shared/cli/errorDetails';
 import type { ProjectScriptContext, ScriptRunResult } from '../../shared/types';
 import { getActiveMarkdownDocument } from '../metadata';
 import { findNearestProjectConfig } from '../project';
@@ -79,20 +80,7 @@ export async function runCommand(
 }
 
 export function pickToastDetails(result: ScriptRunResult): string {
-  const text = `${result.stderr}\n${result.stdout}`.trim();
-  if (!text) {
-    return '';
-  }
-
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (lines.length === 0) {
-    return '';
-  }
-
-  return lines[lines.length - 1];
+  return pickCliFailureDetails(result.stdout, result.stderr);
 }
 
 function getNpmCommand(): string {

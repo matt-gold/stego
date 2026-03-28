@@ -19,6 +19,7 @@ function createBackendDocument(overrides = {}) {
         geometry: [],
       },
       blockMarkers: [],
+      inlineStyles: [],
       features: {
         usesBlockFontFamily: false,
         usesBlockLineSpacing: false,

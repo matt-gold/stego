@@ -43,9 +43,9 @@ export type HeadingStyle = {
 export type HeadingStyleMap = Partial<Record<HeadingLevel, HeadingStyle>>;
 
 export type PageRegionSpec = {
-  left?: StegoNode;
-  center?: StegoNode;
-  right?: StegoNode;
+  left?: StegoPageRegionInlineNode[];
+  center?: StegoPageRegionInlineNode[];
+  right?: StegoPageRegionInlineNode[];
 };
 
 export type PageSpec = {
@@ -60,6 +60,7 @@ export type StegoNode =
   | StegoSectionNode
   | StegoHeadingNode
   | StegoParagraphNode
+  | StegoSpacerNode
   | StegoMarkdownParagraphNode
   | StegoMarkdownHeadingNode
   | StegoMarkdownBlockNode
@@ -69,10 +70,12 @@ export type StegoNode =
   | StegoPageBreakNode
   | StegoPageTemplateNode
   | StegoPageNumberNode
+  | StegoSpanNode
   | StegoLinkNode
   | StegoTextNode;
 
-export type StegoInlineNode = StegoTextNode | StegoLinkNode;
+export type StegoInlineNode = StegoTextNode | StegoLinkNode | StegoSpanNode;
+export type StegoPageRegionInlineNode = StegoTextNode | StegoSpanNode | StegoPageNumberNode;
 
 export type StegoDocumentNode = {
   kind: "document";
@@ -134,6 +137,13 @@ export type StegoParagraphNode = {
   fontSize?: FontSizeValue;
   lineSpacing?: LineSpacingValue;
   children: StegoInlineNode[];
+};
+
+export type StegoSpacerNode = {
+  kind: "spacer";
+  lines: number;
+  fontSize?: FontSizeValue;
+  lineSpacing?: LineSpacingValue;
 };
 
 export type StegoMarkdownParagraphNode = {
@@ -216,6 +226,18 @@ export type StegoPageTemplateNode = {
 
 export type StegoPageNumberNode = {
   kind: "pageNumber";
+};
+
+export type StegoSpanNode = {
+  kind: "span";
+  fontFamily?: FontFamilyValue;
+  fontSize?: FontSizeValue;
+  fontWeight?: FontWeightValue;
+  italic?: boolean;
+  underline?: boolean;
+  smallCaps?: boolean;
+  color?: ColorValue;
+  children: StegoInlineNode[];
 };
 
 export type StegoTextNode = {

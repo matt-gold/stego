@@ -1,8 +1,9 @@
 import type {
+  PresentationPageRegion,
+  PresentationPageRegionNode,
   PresentationFeatureUsage,
   PresentationPageLayout,
 } from "@stego-labs/engine";
-import type { PageRegionSpec } from "@stego-labs/engine";
 
 export function prepareLatexMetadata(
   page: PresentationPageLayout,
@@ -79,21 +80,73 @@ function normalizeLineSpacing(value: number | undefined): number | undefined {
   return value;
 }
 
-function renderRegion(kind: "head" | "foot", region: PageRegionSpec | undefined): string[] {
+function renderRegion(kind: "head" | "foot", region: PresentationPageRegion | undefined): string[] {
   if (!region) {
     return [];
   }
 
   const lines: string[] = [];
-  for (const [slot, value] of Object.entries(region) as Array<[keyof PageRegionSpec, PageRegionSpec[keyof PageRegionSpec]]>) {
-    if (!value) {
+  for (const [slot, value] of Object.entries(region) as Array<[keyof PresentationPageRegion, PresentationPageRegion[keyof PresentationPageRegion]]>) {
+    if (!value || value.length === 0) {
       continue;
     }
-    if (value.kind !== "pageNumber") {
-      throw new Error(`Only <Stego.PageNumber /> is supported in page template ${kind}.${slot} for V1.`);
-    }
     const latexSlot = slot === "left" ? "L" : slot === "center" ? "C" : "R";
-    lines.push(`\\fancy${kind}[${latexSlot}]{\\thepage}`);
+    lines.push(`\\fancy${kind}[${latexSlot}]{${renderRegionInline(value)}}`);
   }
   return lines;
+}
+
+function renderRegionInline(nodes: PresentationPageRegionNode[]): string {
+  return nodes.map(renderRegionInlineNode).join("");
+}
+
+function renderRegionInlineNode(node: PresentationPageRegionNode): string {
+  if (node.kind === "text") {
+    return escapeLatex(node.value);
+  }
+  if (node.kind === "pageNumber") {
+    return "\\thepage";
+  }
+
+  const body = renderRegionInline(node.children);
+  const wrappers: string[] = [];
+  if (node.fontFamily) {
+    wrappers.push(`\\fontspec{${escapeLatex(node.fontFamily)}}`);
+  }
+  if (node.fontSizePt !== undefined) {
+    const baseline = node.fontSizePt * 1.2;
+    wrappers.push(`\\fontsize{${node.fontSizePt}pt}{${baseline}pt}\\selectfont`);
+  }
+  if (node.fontWeight === "bold") {
+    wrappers.push("\\bfseries");
+  } else if (node.fontWeight === "normal") {
+    wrappers.push("\\mdseries");
+  }
+  if (node.italic === true) {
+    wrappers.push("\\itshape");
+  } else if (node.italic === false) {
+    wrappers.push("\\upshape");
+  }
+  if (node.smallCaps === true) {
+    wrappers.push("\\scshape");
+  } else if (node.smallCaps === false) {
+    wrappers.push("\\normalfont");
+  }
+  if (node.color) {
+    wrappers.push(`\\color[HTML]{${node.color.replace(/^#/, "")}}`);
+  }
+
+  let content = wrappers.length > 0
+    ? `{${wrappers.join("")}${body}}`
+    : body;
+
+  if (node.underline === true) {
+    content = `\\uline{${content}}`;
+  }
+
+  return content;
+}
+
+function escapeLatex(value: string): string {
+  return value.replace(/[\\{}%$#&_]/g, (match) => `\\${match}`);
 }

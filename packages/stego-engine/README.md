@@ -114,6 +114,41 @@ Built-in leaf renderers:
 
 That means markdown paragraphs now participate in paragraph spacing defaults instead of bypassing Stego layout semantics entirely.
 
+Markdown also supports a small Stego-owned directive surface for block- and inline-level layout hints:
+
+```md
+Best regards,
+
+<stego-spacer lines="3" />
+
+Jane Doe
+```
+
+```md
+Very <stego-span font-weight="bold" underline>important</stego-span> text.
+```
+
+In V1:
+
+- `<stego-spacer />` is block-only and must be self-closing
+- `<stego-span>...</stego-span>` is inline-only and must use paired syntax
+- `stego-spacer` supports:
+  - `lines="N"`
+- `stego-span` supports:
+  - `font-family="..."`
+  - `font-size="12pt"`
+  - `font-weight="normal|bold"`
+  - `italic`
+  - `italic="true|false"`
+  - `underline`
+  - `underline="true|false"`
+  - `small-caps`
+  - `small-caps="true|false"`
+  - `color="#RRGGBB"`
+- non-boolean directive attrs use quoted HTML-style syntax
+- bare boolean attrs on `stego-span` mean `true`
+- repeated blank lines in markdown still do not acquire special spacing semantics
+
 Internal links target leaf ids by default:
 
 ```tsx
@@ -167,6 +202,37 @@ Stego currently exposes portable layout controls such as:
 - `bodyStyle`
 - `Stego.KeepTogether`
 - `Stego.PageBreak`
+- `Stego.Spacer`
+- `Stego.Span`
+
+Template-side spacing and inline styling use the JSX components:
+
+```tsx
+<Stego.Paragraph>
+  Very <Stego.Span fontWeight="bold" underline>important</Stego.Span> text.
+</Stego.Paragraph>
+
+<Stego.Spacer lines={2} />
+```
+
+`Stego.Spacer`:
+
+- inserts explicit blank vertical space
+- defaults to `lines={1}`
+- supports optional `fontSize` and `lineSpacing` overrides
+
+`Stego.Span`:
+
+- is the general inline styling component
+- supports:
+  - `fontFamily`
+  - `fontSize`
+  - `fontWeight`
+  - `italic`
+  - `underline`
+  - `smallCaps`
+  - `color`
+- works in paragraphs, headings, links, and page-template header/footer regions
 
 Style support is target-aware in V1:
 

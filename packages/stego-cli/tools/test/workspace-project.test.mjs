@@ -103,7 +103,7 @@ test("new-project creates scaffold and returns JSON envelope", () => {
     assert.equal(fs.existsSync(path.join(projectRoot, "tsconfig.json")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "content", "manuscript", "_branch.md")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "content", "reference", "_branch.md")), true);
-    assert.equal(fs.existsSync(path.join(projectRoot, "content", "manuscript", "100-hello-world.md")), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, "content", "manuscript", "10-hello-world.md")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "templates", "book.template.tsx")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "templates", "ebook.template.tsx")), true);
     assert.equal(fs.existsSync(path.join(projectRoot, "templates", "manuscript.template.tsx")), true);

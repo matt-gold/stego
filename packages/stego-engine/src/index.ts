@@ -24,6 +24,9 @@ export type {
   RenderDocumentResult,
   PandocPresentationBackendDocument,
   PresentationPageLayout,
+  PresentationInlineStyleSpec,
+  PresentationPageRegion,
+  PresentationPageRegionNode,
   PresentationBlockMarker,
   PresentationBlockAlign,
   PresentationFeatureUsage

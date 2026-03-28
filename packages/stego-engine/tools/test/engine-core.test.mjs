@@ -226,7 +226,18 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
       fontWeight: "normal"
     },
     children: [
-      engine.Stego.PageTemplate({ footer: { right: engine.Stego.PageNumber() } }),
+      engine.Stego.PageTemplate({
+        header: {
+          left: "Funny Business",
+          center: engine.Stego.Span({ italic: true, color: "#666666", children: "Draft" }),
+        },
+        footer: {
+          right: [
+            "Page ",
+            engine.Stego.PageNumber(),
+          ],
+        },
+      }),
       engine.Stego.PageBreak(),
       engine.Stego.KeepTogether({
         children: [
@@ -254,7 +265,15 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
         children: [
           engine.Stego.Heading({ level: 2, children: "Inset heading" }),
           engine.Stego.Paragraph({ children: "Section body paragraph" }),
-          engine.Stego.Paragraph({ align: "center", firstLineIndent: "2em", fontSize: "11pt", children: "Inset paragraph" })
+          engine.Stego.Paragraph({
+            align: "center",
+            firstLineIndent: "2em",
+            fontSize: "11pt",
+            children: [
+              "Inset ",
+              engine.Stego.Span({ fontWeight: "bold", underline: true, children: "paragraph" }),
+            ],
+          })
         ]
       }),
       engine.Stego.Image({
@@ -278,7 +297,7 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
     }
   });
   assert.equal(rendered.backend, "pandoc-presentation");
-  assert.equal(rendered.source.inputFormat, "markdown-implicit_figures");
+  assert.equal(rendered.source.inputFormat, "markdown+bracketed_spans-implicit_figures");
   assert.deepEqual(rendered.source.requiredFilters, ["image-layout", "block-layout"]);
   assert.deepEqual(rendered.presentation.page.geometry, ["paper=letterpaper", "margin=1in"]);
   assert.equal(rendered.presentation.page.fontFamily, "Times New Roman");
@@ -286,6 +305,15 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
   assert.equal(rendered.presentation.page.lineSpacing, 2);
   assert.equal(rendered.presentation.page.spaceBefore, "0pt");
   assert.equal(rendered.presentation.page.spaceAfter, "0pt");
+  assert.deepEqual(rendered.presentation.page.header?.left, [{ kind: "text", value: "Funny Business" }]);
+  assert.equal(rendered.presentation.page.header?.center?.[0]?.kind, "span");
+  assert.equal(rendered.presentation.page.header?.center?.[0]?.italic, true);
+  assert.equal(rendered.presentation.page.header?.center?.[0]?.color, "#666666");
+  assert.deepEqual(rendered.presentation.page.header?.center?.[0]?.children, [{ kind: "text", value: "Draft" }]);
+  assert.deepEqual(rendered.presentation.page.footer?.right, [
+    { kind: "text", value: "Page " },
+    { kind: "pageNumber" },
+  ]);
   assert.match(rendered.source.markdown, /data-page-break=true/);
   assert.match(rendered.source.markdown, /data-keep-together=true/);
   assert.match(rendered.source.markdown, /data-space-before=18pt/);
@@ -300,9 +328,21 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
   assert.match(rendered.source.markdown, /data-font-weight=normal/);
   assert.match(rendered.source.markdown, /data-underline=true/);
   assert.match(rendered.source.markdown, /data-color="#333333"/);
+  assert.match(rendered.source.markdown, /\{custom-style="StegoSpan1" data-font-weight=bold data-underline=true\}/);
   assert.match(rendered.source.markdown, /data-layout=block/);
   assert.equal(Array.isArray(rendered.presentation.blockMarkers), true);
   assert.equal(rendered.presentation.blockMarkers.length >= 4, true);
+  assert.equal(rendered.presentation.inlineStyles.length, 1);
+  assert.deepEqual(rendered.presentation.inlineStyles[0], {
+    styleId: "StegoSpan1",
+    fontWeight: "bold",
+    italic: undefined,
+    underline: true,
+    smallCaps: undefined,
+    color: undefined,
+    fontFamily: undefined,
+    fontSizePt: undefined,
+  });
   assert.equal(rendered.presentation.blockMarkers.some((entry) => entry.keepTogether === true), true);
   assert.equal(
     rendered.presentation.blockMarkers.some((entry) => entry.spaceBefore === "18pt" && entry.firstLineIndent === "1.5em" && entry.lineSpacing === 1.5),
@@ -324,6 +364,8 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
   );
   assert.equal(rendered.presentation.blockMarkers.some((entry) => entry.pageBreak === true), true);
   assert.equal(rendered.presentation.features.requiresNamedFontEngine, true);
+  assert.equal(rendered.presentation.features.usesUnderline, true);
+  assert.equal(rendered.presentation.features.usesTextColor, true);
   assert.equal("metadata" in rendered, false);
   assert.equal("postprocess" in rendered, false);
 });
@@ -424,4 +466,231 @@ test("renderDocument resolves grouped heading and body styles for markdown and e
   assert.match(rendered.source.markdown, /data-color="#222222"/);
   assert.match(rendered.source.markdown, /data-first-line-indent=0.5in/);
   assert.match(rendered.source.markdown, /data-space-after=12pt/);
+});
+
+test("renderDocument parses stego-spacer blocks in markdown and emits spacer markers", () => {
+  const document = engine.Stego.Document({
+    bodyStyle: {
+      fontSize: "12pt",
+      lineSpacing: 2,
+    },
+    children: [
+      engine.Stego.Markdown({
+        source: `Sincerely,
+
+<stego-spacer lines="3" />
+
+Matt Gold`
+      })
+    ]
+  });
+
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: []
+    }
+  });
+
+  assert.match(rendered.source.markdown, /data-spacer-lines=3/);
+  assert.match(rendered.source.markdown, /data-font-size=12pt/);
+  assert.match(rendered.source.markdown, /data-line-spacing=2/);
+  assert.equal(
+    rendered.presentation.blockMarkers.some((entry) =>
+      entry.spacerLines === 3
+      && entry.fontSizePt === 12
+      && entry.lineSpacing === 2
+    ),
+    true
+  );
+});
+
+test("renderDocument renders Stego.Spacer in templates using inherited body defaults", () => {
+  const document = engine.Stego.Document({
+    bodyStyle: {
+      fontSize: "12pt",
+      lineSpacing: 2,
+    },
+    children: [
+      engine.Stego.Paragraph({ children: "Sincerely," }),
+      engine.Stego.Spacer({ lines: 2 }),
+      engine.Stego.Paragraph({ children: "Matt Gold" }),
+    ]
+  });
+
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: []
+    }
+  });
+
+  assert.match(rendered.source.markdown, /data-spacer-lines=2/);
+  assert.match(rendered.source.markdown, /data-font-size=12pt/);
+  assert.match(rendered.source.markdown, /data-line-spacing=2/);
+  assert.equal(
+    rendered.presentation.blockMarkers.some((entry) =>
+      entry.spacerLines === 2
+      && entry.fontSizePt === 12
+      && entry.lineSpacing === 2
+    ),
+    true
+  );
+});
+
+test("renderDocument parses stego-span inline directives in markdown content", () => {
+  const document = engine.Stego.Document({
+    children: [
+      engine.Stego.Markdown({
+        source: `# <stego-span italic color="#666666">Title</stego-span>
+
+Very <stego-span font-weight="bold" underline>important</stego-span> text.
+
+<stego-span underline>If</stego-span> <stego-span italic>you</stego-span> start the paragraph with a span.
+
+- <stego-span small-caps>List item</stego-span>`
+      })
+    ]
+  });
+
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: []
+    }
+  });
+
+  assert.match(rendered.source.markdown, /\[Title\]\{custom-style="StegoSpan1" data-italic=true data-color="#666666"\}/);
+  assert.match(rendered.source.markdown, /\[important\]\{custom-style="StegoSpan2" data-font-weight=bold data-underline=true\}/);
+  assert.match(rendered.source.markdown, /\[If\]\{custom-style="StegoSpan3" data-underline=true\} \[you\]\{custom-style="StegoSpan4" data-italic=true\} start the paragraph with a span\./);
+  assert.match(rendered.source.markdown, /- \[List item\]\{custom-style="StegoSpan5" data-small-caps=true\}/);
+  assert.deepEqual(rendered.presentation.inlineStyles, [
+    {
+      styleId: "StegoSpan1",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: undefined,
+      italic: true,
+      underline: undefined,
+      smallCaps: undefined,
+      color: "#666666",
+    },
+    {
+      styleId: "StegoSpan2",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: "bold",
+      italic: undefined,
+      underline: true,
+      smallCaps: undefined,
+      color: undefined,
+    },
+    {
+      styleId: "StegoSpan3",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: undefined,
+      italic: undefined,
+      underline: true,
+      smallCaps: undefined,
+      color: undefined,
+    },
+    {
+      styleId: "StegoSpan4",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: undefined,
+      italic: true,
+      underline: undefined,
+      smallCaps: undefined,
+      color: undefined,
+    },
+    {
+      styleId: "StegoSpan5",
+      fontFamily: undefined,
+      fontSizePt: undefined,
+      fontWeight: undefined,
+      italic: undefined,
+      underline: undefined,
+      smallCaps: true,
+      color: undefined,
+    }
+  ]);
+});
+
+test("renderDocument rejects invalid stego markdown directives", () => {
+  const createContext = () => ({
+    project: { id: "demo", root: "/tmp/demo", metadata: {} },
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: []
+  });
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "<stego-spacer></stego-spacer>" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /self-closing syntax/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "<stego-spacer lines={3} />" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /quoted HTML-style values/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "<stego-foo />" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /Supported directives: stego-spacer/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "Hello <stego-span font-weight=\"heavy\">world</stego-span>" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /font-weight value 'heavy'/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "Hello <stego-span italic={true}>world</stego-span>" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /quoted HTML-style values/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "Hello <stego-span font-weight>world</stego-span>" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext(),
+  }), /font-weight value ''/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "Hello <stego-span>world" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext()
+  }), /must be closed/i);
 });
