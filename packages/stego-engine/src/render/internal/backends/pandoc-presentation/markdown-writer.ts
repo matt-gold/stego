@@ -636,19 +636,19 @@ function parseStegoInlineAttributes(rawAttributes: string, source: string): Reco
   }
 
   const attributes: Record<string, string> = {};
-  const attributePattern = /([a-zA-Z_:][a-zA-Z0-9:._-]*)\s*=\s*"([^"]*)"/g;
-  let consumed = "";
-  let match: RegExpExecArray | null;
-  attributePattern.lastIndex = 0;
-  while ((match = attributePattern.exec(rawAttributes)) !== null) {
-    consumed += match[0];
-    attributes[match[1]] = match[2];
-  }
+  const attributePattern = /\s*([a-zA-Z_:][a-zA-Z0-9:._-]*)(?:\s*=\s*"([^"]*)")?\s*/g;
+  let cursor = 0;
 
-  const normalizedRaw = rawAttributes.replace(/\s+/g, "");
-  const normalizedConsumed = consumed.replace(/\s+/g, "");
-  if (normalizedRaw !== normalizedConsumed) {
-    throw new Error(`Invalid markdown directive syntax '${source}'. Attributes must use quoted HTML-style values.`);
+  while (cursor < rawAttributes.length) {
+    attributePattern.lastIndex = cursor;
+    const match = attributePattern.exec(rawAttributes);
+    if (!match || match.index !== cursor) {
+      throw new Error(`Invalid markdown directive syntax '${source}'. Attributes must use quoted HTML-style values.`);
+    }
+
+    const [, name, value] = match;
+    attributes[name] = value ?? "";
+    cursor = attributePattern.lastIndex;
   }
 
   return attributes;
@@ -711,6 +711,9 @@ function parseStegoSpanBooleanAttribute(
   const value = coalesceAttribute(attributes, ...names);
   if (value === undefined) {
     return undefined;
+  }
+  if (value === "") {
+    return true;
   }
   if (value === "true") {
     return true;

@@ -550,11 +550,11 @@ test("renderDocument parses stego-span inline directives in markdown content", (
   const document = engine.Stego.Document({
     children: [
       engine.Stego.Markdown({
-        source: `# <stego-span italic="true" color="#666666">Title</stego-span>
+        source: `# <stego-span italic color="#666666">Title</stego-span>
 
-Very <stego-span font-weight="bold" underline="true">important</stego-span> text.
+Very <stego-span font-weight="bold" underline>important</stego-span> text.
 
-- <stego-span small-caps="true">List item</stego-span>`
+- <stego-span small-caps>List item</stego-span>`
       })
     ]
   });
@@ -654,6 +654,14 @@ test("renderDocument rejects invalid stego markdown directives", () => {
     projectRoot: "/tmp/demo",
     context: createContext()
   }), /quoted HTML-style values/i);
+
+  assert.throws(() => engine.renderDocument({
+    document: engine.Stego.Document({
+      children: [engine.Stego.Markdown({ source: "Hello <stego-span font-weight>world</stego-span>" })]
+    }),
+    projectRoot: "/tmp/demo",
+    context: createContext(),
+  }), /font-weight value ''/i);
 
   assert.throws(() => engine.renderDocument({
     document: engine.Stego.Document({
