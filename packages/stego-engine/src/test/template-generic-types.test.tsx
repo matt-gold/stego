@@ -146,6 +146,9 @@ const epubTemplate = defineTemplate(
 
     EpubStego.Spacer({ lines: 2, lineSpacing: 1.5 });
 
+    // @ts-expect-error Spacer does not support font family overrides
+    EpubStego.Spacer({ fontFamily: "Times New Roman" });
+
     return (
       <EpubStego.Document bodyStyle={{ fontSize: "12pt", lineSpacing: 1.5, spaceAfter: "12pt" }}>
         <EpubStego.Paragraph><EpubStego.Span italic>EPUB-safe body</EpubStego.Span></EpubStego.Paragraph>

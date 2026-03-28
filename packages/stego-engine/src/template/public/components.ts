@@ -256,7 +256,8 @@ type NarrowParagraphComponent<TTargets extends PresentationTarget> = (props: Nar
 type NarrowSpanComponent<TTargets extends PresentationTarget> = (props: NarrowSpanProps<TTargets>) => ReturnType<typeof Span>;
 type NarrowSpacerProps<TTargets extends PresentationTarget> = {
   lines?: number;
-} & NarrowFontProps<TTargets>;
+} & GatedProps<TTargets, "fontSize", { fontSize?: FontSizeValue; }>
+  & GatedProps<TTargets, "lineSpacing", { lineSpacing?: LineSpacingValue; }>;
 type NarrowSpacerComponent<TTargets extends PresentationTarget> = (props: NarrowSpacerProps<TTargets>) => StegoSpacerNode;
 type NarrowImageComponent<TTargets extends PresentationTarget> = (props: NarrowImageProps<TTargets>) => StegoImageNode;
 type MaybeComponent<
