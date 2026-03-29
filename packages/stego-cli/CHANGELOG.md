@@ -1,5 +1,17 @@
 # stego-cli
 
+## 1.3.0
+
+### Minor Changes
+
+- 6d24ab6: Add scoped page templates, manuscript text-analysis helpers, and section-aware DOCX/PDF page-style export support.
+
+### Patch Changes
+
+- Updated dependencies [6d24ab6]
+  - @stego-labs/shared@1.3.0
+  - @stego-labs/engine@1.3.0
+
 ## 1.2.0
 
 ### Minor Changes
