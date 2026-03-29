@@ -44,7 +44,8 @@ export function prepareLatexMetadata(
     headerIncludes.push(`\\setstretch{${lineSpacing}}`);
   }
 
-  if (pageTemplates.length > 0) {
+  const hasPageTemplateStyles = pageTemplates.some((segment) => segment.header || segment.footer);
+  if (hasPageTemplateStyles) {
     headerIncludes.push("\\usepackage{fancyhdr}");
     headerIncludes.push(...renderPageTemplateStyles(pageTemplates));
     headerIncludes.push("\\pagestyle{stegopagetemplatenone}");

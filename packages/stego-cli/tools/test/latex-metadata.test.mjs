@@ -72,3 +72,29 @@ test("latex metadata renders styled page-template regions and required packages"
     JSON.stringify(headerIncludes, null, 2),
   );
 });
+
+test("latex metadata leaves defaults alone when no page-template styles are present", () => {
+  const metadata = prepareLatexMetadata(
+    {
+      geometry: ["paper=letterpaper", "margin=1in"],
+      fontFamily: undefined,
+      fontSize: "12pt",
+      lineSpacing: undefined,
+    },
+    [{
+      markerId: "stego-layout-none",
+      header: undefined,
+      footer: undefined,
+    }],
+    {
+      usesBlockFontFamily: false,
+      usesBlockLineSpacing: false,
+      usesUnderline: false,
+      usesTextColor: false,
+      requiresNamedFontEngine: false,
+    },
+  );
+
+  const headerIncludes = metadata["header-includes"];
+  assert.equal(Array.isArray(headerIncludes), false);
+});

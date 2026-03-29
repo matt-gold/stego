@@ -220,6 +220,54 @@ test("scoped page templates reject standalone and nested usage", () => {
     allLeaves: [],
     allBranches: [],
   }), /may not be nested/i);
+
+  assert.throws(() => engine.evaluateTemplate({
+    kind: "stego-template",
+    targets: ["docx"],
+    render: () => engine.Stego.Document({
+      children: [
+        engine.Stego.Section({
+          children: [
+            engine.Stego.Fragment({
+              children: [
+                engine.Stego.PageTemplate({
+                  header: { left: "Nope" },
+                  children: [engine.Stego.Paragraph({ children: "Body" })],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    }),
+  }, {
+    project: { id: "demo", root: "/tmp/demo", metadata: {} },
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: [],
+  }), /may only appear directly under <Stego.Document \/> or a top-level fragment/i);
+});
+
+test("renderDocument does not emit page-template markers when the template does not use them", () => {
+  const document = engine.Stego.Document({
+    children: [
+      engine.Stego.Paragraph({ children: "Body without page templates" }),
+    ],
+  });
+
+  const rendered = engine.renderDocument({
+    document,
+    projectRoot: "/tmp/demo",
+    context: {
+      project: { id: "demo", root: "/tmp/demo", metadata: {} },
+      content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+      allLeaves: [],
+      allBranches: [],
+    },
+  });
+
+  assert.equal(rendered.presentation.pageTemplates.length, 0);
+  assert.doesNotMatch(rendered.source.markdown, /data-page-template=/);
 });
 
 test("compileProject loads leaves, excludes _branch.md from content, and builds branches", async () => {

@@ -82,6 +82,28 @@ export function writePandocMarkdown(
     } satisfies LeafIndexEntry]))
   };
 
+  const hasScopedPageTemplates = containsTopLevelPageTemplate(nodes);
+  if (!hasScopedPageTemplates) {
+    for (const node of nodes) {
+      const rendered = renderNode(node, context);
+      if (!rendered) {
+        continue;
+      }
+      blocks.push(rendered);
+    }
+
+    return {
+      markdown: `${blocks.join("\n\n").replace(/\n{3,}/g, "\n\n")}\n`,
+      pageTemplates: [],
+      blockMarkers: context.blockMarkers,
+      inlineStyles: context.inlineStyles,
+      usesBlockFontFamily: context.usesBlockFontFamily,
+      usesBlockLineSpacing: context.usesBlockLineSpacing,
+      usesUnderline: context.usesUnderline,
+      usesTextColor: context.usesTextColor
+    };
+  }
+
   const pageTemplates: PresentationPageTemplateSegment[] = [];
   for (const segment of splitTopLevelPageTemplateSegments(nodes)) {
     const body = segment.nodes
@@ -115,6 +137,18 @@ export function writePandocMarkdown(
     usesUnderline: context.usesUnderline,
     usesTextColor: context.usesTextColor
   };
+}
+
+function containsTopLevelPageTemplate(nodes: StegoNode[]): boolean {
+  for (const node of nodes) {
+    if (node.kind === "pageTemplate") {
+      return true;
+    }
+    if (node.kind === "fragment" && containsTopLevelPageTemplate(node.children)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function splitTopLevelPageTemplateSegments(nodes: StegoNode[]): PageTemplateSegmentInput[] {

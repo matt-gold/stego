@@ -176,7 +176,7 @@ function visitNode(
       return;
     case "fragment":
       for (const child of node.children) {
-        visitNode(child, targets, capabilities, inPageRegion, inPageTemplate, "fragment");
+        visitNode(child, targets, capabilities, inPageRegion, inPageTemplate, parentKind);
       }
       return;
     case "keepTogether":
@@ -242,7 +242,7 @@ function visitNode(
           "<Stego.PageTemplate /> may not be nested inside another <Stego.PageTemplate /> in V1.",
         );
       }
-      if (parentKind !== "document" && parentKind !== "fragment") {
+      if (parentKind !== "document") {
         throw new TemplateContractError(
           "invalid-render-result",
           "<Stego.PageTemplate /> may only appear directly under <Stego.Document /> or a top-level fragment in V1.",
