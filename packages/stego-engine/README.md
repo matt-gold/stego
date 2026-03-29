@@ -8,9 +8,9 @@ It provides four public areas:
 - `template`: TSX-facing authoring API
 - `compile` and `render`: project loading, template evaluation, and Pandoc-oriented backend document generation
 
-Templates are plain TSX with normal JavaScript. They compile ordered leaves from `content/` into a manuscript.
+Templates are plain TSX with normal JavaScript. They compile ordered leaves from `content/` into manuscripts, reports, reference appendices, and other derived documents.
 
-Stego can emit compiled markdown, but that markdown should be treated as a debug and interchange artifact rather than a full-fidelity presentation target. Richer layout primitives are intended primarily for the DOCX/PDF/EPUB pipeline.
+Stego can emit compiled markdown, but that markdown is best understood as an inspection and interchange artifact. It shows the resolved document structure in a portable text form, but richer layout primitives are meant for the DOCX/PDF/EPUB/LaTeX export pipeline.
 
 ## Template basics
 
@@ -29,7 +29,14 @@ export default defineTemplate((ctx) => (
 ));
 ```
 
-That default form keeps the full low-friction Stego API and works well for single-template projects.
+That default form keeps the low-friction API and works well for single-template projects.
+
+The important idea is that the template is just code over manuscript data:
+
+- `ctx.content` is the content tree
+- `ctx.allLeaves` is the full ordered flat list of leaves
+- `ctx.allBranches` is the flat list of discovered branches
+- your template decides what to render, how to group it, and what output shape to create
 
 ## Target-aware templates
 
@@ -79,7 +86,9 @@ export default defineTemplate(
 );
 ```
 
-Markdown is a special-case export artifact. It is still useful for debug, diff, and interchange output, but it does not participate in the strict target-aware type contract the way `docx`, `pdf`, and `epub` do.
+Markdown is a special-case export artifact. It is still useful for inspection, diffing, and lightweight handoff, but it does not participate in the strict target-aware type contract the way `docx`, `pdf`, `latex`, and `epub` do.
+
+## Content model
 
 `ctx.content` is the root content tree loaded from `content/`.
 
@@ -166,6 +175,48 @@ Default link text falls back through:
 4. `leaf.titleFromFilename`
 5. `leaf.id`
 
+## Scoped page templates
+
+`Stego.PageTemplate` is now a scoped wrapper, not a global document toggle.
+
+Use it when a running header or footer should apply only to one part of the document:
+
+```tsx
+<Stego.Document>
+  <Stego.Section id="title-page">
+    <Stego.Paragraph align="center">Funny Business</Stego.Paragraph>
+  </Stego.Section>
+
+  <Stego.PageBreak />
+
+  <Stego.PageTemplate
+    header={{
+      left: "Gold",
+      center: "FUNNY BUSINESS",
+      right: <Stego.PageNumber />,
+    }}
+  >
+    {ctx.allLeaves.map((leaf) => (
+      <Stego.Markdown leaf={leaf} />
+    ))}
+  </Stego.PageTemplate>
+</Stego.Document>
+```
+
+This makes page-template behavior follow document structure:
+
+- content before the wrapper gets no running head from that template
+- content inside the wrapper gets the configured header/footer
+- later wrappers can introduce different page styles for other sections
+
+Page-template regions accept:
+
+- text
+- `Stego.Span`
+- `Stego.PageNumber`
+
+They do not accept links or arbitrary block content in V1.
+
 ## Helpers: `Stego.groupBy()` vs `Stego.splitBy()`
 
 Use `groupBy()` when you want bucketed groups by key regardless of where items appear:
@@ -187,6 +238,38 @@ const chapters = Stego.splitBy(
 ```
 
 `Stego.splitBy()` preserves order and starts a new group each time the selected value changes. Missing values inherit the current open group, so only boundary leaves need the grouping metadata.
+
+## Manuscript text APIs
+
+Templates are not limited to rendering. They can inspect manuscript text directly.
+
+Stego exposes four analysis helpers:
+
+- `Stego.getText(...)`
+- `Stego.getTextTokens(...)`
+- `Stego.getWords(...)`
+- `Stego.getWordCount(...)`
+
+These helpers accept strings, leaves, or arrays of leaves and use Stego's markdown-aware text extraction rather than a naive whitespace split.
+
+```tsx
+const chapterLeaves = ctx.allLeaves.filter(
+  (leaf) => leaf.relativePath.startsWith("manuscript/")
+);
+
+const wordCount = Stego.getWordCount(chapterLeaves);
+const words = Stego.getWords(chapterLeaves);
+const text = Stego.getText(chapterLeaves);
+```
+
+`getTextTokens(...)` is the low-level form. It preserves punctuation and spacing as tokens:
+
+- `{ kind: "word", value: "Hello" }`
+- `{ kind: "punct", value: "," }`
+- `{ kind: "space", value: " " }`
+- `{ kind: "newline", value: "\n" }`
+
+That makes it possible to build template-driven analysis outputs such as word-frequency reports, manuscript stats pages, or custom QA templates without leaving the Stego template layer.
 
 ## Layout primitives
 
@@ -235,14 +318,14 @@ Template-side spacing and inline styling use the JSX components:
   - `color`
 - works in paragraphs, headings, links, and page-template header/footer regions
 
-Style support is target-aware in V1:
+Style support is target-aware:
 
 - `docx`: full block styling
 - `pdf`: full block styling
 - `latex`: full block styling
 - `epub`: safe subset, including spacing, indent, align, font size, line spacing, and heading emphasis/color
 
-PDF exports that request `fontFamily` require `xelatex` so named fonts can be honored reliably.
+PDF exports that request `fontFamily` require `xelatex` so named fonts can be honored reliably. Some font features, such as small caps or italic small caps, are also font-dependent in the LaTeX/PDF path.
 
 Paragraph spacing defaults are inherited:
 
