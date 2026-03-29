@@ -90,6 +90,40 @@ stego build -p fiction-example
 - `stego build` and `stego export` use the default template workflow.
 - `stego template build` and `stego template export` are the direct template-debug and multi-template commands.
 
+```mermaid
+flowchart TD
+  A["Project Content
+  Markdown + TSX"] --> B["Template Compilation"]
+
+  B --> C["Stego Document IR"]
+
+  C --> D["Normalization + Style Resolution"]
+
+  D --> E["Backend Document"]
+
+  E --> F["Generated Markdown"]
+  E --> G["Structured Presentation Metadata"]
+
+  F --> H["Pandoc / Exporter"]
+  G --> I["Export Preparation"]
+
+  I --> H
+
+  H --> J["Pandoc Filters"]
+
+  J --> K["Initial Export Artifact"]
+
+  G --> L["Postprocess Instructions"]
+
+  K --> M{"Postprocess Needed?"}
+  L --> M
+
+  M -->|No| N["Final Output"]
+  M -->|Yes| O["Postprocessor"]
+  O --> N
+
+```
+
 ## License
 
 Apache-2.0. See [`LICENSE`](LICENSE).
