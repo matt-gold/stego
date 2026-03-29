@@ -1,6 +1,6 @@
 # Stego
 
-Stego turns a manuscript into structured data you can write with, inspect, validate, and transform.
+Stego turns JSX into a powerful book-authoring tool.
 
 <div align="center">
   <img src="packages/stego-extension/assets/stego.png" alt="Stego logo" width="128" />
