@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0
+
+### Patch Changes
+
+- Updated dependencies [6d24ab6]
+  - @stego-labs/shared@1.3.0
+
+## 1.2.0
+
+### Patch Changes
+
+- Updated dependencies [142c6a3]
+- Updated dependencies [4e62b53]
+  - @stego-labs/shared@1.2.0
+
 ## 1.1.1
 
 ### Patch Changes

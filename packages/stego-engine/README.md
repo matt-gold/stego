@@ -334,3 +334,38 @@ Paragraph spacing defaults are inherited:
 - `Paragraph.spaceBefore` / `Paragraph.spaceAfter` are explicit per-paragraph overrides
 
 When omitted, Stego treats paragraph spacing defaults as `0` before and `0` after. This keeps manuscript-style DOCX output from inheriting Word's built-in paragraph gap unless the template asks for one.
+
+
+```mermaid
+flowchart TD
+  A["Project Content
+  Markdown + TSX"] --> B["Template Compilation"]
+
+  B --> C["Stego Document IR"]
+
+  C --> D["Normalization + Style Resolution"]
+
+  D --> E["Backend Document"]
+
+  E --> F["Generated Markdown"]
+  E --> G["Structured Presentation Metadata"]
+
+  F --> H["Pandoc / Exporter"]
+  G --> I["Export Preparation"]
+
+  I --> H
+
+  H --> J["Pandoc Filters"]
+
+  J --> K["Initial Export Artifact"]
+
+  G --> L["Postprocess Instructions"]
+
+  K --> M{"Postprocess Needed?"}
+  L --> M
+
+  M -->|No| N["Final Output"]
+  M -->|Yes| O["Postprocessor"]
+  O --> N
+
+```

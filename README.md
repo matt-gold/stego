@@ -95,12 +95,6 @@ stego build -p fiction-example
 - `stego build` and `stego export` use the default template workflow.
 - `stego template build` and `stego template export` are the direct template-debug and multi-template commands.
 
-`stego template build` writes two especially useful inspection artifacts:
-
-- compiled markdown
-- a backend-document JSON render plan
-
-The markdown is what Pandoc reads. The backend-document JSON carries the richer presentation metadata Stego still needs for filters, export preparation, and postprocessing.
 
 ## License
 
