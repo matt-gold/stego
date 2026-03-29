@@ -63,6 +63,16 @@ Stego projects use `assets/` for local leaf images.
 
 Project-level image defaults belong in `stego-project.json`.
 
+The official manuscript subtree also belongs in `stego-project.json`:
+
+```json
+{
+  "manuscriptSubdir": "manuscript"
+}
+```
+
+That setting is relative to `content/`. It drives manuscript-scoped conveniences such as the default target for `stego new` and the extension overview metrics. Templates still receive the full content tree and decide for themselves which leaves become compiled manuscript output.
+
 Leaf files can define per-path overrides with `images` frontmatter. Global keys should stay in project config.
 
 ## Templates

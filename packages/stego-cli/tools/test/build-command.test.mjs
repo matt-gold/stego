@@ -261,6 +261,61 @@ test('new prefers content/manuscript as the default target when that convention 
   }
 });
 
+test('new uses configured manuscriptSubdir as the default target', () => {
+  const projectId = `new-leaf-configured-manuscript-subdir-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'Configured Manuscript Subdir Test',
+      manuscriptSubdir: 'draft/chapters'
+    },
+    []
+  );
+
+  try {
+    writeFile(
+      path.join(projectRoot, 'content', 'draft', 'chapters', '_branch.md'),
+      '---\nlabel: Draft Chapters\nleafPolicy:\n  requiredMetadata:\n    - status\n---\n'
+    );
+
+    const result = runCli(['new', '--project', projectId]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+
+    const createdPath = path.join(projectRoot, 'content', 'draft', 'chapters', '100-new-leaf.md');
+    assert.equal(fs.existsSync(createdPath), true, `Expected leaf file at ${createdPath}`);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'content', '100-new-leaf.md')), false);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test('validate warns for invalid manuscriptSubdir values', () => {
+  const projectId = `validate-invalid-manuscript-subdir-${Date.now()}-${process.pid}`;
+  const projectRoot = createTempProject(
+    projectId,
+    {
+      id: projectId,
+      title: 'Invalid Manuscript Subdir Test',
+      manuscriptSubdir: '../outside'
+    },
+    [
+      ['100-scene.md', '---\nid: CH-ONE\nstatus: draft\n---\n\nHello.\n']
+    ]
+  );
+
+  try {
+    const result = runCli(['validate', '--project', projectId]);
+    const output = `${result.stdout}\n${result.stderr}`;
+
+    assert.equal(result.status, 0, output);
+    assert.match(output, /manuscriptSubdir/i);
+    assert.match(output, /must stay within content/i);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
 test('new supports explicit prefix via -i and --i', () => {
   const projectId = `new-leaf-explicit-${Date.now()}-${process.pid}`;
   const projectRoot = createTempProject(

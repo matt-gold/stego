@@ -16,6 +16,9 @@ test("latex metadata renders styled page-template regions and required packages"
       fontFamily: "Times New Roman",
       fontSize: "12pt",
       lineSpacing: 2,
+    },
+    [{
+      markerId: "stego-layout-7",
       header: {
         left: [{ kind: "text", value: "Funny Business" }],
         right: [{ kind: "text", value: "Page " }, { kind: "pageNumber" }],
@@ -29,7 +32,7 @@ test("latex metadata renders styled page-template regions and required packages"
           children: [{ kind: "text", value: "Draft" }],
         }],
       },
-    },
+    }],
     {
       usesBlockFontFamily: false,
       usesBlockLineSpacing: false,
@@ -50,10 +53,48 @@ test("latex metadata renders styled page-template regions and required packages"
   assert.ok(headerIncludes.includes("\\usepackage{xcolor}"));
   assert.ok(headerIncludes.includes("\\usepackage[normalem]{ulem}"));
   assert.ok(headerIncludes.includes("\\setstretch{2}"));
-  assert.ok(headerIncludes.includes("\\fancyhead[L]{Funny Business}"));
-  assert.ok(headerIncludes.includes("\\fancyhead[R]{Page \\thepage}"));
+  assert.ok(
+    headerIncludes.some((value) => value.includes("\\fancypagestyle{stegopagetemplatestegolayout7}{")),
+    JSON.stringify(headerIncludes, null, 2),
+  );
+  assert.ok(headerIncludes.includes("\\pagestyle{stegopagetemplatenone}"));
+  assert.ok(headerIncludes.includes("\\thispagestyle{stegopagetemplatenone}"));
+  assert.ok(
+    headerIncludes.some((value) => value.includes("\\fancyhead[L]{Funny Business}")),
+    JSON.stringify(headerIncludes, null, 2),
+  );
+  assert.ok(
+    headerIncludes.some((value) => value.includes("\\fancyhead[R]{Page \\thepage}")),
+    JSON.stringify(headerIncludes, null, 2),
+  );
   assert.ok(
     headerIncludes.some((value) => /\\fancyfoot\[C\]\{.*\\uline\{\{\\itshape\\color\[HTML\]\{666666\}Draft\}\}\}/.test(value)),
     JSON.stringify(headerIncludes, null, 2),
   );
+});
+
+test("latex metadata leaves defaults alone when no page-template styles are present", () => {
+  const metadata = prepareLatexMetadata(
+    {
+      geometry: ["paper=letterpaper", "margin=1in"],
+      fontFamily: undefined,
+      fontSize: "12pt",
+      lineSpacing: undefined,
+    },
+    [{
+      markerId: "stego-layout-none",
+      header: undefined,
+      footer: undefined,
+    }],
+    {
+      usesBlockFontFamily: false,
+      usesBlockLineSpacing: false,
+      usesUnderline: false,
+      usesTextColor: false,
+      requiresNamedFontEngine: false,
+    },
+  );
+
+  const headerIncludes = metadata["header-includes"];
+  assert.equal(Array.isArray(headerIncludes), false);
 });

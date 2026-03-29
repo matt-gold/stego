@@ -159,6 +159,8 @@ function visitNode(
   targets: readonly PresentationTarget[],
   capabilities: Record<TemplateCapability, boolean>,
   inPageRegion: boolean,
+  inPageTemplate: boolean = false,
+  parentKind: StegoNode["kind"] | null = null,
 ): void {
   switch (node.kind) {
     case "document":
@@ -169,18 +171,18 @@ function visitNode(
       validateHeadingStyle("Document.headingStyle", node.headingStyle, targets, capabilities);
       validateHeadingStyleMap("Document.headingStyles", node.headingStyles, targets, capabilities);
       for (const child of node.children) {
-        visitNode(child, targets, capabilities, false);
+        visitNode(child, targets, capabilities, false, false, "document");
       }
       return;
     case "fragment":
       for (const child of node.children) {
-        visitNode(child, targets, capabilities, inPageRegion);
+        visitNode(child, targets, capabilities, inPageRegion, inPageTemplate, parentKind);
       }
       return;
     case "keepTogether":
       assertCapability("keepTogether", "KeepTogether", targets, capabilities);
       for (const child of node.children) {
-        visitNode(child, targets, capabilities, false);
+        visitNode(child, targets, capabilities, false, inPageTemplate, "keepTogether");
       }
       return;
     case "section":
@@ -188,26 +190,26 @@ function visitNode(
       validateHeadingStyle("Section.headingStyle", node.headingStyle, targets, capabilities);
       validateHeadingStyleMap("Section.headingStyles", node.headingStyles, targets, capabilities);
       for (const child of node.children) {
-        visitNode(child, targets, capabilities, false);
+        visitNode(child, targets, capabilities, false, inPageTemplate, "section");
       }
       return;
     case "heading":
       validateFlatBodyStyle("Heading", node, targets, capabilities);
       validateFlatHeadingStyle("Heading", node, targets, capabilities);
       for (const child of node.children) {
-        visitNode(child, targets, capabilities, false);
+        visitNode(child, targets, capabilities, false, inPageTemplate, "heading");
       }
       return;
     case "paragraph":
       validateFlatBodyStyle("Paragraph", node, targets, capabilities);
       for (const child of node.children) {
-        visitNode(child, targets, capabilities, false);
+        visitNode(child, targets, capabilities, false, inPageTemplate, "paragraph");
       }
       return;
     case "span":
       validateStyleFields("Span", node, SPAN_STYLE_CAPABILITIES, targets, capabilities);
       for (const child of node.children) {
-        visitNode(child, targets, capabilities, inPageRegion);
+        visitNode(child, targets, capabilities, inPageRegion, inPageTemplate, "span");
       }
       return;
     case "spacer":
@@ -234,8 +236,23 @@ function visitNode(
       return;
     case "pageTemplate":
       assertCapability("pageTemplate", "PageTemplate", targets, capabilities);
+      if (inPageTemplate) {
+        throw new TemplateContractError(
+          "invalid-render-result",
+          "<Stego.PageTemplate /> may not be nested inside another <Stego.PageTemplate /> in V1.",
+        );
+      }
+      if (parentKind !== "document") {
+        throw new TemplateContractError(
+          "invalid-render-result",
+          "<Stego.PageTemplate /> may only appear directly under <Stego.Document /> or a top-level fragment in V1.",
+        );
+      }
       visitRegion(node.header, targets, capabilities);
       visitRegion(node.footer, targets, capabilities);
+      for (const child of node.children) {
+        visitNode(child, targets, capabilities, false, true, "pageTemplate");
+      }
       return;
     case "pageNumber":
       if (!inPageRegion) {

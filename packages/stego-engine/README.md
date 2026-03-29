@@ -19,11 +19,12 @@ import { defineTemplate, Stego } from "@stego-labs/engine";
 
 export default defineTemplate((ctx) => (
   <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
-    <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
-    <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
-    {ctx.allLeaves.map((leaf) => (
-      <Stego.Markdown leaf={leaf} />
-    ))}
+    <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }}>
+      <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
+      {ctx.allLeaves.map((leaf) => (
+        <Stego.Markdown leaf={leaf} />
+      ))}
+    </Stego.PageTemplate>
   </Stego.Document>
 ));
 ```

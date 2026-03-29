@@ -18,6 +18,7 @@ function createBackendDocument(overrides = {}) {
       page: {
         geometry: [],
       },
+      pageTemplates: [],
       blockMarkers: [],
       inlineStyles: [],
       features: {

@@ -41,13 +41,14 @@ const legacyTemplate = defineTemplate((ctx: TemplateContext<LeafMeta, BranchMeta
         spaceAfter: 0,
       }}
     >
-      <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
-      <Stego.KeepTogether>
-        <Stego.Heading level={1}>{projectTitle}</Stego.Heading>
-        <Stego.Paragraph align="center">{chapter ?? branchChapter ?? branchLabel ?? "Untitled"}</Stego.Paragraph>
-        <Stego.Spacer lines={2} />
-      </Stego.KeepTogether>
-      {firstLeaf ? <Stego.Markdown leaf={firstLeaf} /> : null}
+      <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }}>
+        <Stego.KeepTogether>
+          <Stego.Heading level={1}>{projectTitle}</Stego.Heading>
+          <Stego.Paragraph align="center">{chapter ?? branchChapter ?? branchLabel ?? "Untitled"}</Stego.Paragraph>
+          <Stego.Spacer lines={2} />
+        </Stego.KeepTogether>
+        {firstLeaf ? <Stego.Markdown leaf={firstLeaf} /> : null}
+      </Stego.PageTemplate>
     </Stego.Document>
   );
 });
@@ -73,19 +74,20 @@ const printTemplate = defineTemplate(
         <PrintStego.PageTemplate
           header={{ left: "Funny Business", center: <PrintStego.Span italic>Draft</PrintStego.Span> }}
           footer={{ right: <>Page <PrintStego.PageNumber /></> }}
-        />
-        <PrintStego.Section>
-          <PrintStego.KeepTogether>
-            <PrintStego.Heading level={1} fontWeight="normal" underline={false}>
-              {ctx.project.metadata.title}
-            </PrintStego.Heading>
-            <PrintStego.Spacer lines={2} />
-            <PrintStego.Paragraph align="center" firstLineIndent="2em" lineSpacing={1.5}>
-              <PrintStego.Span smallCaps>{ctx.project.metadata.author ?? "Anonymous"}</PrintStego.Span>
-            </PrintStego.Paragraph>
-          </PrintStego.KeepTogether>
-          {firstLeaf ? <PrintStego.Markdown leaf={firstLeaf} /> : null}
-        </PrintStego.Section>
+        >
+          <PrintStego.Section>
+            <PrintStego.KeepTogether>
+              <PrintStego.Heading level={1} fontWeight="normal" underline={false}>
+                {ctx.project.metadata.title}
+              </PrintStego.Heading>
+              <PrintStego.Spacer lines={2} />
+              <PrintStego.Paragraph align="center" firstLineIndent="2em" lineSpacing={1.5}>
+                <PrintStego.Span smallCaps>{ctx.project.metadata.author ?? "Anonymous"}</PrintStego.Span>
+              </PrintStego.Paragraph>
+            </PrintStego.KeepTogether>
+            {firstLeaf ? <PrintStego.Markdown leaf={firstLeaf} /> : null}
+          </PrintStego.Section>
+        </PrintStego.PageTemplate>
       </PrintStego.Document>
     );
   }

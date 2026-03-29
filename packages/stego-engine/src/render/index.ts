@@ -4,6 +4,7 @@ export type {
   RenderDocumentResult,
   PandocPresentationBackendDocument,
   PresentationPageLayout,
+  PresentationPageTemplateSegment,
   PresentationInlineStyleSpec,
   PresentationPageRegion,
   PresentationPageRegionNode,

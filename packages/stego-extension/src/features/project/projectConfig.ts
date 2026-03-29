@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as fsSync from 'fs';
 import { promises as fs, type Dirent } from 'fs';
 import * as vscode from 'vscode';
 import {
@@ -11,6 +12,7 @@ import {
   parseBranchDocument,
   resolveBranchLeafPolicy
 } from '@stego-labs/shared/domain/content';
+import { resolveProjectManuscriptScope } from '@stego-labs/shared/domain/project';
 import {
   getTemplateNameFromFilename,
   inferSupportedTemplateTargets,
@@ -35,6 +37,7 @@ const PROJECT_JSON_SCHEMA = {
   properties: {
     title: { type: 'string', optional: true },
     name: { type: 'string', optional: true },
+    manuscriptSubdir: { type: 'string', optional: true },
     images: { type: 'object', optional: true }
   }
 } as const;
@@ -120,6 +123,11 @@ function validateProjectJsonSchema(parsed: unknown): { record?: Record<string, u
   const name = record.name;
   if (name !== undefined && typeof name !== 'string') {
     issues.push(issue('$.name', 'Expected string.'));
+  }
+
+  const manuscriptSubdir = record.manuscriptSubdir;
+  if (manuscriptSubdir !== undefined && typeof manuscriptSubdir !== 'string') {
+    issues.push(issue('$.manuscriptSubdir', 'Expected string.'));
   }
 
   if (record.spineCategories !== undefined) {
@@ -249,9 +257,17 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
 
   const source = parsedRecord ?? {};
   const projectTitle = extractProjectTitle(source, issues);
+  const manuscriptScope = resolveProjectManuscriptScope(
+    path.join(path.dirname(projectFilePath), CONTENT_DIR),
+    source,
+    (filePath) => fsSync.existsSync(filePath) && fsSync.statSync(filePath).isDirectory()
+  );
   const imageDefaults = extractProjectImageDefaults(source);
   const branches = await discoverProjectBranches(path.dirname(projectFilePath), issues);
   const templates = await discoverProjectTemplates(path.dirname(projectFilePath), issues);
+  if (manuscriptScope.issue) {
+    issues.push(issue('$.manuscriptSubdir', manuscriptScope.issue));
+  }
   const dedupedIssues = dedupeIssues(issues);
 
   reportProjectConfigIssues(projectFilePath, dedupedIssues);
@@ -260,6 +276,9 @@ export async function readProjectConfig(projectFilePath: string): Promise<Projec
     projectDir: path.dirname(projectFilePath),
     projectMtimeMs: stat.mtimeMs,
     projectTitle,
+    manuscriptSubdir: manuscriptScope.manuscriptSubdir,
+    manuscriptDir: manuscriptScope.manuscriptDir,
+    manuscriptScopeKey: manuscriptScope.scopeKey,
     imageDefaults,
     branches,
     templates,

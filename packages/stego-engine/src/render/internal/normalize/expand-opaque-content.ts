@@ -8,6 +8,7 @@ import {
   createMarkdownBlockNode,
   createMarkdownHeadingNode,
   createMarkdownParagraphNode,
+  createPageTemplateNode,
   createParagraphNode,
   createSpacerNode,
   createSectionNode,
@@ -87,6 +88,14 @@ function expandNode(
       return [createFragmentNode(expandChildren(node.children, context, defaults))];
     case "keepTogether":
       return [createKeepTogetherNode(expandChildren(node.children, context, defaults))];
+    case "pageTemplate":
+      return [
+        createPageTemplateNode(
+          node.header,
+          node.footer,
+          expandChildren(node.children, context, defaults),
+        ),
+      ];
     case "section": {
       const nextDefaults: StyleDefaults = {
         bodyStyle: mergeBodyStyle(defaults.bodyStyle, node.bodyStyle),
@@ -167,7 +176,6 @@ function expandNode(
     case "markdownBlock":
     case "image":
     case "pageBreak":
-    case "pageTemplate":
     case "pageNumber":
     case "text":
     case "link":

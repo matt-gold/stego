@@ -361,7 +361,7 @@ test("docx layout postprocessor creates header and footer parts with page region
   zip.file("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
   zip.file(
     "word/document.xml",
-    '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Body</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>',
+    '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:bookmarkStart w:id="10" w:name="stego-layout-1"/><w:p><w:r><w:t>Body</w:t></w:r></w:p><w:bookmarkEnd w:id="10"/><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>',
   );
   zip.file("word/styles.xml", '<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:styles>');
   fs.writeFileSync(docxPath, await zip.generateAsync({ type: "nodebuffer" }));
@@ -373,7 +373,8 @@ test("docx layout postprocessor creates header and footer parts with page region
         italic: true,
         color: "#666666",
       }],
-      pageTemplate: {
+      pageTemplates: [{
+        bookmarkName: "stego-layout-1",
         header: {
           left: [{ kind: "text", value: "Funny Business" }],
           right: [{ kind: "text", value: "Page " }, { kind: "pageNumber" }],
@@ -389,7 +390,7 @@ test("docx layout postprocessor creates header and footer parts with page region
         defaultFontFamily: "Times New Roman",
         defaultFontSizePt: 12,
         defaultLineSpacing: 2,
-      },
+      }],
     });
 
     const archive = await JSZip.loadAsync(fs.readFileSync(docxPath));
@@ -431,18 +432,19 @@ test("docx page regions use full-width paragraph alignment when only one slot is
   zip.file("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
   zip.file(
     "word/document.xml",
-    '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Body</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>',
+    '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:bookmarkStart w:id="10" w:name="stego-layout-1"/><w:p><w:r><w:t>Body</w:t></w:r></w:p><w:bookmarkEnd w:id="10"/><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>',
   );
   zip.file("word/styles.xml", '<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:styles>');
   fs.writeFileSync(docxPath, await zip.generateAsync({ type: "nodebuffer" }));
 
   try {
     await applyDocxLayout(docxPath, {
-      pageTemplate: {
+      pageTemplates: [{
+        bookmarkName: "stego-layout-1",
         header: {
           center: [{ kind: "text", value: "Centered" }],
         },
-      },
+      }],
     });
 
     const archive = await JSZip.loadAsync(fs.readFileSync(docxPath));
@@ -451,6 +453,39 @@ test("docx page regions use full-width paragraph alignment when only one slot is
     assert.match(headerXml, /<w:jc w:val="center"\/>/);
     assert.doesNotMatch(headerXml, /<w:tabs>/);
     assert.match(headerXml, /Centered/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("docx page templates create section boundaries when scoped segments change", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "stego-docx-layout-"));
+  const docxPath = path.join(tempDir, "template.docx");
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
+  zip.file(
+    "word/document.xml",
+    '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:bookmarkStart w:id="10" w:name="stego-layout-1"/><w:p><w:r><w:t>Title page</w:t></w:r></w:p><w:bookmarkEnd w:id="10"/><w:bookmarkStart w:id="11" w:name="stego-layout-2"/><w:p><w:r><w:t>Body page</w:t></w:r></w:p><w:bookmarkEnd w:id="11"/><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>',
+  );
+  zip.file("word/styles.xml", '<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:styles>');
+  fs.writeFileSync(docxPath, await zip.generateAsync({ type: "nodebuffer" }));
+
+  try {
+    await applyDocxLayout(docxPath, {
+      pageTemplates: [
+        { bookmarkName: "stego-layout-1" },
+        {
+          bookmarkName: "stego-layout-2",
+          header: { right: [{ kind: "pageNumber" }] },
+        },
+      ],
+    });
+
+    const archive = await JSZip.loadAsync(fs.readFileSync(docxPath));
+    const documentXml = await archive.file("word/document.xml").async("string");
+
+    assert.match(documentXml, /<w:pPr><w:sectPr(?: [^>]+)?><w:pgSz[\s\S]*?<w:type w:val="continuous"\/><\/w:sectPr><\/w:pPr><w:r><w:t>Title page<\/w:t><\/w:r><\/w:p>/);
+    assert.match(documentXml, /<w:headerReference w:type="default" r:id="rId\d+"\/>/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

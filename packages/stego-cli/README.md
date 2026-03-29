@@ -31,7 +31,7 @@ stego template build -p fiction-example
 ## Core model
 
 - `content/` holds authored leaves
-- scaffolded draft leaves live under `content/manuscript/`
+- scaffolded draft leaves live under the manuscript subtree declared by `stego-project.json#manuscriptSubdir` (default: `content/manuscript/`)
 - directories under `content/` are exposed as branches through `_branch.md`
 - branch `_branch.md` files declare inheritable `leafPolicy` rules for leaves in that branch subtree
 - templates read the root tree through `ctx.content`, the flat leaf list through `ctx.allLeaves`, and the flat branch list through `ctx.allBranches`
@@ -122,6 +122,16 @@ Set project-level image defaults in `stego-project.json`:
 ```
 
 Leaf frontmatter `images` only supports per-path overrides.
+
+You can also declare the manuscript subtree in `stego-project.json`:
+
+```json
+{
+  "manuscriptSubdir": "manuscript"
+}
+```
+
+This drives manuscript-scoped conveniences such as the default target for `stego new` and manuscript-focused extension metrics. Build and export still see all `content/` leaves unless template code narrows the set.
 
 ## Command reference
 

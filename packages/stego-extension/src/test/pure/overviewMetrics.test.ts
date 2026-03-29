@@ -21,3 +21,15 @@ test('countOverviewWords ignores fenced code blocks', () => {
 
   assert.equal(value, 5);
 });
+
+test('countOverviewWords matches shared markdown-aware tokenization', () => {
+  const value = countOverviewWords([
+    'Hello **world** and [friends](https://example.com).',
+    '',
+    '![Alt text](./image.png)',
+    '',
+    '`inline code` should not count.'
+  ].join('\n'));
+
+  assert.equal(value, 9);
+});

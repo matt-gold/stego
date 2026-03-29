@@ -8,6 +8,7 @@ export function prepareLatexTarget(
 ): PreparedRenderedExport {
   const metadata = prepareLatexMetadata(
     backendDocument.presentation.page,
+    backendDocument.presentation.pageTemplates,
     backendDocument.presentation.features,
   );
   const tempMetadata = Object.keys(metadata).length > 0

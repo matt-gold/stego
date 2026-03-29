@@ -1,3 +1,4 @@
+import { getWordCount } from '@stego-labs/shared/domain/content';
 import { getStageRank, isStageName } from '@stego-labs/shared/domain/stages';
 
 export function compareOverviewStatus(aStatus: string, bStatus: string): number {
@@ -21,13 +22,5 @@ export function compareOverviewStatus(aStatus: string, bStatus: string): number 
 }
 
 export function countOverviewWords(text: string): number {
-  const normalized = text
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/~~~[\s\S]*?~~~/g, ' ')
-    .trim();
-  if (!normalized) {
-    return 0;
-  }
-
-  return normalized.split(/\s+/).filter((token) => token.length > 0).length;
+  return getWordCount(text);
 }

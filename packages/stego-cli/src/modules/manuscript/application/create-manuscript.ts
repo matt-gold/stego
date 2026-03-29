@@ -8,6 +8,7 @@ import {
   parseBranchDocument,
   type EffectiveBranchLeafPolicy
 } from "@stego-labs/shared/domain/content";
+import { resolveProjectManuscriptScope } from "@stego-labs/shared/domain/project";
 import type { LeafOutputFormat, NewLeafInput, NewLeafResult } from "../types.ts";
 import {
   ensureLeafDir,
@@ -25,11 +26,10 @@ import {
 } from "./order-inference.ts";
 
 const DEFAULT_NEW_LEAF_SLUG = "new-leaf";
-const DEFAULT_MANUSCRIPT_BRANCH_DIR = "manuscript";
 
 export function createNewLeaf(input: NewLeafInput): NewLeafResult {
   const project = input.project;
-  const targetDir = resolveTargetDir(project.contentDir, input.requestedDirRaw);
+  const targetDir = resolveTargetDir(project.contentDir, project.meta, input.requestedDirRaw);
   ensureLeafDir(targetDir);
 
   const effectiveLeafPolicy = resolveEffectiveLeafPolicyForDirectory(project.contentDir, targetDir);
@@ -92,10 +92,14 @@ export function parseNewLeafOutputFormat(raw: string | undefined): LeafOutputFor
   throw new Error("Invalid --format value. Use 'text' or 'json'.");
 }
 
-function resolveTargetDir(contentRoot: string, requestedDirRaw: string | undefined): string {
+function resolveTargetDir(
+  contentRoot: string,
+  projectMeta: Record<string, unknown>,
+  requestedDirRaw: string | undefined,
+): string {
   const normalized = requestedDirRaw?.trim();
   if (!normalized || normalized === ".") {
-    return resolveDefaultTargetDir(contentRoot);
+    return resolveDefaultTargetDirForProject(contentRoot, projectMeta);
   }
   if (path.isAbsolute(normalized)) {
     throw new Error(`Invalid --dir '${requestedDirRaw}'. Use a path relative to content/.`);
@@ -109,13 +113,12 @@ function resolveTargetDir(contentRoot: string, requestedDirRaw: string | undefin
   return targetDir;
 }
 
-function resolveDefaultTargetDir(contentRoot: string): string {
-  const resolvedContentRoot = path.resolve(contentRoot);
-  const manuscriptDir = path.join(resolvedContentRoot, DEFAULT_MANUSCRIPT_BRANCH_DIR);
-  if (fs.existsSync(manuscriptDir) && fs.statSync(manuscriptDir).isDirectory()) {
-    return manuscriptDir;
-  }
-  return resolvedContentRoot;
+function resolveDefaultTargetDirForProject(contentRoot: string, projectMeta: Record<string, unknown>): string {
+  return resolveProjectManuscriptScope(
+    path.resolve(contentRoot),
+    projectMeta,
+    (filePath) => fs.existsSync(filePath) && fs.statSync(filePath).isDirectory(),
+  ).manuscriptDir;
 }
 
 function resolveEffectiveLeafPolicyForDirectory(

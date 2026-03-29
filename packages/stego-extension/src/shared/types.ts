@@ -332,6 +332,9 @@ export type ProjectScanContext = {
   projectDir: string;
   projectMtimeMs: number;
   projectTitle?: string;
+  manuscriptSubdir?: string;
+  manuscriptDir: string;
+  manuscriptScopeKey: string;
   imageDefaults: ImageStyle;
   branches: ProjectBranch[];
   templates: ProjectTemplate[];

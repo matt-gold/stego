@@ -13,6 +13,7 @@ import {
   parseBranchDocument
 } from "@stego-labs/shared/domain/content";
 import { parseMarkdownDocument, type FrontmatterRecord } from "@stego-labs/shared/domain/frontmatter";
+import { resolveProjectManuscriptScope } from "@stego-labs/shared/domain/project";
 import { isStageName } from "@stego-labs/shared/domain/stages";
 import type {
   ChapterEntry,
@@ -32,6 +33,21 @@ export function inspectProject(
   const repoRoot = project.workspace.repoRoot;
   const issues: Issue[] = [];
   issues.push(...validateProjectImagesConfiguration(project));
+  const manuscriptScope = resolveProjectManuscriptScope(
+    project.contentDir,
+    project.meta,
+    (filePath) => fs.existsSync(filePath) && fs.statSync(filePath).isDirectory(),
+  );
+  if (manuscriptScope.issue) {
+    issues.push(
+      makeIssue(
+        "warning",
+        "metadata",
+        manuscriptScope.issue,
+        path.relative(repoRoot, path.join(project.root, "stego-project.json"))
+      )
+    );
+  }
   const branchLeafPolicyByDir = new Map<string, BranchLeafPolicy>();
 
   if (project.meta.compileStructure !== undefined) {

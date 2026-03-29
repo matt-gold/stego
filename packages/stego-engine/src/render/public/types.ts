@@ -16,6 +16,10 @@ export type PresentationPageLayout = {
   lineSpacing?: number;
   spaceBefore?: string;
   spaceAfter?: string;
+};
+
+export type PresentationPageTemplateSegment = {
+  markerId: string;
   header?: PresentationPageRegion;
   footer?: PresentationPageRegion;
 };
@@ -91,6 +95,7 @@ export type PandocPresentationBackendDocument = {
   };
   presentation: {
     page: PresentationPageLayout;
+    pageTemplates: PresentationPageTemplateSegment[];
     blockMarkers: PresentationBlockMarker[];
     inlineStyles: PresentationInlineStyleSpec[];
     features: PresentationFeatureUsage;

@@ -47,6 +47,12 @@ import {
   type StegoSectionNode
 } from "../../ir/index.ts";
 import { groupCollectionItems, splitCollectionItems, type Group, type GroupSelector, type SplitGroup } from "../../collections/index.ts";
+import {
+  getText as getContentText,
+  getTextTokens as getContentTextTokens,
+  getWords as getContentWords,
+  getWordCount as getContentWordCount,
+} from "@stego-labs/shared/domain/content";
 import type { LeafMetadata, LeafRecord } from "./types.ts";
 import type { PresentationTarget, TemplateCapability } from "@stego-labs/shared/domain/templates";
 import { TARGET_CAPABILITIES } from "@stego-labs/shared/domain/templates";
@@ -283,6 +289,10 @@ export type StegoApi<TTargets extends PresentationTarget> = {
   Image: NarrowImageComponent<TTargets>;
   groupBy: typeof groupBy;
   splitBy: typeof splitBy;
+  getText: typeof getText;
+  getTextTokens: typeof getTextTokens;
+  getWords: typeof getWords;
+  getWordCount: typeof getWordCount;
 } & MaybeComponent<"KeepTogether", TTargets, "keepTogether", typeof KeepTogether>
   & MaybeComponent<"PageBreak", TTargets, "pageBreak", typeof PageBreak>
   & MaybeComponent<"PageTemplate", TTargets, "pageTemplate", typeof PageTemplate>
@@ -386,6 +396,7 @@ export function PageBreak(): StegoPageBreakNode {
 export function PageTemplate(props: {
   header?: { left?: unknown; center?: unknown; right?: unknown };
   footer?: { left?: unknown; center?: unknown; right?: unknown };
+  children?: unknown;
 }): StegoPageTemplateNode {
   const header: PageRegionSpec | undefined = props.header
     ? {
@@ -401,7 +412,11 @@ export function PageTemplate(props: {
         right: normalizePageRegionChildren(props.footer.right),
       }
     : undefined;
-  return createPageTemplateNode(header, footer);
+  const children = normalizeChildren(props.children);
+  if (children.length === 0) {
+    throw new Error("<Stego.PageTemplate> must wrap one or more child nodes in V1.");
+  }
+  return createPageTemplateNode(header, footer, children);
 }
 
 export function PageNumber(): StegoPageNumberNode {
@@ -414,6 +429,30 @@ export function groupBy<T>(items: T[], selector: GroupSelector<T>): Group<T>[] {
 
 export function splitBy<T>(items: T[], selector: GroupSelector<T>): SplitGroup<T>[] {
   return splitCollectionItems(items, selector);
+}
+
+export function getText<T extends { body: string }>(
+  input: T | T[] | string | string[],
+): string {
+  return getContentText(input as { body: string } | { body: string }[] | string | string[]);
+}
+
+export function getTextTokens<T extends { body: string }>(
+  input: T | T[] | string | string[],
+) {
+  return getContentTextTokens(input as { body: string } | { body: string }[] | string | string[]);
+}
+
+export function getWords<T extends { body: string }>(
+  input: T | T[] | string | string[],
+): string[] {
+  return getContentWords(input as { body: string } | { body: string }[] | string | string[]);
+}
+
+export function getWordCount<T extends { body: string }>(
+  input: T | T[] | string | string[],
+): number {
+  return getContentWordCount(input as { body: string } | { body: string }[] | string | string[]);
 }
 
 function assertNoLegacyDocumentStyleProps(props: Record<string, unknown>): void {
@@ -469,5 +508,9 @@ export const Stego = {
   PageTemplate,
   PageNumber,
   groupBy,
-  splitBy
+  splitBy,
+  getText,
+  getTextTokens,
+  getWords,
+  getWordCount,
 } as const;

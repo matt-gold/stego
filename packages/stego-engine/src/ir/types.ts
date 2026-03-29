@@ -222,6 +222,7 @@ export type StegoPageTemplateNode = {
   kind: "pageTemplate";
   header?: PageRegionSpec;
   footer?: PageRegionSpec;
+  children: StegoNode[];
 };
 
 export type StegoPageNumberNode = {

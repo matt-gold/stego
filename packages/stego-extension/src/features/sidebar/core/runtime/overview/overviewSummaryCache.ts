@@ -41,6 +41,7 @@ type OverviewFileSummary = {
 
 type OverviewAggregateCore = {
   manuscriptTitle: string;
+  manuscriptScopeKey: string;
   wordCount: number;
   manuscriptFileCount: number;
   missingRequiredMetadataCount: number;
@@ -230,6 +231,7 @@ export class OverviewSummaryCache {
 
     const scanStamp = buildScanStamp(scanPlan.stampParts);
     const manuscriptTitle = projectContext.projectTitle?.trim() || path.basename(projectDir);
+    const manuscriptScopeKey = projectContext.manuscriptScopeKey ?? '.';
     const commentStamp = String(state.commentVersion);
 
     const aggregateIsCurrent = !!state.aggregateCore
@@ -237,6 +239,7 @@ export class OverviewSummaryCache {
       && state.dirtyFiles.size === 0
       && state.scanStamp === scanStamp
       && state.projectTitleKey === manuscriptTitle
+      && state.aggregateCore.manuscriptScopeKey === manuscriptScopeKey
       && state.commentStamp === commentStamp;
 
     if (aggregateIsCurrent) {
@@ -256,6 +259,7 @@ export class OverviewSummaryCache {
         scanPlan.stampParts,
         scanStamp,
         manuscriptTitle,
+        manuscriptScopeKey,
         commentStamp
       ).finally(() => {
         if (state.inFlight) {
@@ -322,12 +326,15 @@ export class OverviewSummaryCache {
     stampParts: string[],
     scanStamp: string,
     manuscriptTitle: string,
+    manuscriptScopeKey: string,
     commentStamp: string
   ): Promise<void> {
     const versionAtStart = state.version;
     const mtimeByPath = parseMtimeByPath(stampParts);
+    const manuscriptDir = normalizeFilePath(projectContext.manuscriptDir ?? path.join(projectContext.projectDir, 'content'));
     const leafFiles = scanFiles
       .filter((filePath) => !isBranchFile(filePath))
+      .filter((filePath) => filePath === manuscriptDir || filePath.startsWith(`${manuscriptDir}${path.sep}`))
       .sort(compareOverviewFiles);
     const leafFileSet = new Set(leafFiles);
     const nextSummaries = new Map(state.fileSummaries);
@@ -359,7 +366,7 @@ export class OverviewSummaryCache {
       }
     }
 
-    const aggregateCore = this.buildAggregateCore(projectContext, manuscriptTitle, leafFiles, nextSummaries);
+    const aggregateCore = this.buildAggregateCore(projectContext, manuscriptTitle, manuscriptScopeKey, leafFiles, nextSummaries);
 
     if (state.version !== versionAtStart) {
       return;
@@ -440,6 +447,7 @@ export class OverviewSummaryCache {
   private buildAggregateCore(
     projectContext: ProjectScanContext,
     manuscriptTitle: string,
+    manuscriptScopeKey: string,
     leafFiles: string[],
     summaries: Map<string, OverviewFileSummary>
   ): OverviewAggregateCore {
@@ -504,6 +512,7 @@ export class OverviewSummaryCache {
 
     return {
       manuscriptTitle,
+      manuscriptScopeKey,
       wordCount,
       manuscriptFileCount: leafFiles.length,
       missingRequiredMetadataCount,
