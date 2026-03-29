@@ -14,12 +14,19 @@ import type {
   IndentValue,
   InsetValue,
   LineSpacingValue,
+  PageRegionSpec,
   SpacingValue,
   StegoInlineNode,
   StegoSpanNode,
   StegoNode
 } from "../../../../ir/index.ts";
-import type { PresentationBlockMarker, PresentationInlineStyleSpec } from "../../../public/types.ts";
+import type {
+  PresentationBlockMarker,
+  PresentationInlineStyleSpec,
+  PresentationPageRegion,
+  PresentationPageRegionNode,
+  PresentationPageTemplateSegment,
+} from "../../../public/types.ts";
 import { normalizeHexColor } from "../../../../style/index.ts";
 import type { LeafRecord } from "../../../../template/index.ts";
 import { formatSizeValue, formatSpacingValue } from "../../normalize/index.ts";
@@ -31,6 +38,12 @@ type LeafIndexEntry = {
   headings: LeafHeadingTarget[];
 };
 
+type PageTemplateSegmentInput = {
+  nodes: StegoNode[];
+  header?: PageRegionSpec;
+  footer?: PageRegionSpec;
+};
+
 export function writePandocMarkdown(
   nodes: StegoNode[],
   leaves: LeafRecord[],
@@ -40,6 +53,7 @@ export function writePandocMarkdown(
   } = {}
 ): {
   markdown: string;
+  pageTemplates: PresentationPageTemplateSegment[];
   blockMarkers: PresentationBlockMarker[];
   inlineStyles: PresentationInlineStyleSpec[];
   usesBlockFontFamily: boolean;
@@ -68,19 +82,32 @@ export function writePandocMarkdown(
     } satisfies LeafIndexEntry]))
   };
 
-  for (const node of nodes) {
-    if (node.kind === "pageTemplate") {
+  const pageTemplates: PresentationPageTemplateSegment[] = [];
+  for (const segment of splitTopLevelPageTemplateSegments(nodes)) {
+    const body = segment.nodes
+      .map((node) => renderNode(node, context))
+      .filter(Boolean)
+      .join("\n\n");
+    if (!body) {
       continue;
     }
-    const rendered = renderNode(node, context);
-    if (!rendered) {
-      continue;
-    }
-    blocks.push(rendered);
+    const markerId = createPresentationMarkerId(++context.presentationMarkerIndex);
+    const templateId = segment.header || segment.footer ? markerId : "none";
+    const attrs = renderRawAttrs({
+      id: markerId,
+      tokens: [`data-page-template=${quoteAttrValue(templateId)}`],
+    });
+    blocks.push(`::: ${attrs}\n${body}\n:::`);
+    pageTemplates.push({
+      markerId,
+      header: lowerPageRegion(segment.header),
+      footer: lowerPageRegion(segment.footer),
+    });
   }
 
   return {
     markdown: `${blocks.join("\n\n").replace(/\n{3,}/g, "\n\n")}\n`,
+    pageTemplates,
     blockMarkers: context.blockMarkers,
     inlineStyles: context.inlineStyles,
     usesBlockFontFamily: context.usesBlockFontFamily,
@@ -88,6 +115,85 @@ export function writePandocMarkdown(
     usesUnderline: context.usesUnderline,
     usesTextColor: context.usesTextColor
   };
+}
+
+function splitTopLevelPageTemplateSegments(nodes: StegoNode[]): PageTemplateSegmentInput[] {
+  const segments: PageTemplateSegmentInput[] = [];
+  let pendingDefault: StegoNode[] = [];
+
+  const pushNode = (node: StegoNode) => {
+    if (node.kind === "fragment") {
+      for (const child of node.children) {
+        pushNode(child);
+      }
+      return;
+    }
+    if (node.kind === "pageTemplate") {
+      if (pendingDefault.length > 0) {
+        segments.push({ nodes: pendingDefault });
+        pendingDefault = [];
+      }
+      if (node.children.length > 0) {
+        segments.push({
+          nodes: node.children,
+          header: node.header,
+          footer: node.footer,
+        });
+      }
+      return;
+    }
+    pendingDefault.push(node);
+  };
+
+  for (const node of nodes) {
+    pushNode(node);
+  }
+
+  if (pendingDefault.length > 0) {
+    segments.push({ nodes: pendingDefault });
+  }
+
+  return segments;
+}
+
+function lowerPageRegion(region: PageRegionSpec | undefined): PresentationPageRegion | undefined {
+  if (!region) {
+    return undefined;
+  }
+
+  const lowered: PresentationPageRegion = {
+    left: lowerPageRegionNodes(region.left),
+    center: lowerPageRegionNodes(region.center),
+    right: lowerPageRegionNodes(region.right),
+  };
+
+  return lowered.left || lowered.center || lowered.right ? lowered : undefined;
+}
+
+function lowerPageRegionNodes(nodes: PageRegionSpec["left"]): PresentationPageRegionNode[] | undefined {
+  if (!nodes || nodes.length === 0) {
+    return undefined;
+  }
+
+  return nodes.map((node) => {
+    if (node.kind === "text") {
+      return { kind: "text", value: node.value };
+    }
+    if (node.kind === "pageNumber") {
+      return { kind: "pageNumber" };
+    }
+    return {
+      kind: "span",
+      fontFamily: formatFontFamilyValue(node.fontFamily),
+      fontSizePt: formatFontSizeInPoints(node.fontSize),
+      fontWeight: node.fontWeight,
+      italic: node.italic,
+      underline: node.underline,
+      smallCaps: node.smallCaps,
+      color: normalizeHexColor(node.color),
+      children: lowerPageRegionNodes(node.children as PageRegionSpec["left"]) || [],
+    };
+  });
 }
 
 function renderNode(node: StegoNode, context: RenderContext): string {

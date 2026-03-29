@@ -45,6 +45,34 @@ test("Stego.splitBy preserves a leading ungrouped segment, inherits missing valu
   assert.equal(groups[3].first.title, "E");
 });
 
+test("Stego text analysis helpers expose manuscript text, tokens, words, and word counts", () => {
+  const sample = [
+    {
+      body: "# Hello World\n\nThis is **bold** text with a [link](https://example.com).\n\n- One\n- Two",
+    },
+    {
+      body: "Second leaf with `code` and ![Alt text](image.png)",
+    },
+  ];
+
+  const text = engine.Stego.getText(sample);
+  const tokens = engine.Stego.getTextTokens(sample);
+  const words = engine.Stego.getWords(sample);
+  const wordCount = engine.Stego.getWordCount(sample);
+
+  assert.match(text, /Hello World/);
+  assert.match(text, /Alt text/);
+  assert.deepEqual(tokens.slice(0, 5), [
+    { kind: "word", value: "Hello" },
+    { kind: "space", value: " " },
+    { kind: "word", value: "World" },
+    { kind: "newline", value: "\n" },
+    { kind: "newline", value: "\n" },
+  ]);
+  assert.deepEqual(words.slice(0, 8), ["Hello", "World", "This", "is", "bold", "text", "with", "a"]);
+  assert.equal(wordCount, 17);
+});
+
 test("TSX helpers create document IR through defineTemplate", () => {
   const template = engine.defineTemplate((ctx) => (
     engine.Stego.Document({
@@ -75,7 +103,8 @@ test("target-aware templates reject unsupported runtime capabilities", () => {
       },
       children: [
         engine.Stego.PageTemplate({
-          footer: { right: engine.Stego.PageNumber() }
+          footer: { right: engine.Stego.PageNumber() },
+          children: [engine.Stego.Paragraph({ children: "Body" })],
         })
       ]
     })
@@ -149,6 +178,48 @@ test("evaluateTemplate rejects empty in-memory target declarations", () => {
     allLeaves: [],
     allBranches: []
   }), /one or more presentation targets/i);
+});
+
+test("scoped page templates reject standalone and nested usage", () => {
+  assert.throws(() => engine.evaluateTemplate({
+    kind: "stego-template",
+    targets: ["docx"],
+    render: () => engine.Stego.Document({
+      children: [
+        engine.Stego.PageTemplate({
+          footer: { right: engine.Stego.PageNumber() },
+        }),
+      ],
+    }),
+  }, {
+    project: { id: "demo", root: "/tmp/demo", metadata: {} },
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: [],
+  }), /must wrap one or more child nodes/i);
+
+  assert.throws(() => engine.evaluateTemplate({
+    kind: "stego-template",
+    targets: ["docx"],
+    render: () => engine.Stego.Document({
+      children: [
+        engine.Stego.PageTemplate({
+          footer: { right: engine.Stego.PageNumber() },
+          children: [
+            engine.Stego.PageTemplate({
+              header: { left: "Nested" },
+              children: [engine.Stego.Paragraph({ children: "Body" })],
+            }),
+          ],
+        }),
+      ],
+    }),
+  }, {
+    project: { id: "demo", root: "/tmp/demo", metadata: {} },
+    content: { kind: "content", name: "content", label: "Content", relativeDir: "content", metadata: {}, leaves: [], branches: [] },
+    allLeaves: [],
+    allBranches: [],
+  }), /may not be nested/i);
 });
 
 test("compileProject loads leaves, excludes _branch.md from content, and builds branches", async () => {
@@ -237,52 +308,54 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
             engine.Stego.PageNumber(),
           ],
         },
-      }),
-      engine.Stego.PageBreak(),
-      engine.Stego.KeepTogether({
         children: [
-          engine.Stego.Heading({ level: 2, children: "Kept heading" }),
-          engine.Stego.Paragraph({ children: "Kept paragraph" })
-        ]
-      }),
-      engine.Stego.Section({
-        bodyStyle: {
-          insetLeft: "24pt",
-          insetRight: "24pt",
-          spaceBefore: 18,
-          spaceAfter: 12,
-          firstLineIndent: "1.5em",
-          lineSpacing: 1.5,
-        },
-        headingStyles: {
-          2: {
-            spaceBefore: 24,
-            spaceAfter: 18,
-            fontFamily: "Georgia",
-            underline: true,
-          }
-        },
-        children: [
-          engine.Stego.Heading({ level: 2, children: "Inset heading" }),
-          engine.Stego.Paragraph({ children: "Section body paragraph" }),
-          engine.Stego.Paragraph({
-            align: "center",
-            firstLineIndent: "2em",
-            fontSize: "11pt",
+          engine.Stego.PageBreak(),
+          engine.Stego.KeepTogether({
             children: [
-              "Inset ",
-              engine.Stego.Span({ fontWeight: "bold", underline: true, children: "paragraph" }),
-            ],
+              engine.Stego.Heading({ level: 2, children: "Kept heading" }),
+              engine.Stego.Paragraph({ children: "Kept paragraph" })
+            ]
+          }),
+          engine.Stego.Section({
+            bodyStyle: {
+              insetLeft: "24pt",
+              insetRight: "24pt",
+              spaceBefore: 18,
+              spaceAfter: 12,
+              firstLineIndent: "1.5em",
+              lineSpacing: 1.5,
+            },
+            headingStyles: {
+              2: {
+                spaceBefore: 24,
+                spaceAfter: 18,
+                fontFamily: "Georgia",
+                underline: true,
+              }
+            },
+            children: [
+              engine.Stego.Heading({ level: 2, children: "Inset heading" }),
+              engine.Stego.Paragraph({ children: "Section body paragraph" }),
+              engine.Stego.Paragraph({
+                align: "center",
+                firstLineIndent: "2em",
+                fontSize: "11pt",
+                children: [
+                  "Inset ",
+                  engine.Stego.Span({ fontWeight: "bold", underline: true, children: "paragraph" }),
+                ],
+              })
+            ]
+          }),
+          engine.Stego.Image({
+            src: "assets/maps/city-plan.svg",
+            alt: "Map",
+            width: "65%",
+            layout: "block",
+            align: "center"
           })
-        ]
+        ],
       }),
-      engine.Stego.Image({
-        src: "assets/maps/city-plan.svg",
-        alt: "Map",
-        width: "65%",
-        layout: "block",
-        align: "center"
-      })
     ]
   });
 
@@ -305,15 +378,17 @@ test("renderDocument emits presentation markers, page regions, and image attrs",
   assert.equal(rendered.presentation.page.lineSpacing, 2);
   assert.equal(rendered.presentation.page.spaceBefore, "0pt");
   assert.equal(rendered.presentation.page.spaceAfter, "0pt");
-  assert.deepEqual(rendered.presentation.page.header?.left, [{ kind: "text", value: "Funny Business" }]);
-  assert.equal(rendered.presentation.page.header?.center?.[0]?.kind, "span");
-  assert.equal(rendered.presentation.page.header?.center?.[0]?.italic, true);
-  assert.equal(rendered.presentation.page.header?.center?.[0]?.color, "#666666");
-  assert.deepEqual(rendered.presentation.page.header?.center?.[0]?.children, [{ kind: "text", value: "Draft" }]);
-  assert.deepEqual(rendered.presentation.page.footer?.right, [
+  assert.equal(rendered.presentation.pageTemplates.length, 1);
+  assert.deepEqual(rendered.presentation.pageTemplates[0].header?.left, [{ kind: "text", value: "Funny Business" }]);
+  assert.equal(rendered.presentation.pageTemplates[0].header?.center?.[0]?.kind, "span");
+  assert.equal(rendered.presentation.pageTemplates[0].header?.center?.[0]?.italic, true);
+  assert.equal(rendered.presentation.pageTemplates[0].header?.center?.[0]?.color, "#666666");
+  assert.deepEqual(rendered.presentation.pageTemplates[0].header?.center?.[0]?.children, [{ kind: "text", value: "Draft" }]);
+  assert.deepEqual(rendered.presentation.pageTemplates[0].footer?.right, [
     { kind: "text", value: "Page " },
     { kind: "pageNumber" },
   ]);
+  assert.match(rendered.source.markdown, /data-page-template=/);
   assert.match(rendered.source.markdown, /data-page-break=true/);
   assert.match(rendered.source.markdown, /data-keep-together=true/);
   assert.match(rendered.source.markdown, /data-space-before=18pt/);

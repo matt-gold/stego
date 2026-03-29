@@ -66,9 +66,10 @@ export default defineTemplate(
   { targets: ["docx", "pdf", "latex"] },
   (ctx, Stego) => (
     <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
-      <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
-      <Stego.Heading level={1}>PRINT TEMPLATE</Stego.Heading>
-      {ctx.allLeaves.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+      <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }}>
+        <Stego.Heading level={1}>PRINT TEMPLATE</Stego.Heading>
+        {ctx.allLeaves.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+      </Stego.PageTemplate>
     </Stego.Document>
   )
 );

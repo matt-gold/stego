@@ -35,11 +35,41 @@ export type ParsedBranchDocument = {
   body: string;
 };
 
+type WordCountInput = string | { body: string };
+export type TextToken =
+  | { kind: "word"; value: string }
+  | { kind: "punct"; value: string }
+  | { kind: "space"; value: string }
+  | { kind: "newline"; value: string };
+
 export const BRANCH_FILENAME = "_branch.md";
 export const LEAF_ID_PATTERN = /^[A-Z][A-Z0-9]*-[A-Z0-9][A-Z0-9-]*$/;
 
 export function isValidLeafId(value: string): boolean {
   return LEAF_ID_PATTERN.test(value.trim());
+}
+
+export function getText(input: WordCountInput | WordCountInput[]): string {
+  const items = Array.isArray(input) ? input : [input];
+  return items
+    .map((item) => typeof item === "string" ? item : item.body)
+    .map(extractTextFromMarkdownLikeText)
+    .filter((value) => value.length > 0)
+    .join("\n\n");
+}
+
+export function getTextTokens(input: WordCountInput | WordCountInput[]): TextToken[] {
+  return tokenizeText(getText(input));
+}
+
+export function getWords(input: WordCountInput | WordCountInput[]): string[] {
+  return getTextTokens(input)
+    .filter((token): token is Extract<TextToken, { kind: "word" }> => token.kind === "word")
+    .map((token) => token.value);
+}
+
+export function getWordCount(input: WordCountInput | WordCountInput[]): number {
+  return getWords(input).length;
 }
 
 export function inferLeafFormat(filePath: string): LeafFormat {
@@ -239,6 +269,46 @@ function validateRequiredMetadataArray(value: unknown, filePath: string, keyPath
   }
 
   return result;
+}
+
+function extractTextFromMarkdownLikeText(source: string): string {
+  return source
+    .replace(/\r\n?/g, "\n")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, " $1 ")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, " $1 ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}([-*+]|\d+\.)\s+/gm, "")
+    .replace(/[*_~>#]+/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function tokenizeText(source: string): TextToken[] {
+  const tokens: TextToken[] = [];
+  const pattern = /(\r\n?|\n)|([ \t]+)|([\p{L}\p{N}'’]+)|([^\p{L}\p{N}\s]+)/gu;
+  for (const match of source.matchAll(pattern)) {
+    if (match[1]) {
+      tokens.push({ kind: "newline", value: "\n" });
+      continue;
+    }
+    if (match[2]) {
+      tokens.push({ kind: "space", value: match[2] });
+      continue;
+    }
+    if (match[3]) {
+      tokens.push({ kind: "word", value: match[3] });
+      continue;
+    }
+    if (match[4]) {
+      tokens.push({ kind: "punct", value: match[4] });
+    }
+  }
+  return tokens;
 }
 
 function validateLeafPolicyDefaults(value: unknown, filePath: string): FrontmatterRecord {

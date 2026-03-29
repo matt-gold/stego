@@ -1,12 +1,14 @@
 import type {
-  PresentationPageRegion,
-  PresentationPageRegionNode,
   PresentationFeatureUsage,
   PresentationPageLayout,
+  PresentationPageRegion,
+  PresentationPageRegionNode,
+  PresentationPageTemplateSegment,
 } from "@stego-labs/engine";
 
 export function prepareLatexMetadata(
   page: PresentationPageLayout,
+  pageTemplates: PresentationPageTemplateSegment[],
   features: PresentationFeatureUsage,
 ): Record<string, unknown> {
   const metadata: Record<string, unknown> = {};
@@ -41,14 +43,12 @@ export function prepareLatexMetadata(
   if (lineSpacing !== undefined) {
     headerIncludes.push(`\\setstretch{${lineSpacing}}`);
   }
-  if (page.header || page.footer) {
+
+  if (pageTemplates.length > 0) {
     headerIncludes.push("\\usepackage{fancyhdr}");
-    headerIncludes.push("\\pagestyle{fancy}");
-    headerIncludes.push("\\fancyhf{}");
-    headerIncludes.push(...renderRegion("head", page.header));
-    headerIncludes.push(...renderRegion("foot", page.footer));
-    headerIncludes.push("\\renewcommand{\\headrulewidth}{0pt}");
-    headerIncludes.push("\\renewcommand{\\footrulewidth}{0pt}");
+    headerIncludes.push(...renderPageTemplateStyles(pageTemplates));
+    headerIncludes.push("\\pagestyle{stegopagetemplatenone}");
+    headerIncludes.push("\\thispagestyle{stegopagetemplatenone}");
   }
 
   if (headerIncludes.length > 0) {
@@ -78,6 +78,47 @@ function normalizeLineSpacing(value: number | undefined): number | undefined {
     return undefined;
   }
   return value;
+}
+
+function renderPageTemplateStyles(segments: PresentationPageTemplateSegment[]): string[] {
+  const lines = [
+    renderPageStyleBlock("stegopagetemplatenone", [
+      "\\fancyhf{}",
+      "\\renewcommand{\\headrulewidth}{0pt}",
+      "\\renewcommand{\\footrulewidth}{0pt}",
+    ]),
+  ];
+
+  for (const segment of segments) {
+    if (!segment.header && !segment.footer) {
+      continue;
+    }
+    lines.push(renderPageStyleBlock(
+      toLatexPageStyleName(segment.markerId),
+      [
+        "\\fancyhf{}",
+        ...renderRegion("head", segment.header),
+        ...renderRegion("foot", segment.footer),
+        "\\renewcommand{\\headrulewidth}{0pt}",
+        "\\renewcommand{\\footrulewidth}{0pt}",
+      ],
+    ));
+  }
+
+  return lines;
+}
+
+function renderPageStyleBlock(name: string, commands: string[]): string {
+  return [
+    `\\fancypagestyle{${name}}{`,
+    ...commands,
+    "}",
+  ].join("\n");
+}
+
+export function toLatexPageStyleName(markerId: string): string {
+  const normalized = markerId.replace(/[^a-zA-Z0-9]+/g, "");
+  return `stegopagetemplate${normalized || "segment"}`;
 }
 
 function renderRegion(kind: "head" | "foot", region: PresentationPageRegion | undefined): string[] {

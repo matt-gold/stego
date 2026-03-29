@@ -181,7 +181,8 @@
   "scripts": {
     "compile": "npm run compile:host && npm run compile:webview",
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
-    "compile:host": "npm run -w @stego-labs/shared compile && npm run clean && tsc -p tsconfig.build.json",
+    "clean:host": "node -e \"require('node:fs').rmSync('out/stego-extension',{recursive:true,force:true})\"",
+    "compile:host": "npm run -w @stego-labs/shared compile && npm run clean:host && tsc -p tsconfig.build.json",
     "compile:webview": "vite build --config webview/sidebar/vite.config.ts",
     "watch": "tsc -watch -p ./",
     "watch:webview": "vite build --watch --config webview/sidebar/vite.config.ts",

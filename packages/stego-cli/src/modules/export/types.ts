@@ -35,7 +35,7 @@ export type DocxExportPostprocess = {
   blockLayouts?: DocxBlockLayoutSpec[];
   documentStyle?: DocxDocumentStyleSpec;
   characterStyles?: DocxCharacterStyleSpec[];
-  pageTemplate?: DocxPageTemplateSpec;
+  pageTemplates?: DocxPageTemplateSpec[];
 };
 
 export type PdfExportPostprocess = {

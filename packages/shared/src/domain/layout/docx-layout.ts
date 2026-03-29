@@ -41,6 +41,7 @@ export type DocxPageRegion = {
 };
 
 export type DocxPageTemplateSpec = {
+  bookmarkName: string;
   header?: DocxPageRegion;
   footer?: DocxPageRegion;
   defaultFontFamily?: string;

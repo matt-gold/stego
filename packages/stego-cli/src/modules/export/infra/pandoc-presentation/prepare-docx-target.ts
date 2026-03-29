@@ -27,7 +27,7 @@ export function prepareDocxTarget(
         blockLayouts: backendDocument.presentation.blockMarkers.map(toDocxBlockLayoutSpec),
         documentStyle: toDocxDocumentStyleSpec(backendDocument),
         characterStyles: backendDocument.presentation.inlineStyles.map(toDocxCharacterStyleSpec),
-        pageTemplate: toDocxPageTemplateSpec(backendDocument),
+        pageTemplates: backendDocument.presentation.pageTemplates.map((segment) => toDocxPageTemplateSpec(segment, backendDocument)),
       },
     },
     cleanup: () => {},
@@ -56,16 +56,14 @@ function toDocxDocumentStyleSpec(
 }
 
 function toDocxPageTemplateSpec(
+  segment: PandocPresentationBackendDocument["presentation"]["pageTemplates"][number],
   backendDocument: PandocPresentationBackendDocument,
-): DocxPageTemplateSpec | undefined {
+): DocxPageTemplateSpec {
   const page = backendDocument.presentation.page;
-  if (!page.header && !page.footer) {
-    return undefined;
-  }
-
   return {
-    header: toDocxPageRegion(page.header),
-    footer: toDocxPageRegion(page.footer),
+    bookmarkName: segment.markerId,
+    header: toDocxPageRegion(segment.header),
+    footer: toDocxPageRegion(segment.footer),
     defaultFontFamily: page.fontFamily,
     defaultFontSizePt: toFontSizePoints(page.fontSize),
     defaultLineSpacing: page.lineSpacing,

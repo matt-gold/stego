@@ -36,7 +36,7 @@ type DocxLayoutPostprocess = {
   blockLayouts?: DocxBlockLayoutSpec[];
   documentStyle?: DocxDocumentStyleSpec;
   characterStyles?: DocxCharacterStyleSpec[];
-  pageTemplate?: DocxPageTemplateSpec;
+  pageTemplates?: DocxPageTemplateSpec[];
 };
 
 export async function applyDocxLayout(
@@ -48,7 +48,7 @@ export async function applyDocxLayout(
     (postprocess.blockLayouts?.length || 0) === 0
     && !postprocess.documentStyle
     && (postprocess.characterStyles?.length || 0) === 0
-    && !postprocess.pageTemplate
+    && (postprocess.pageTemplates?.length || 0) === 0
   ) {
     return;
   }
@@ -81,8 +81,8 @@ export async function applyDocxLayout(
     }
   }
 
-  if (postprocess.pageTemplate) {
-    const pageTemplateChanged = await applyDocxPageTemplateToArchive(archive, postprocess.pageTemplate);
+  if (postprocess.pageTemplates && postprocess.pageTemplates.length > 0) {
+    const pageTemplateChanged = await applyDocxPageTemplatesToArchive(archive, postprocess.pageTemplates);
     if (pageTemplateChanged) {
       changed = true;
     }
@@ -963,10 +963,14 @@ function findOrCreateCharacterStyle(root: XmlElement, styleId: string, document:
   return style;
 }
 
-async function applyDocxPageTemplateToArchive(
+async function applyDocxPageTemplatesToArchive(
   archive: JSZip,
-  pageTemplate: DocxPageTemplateSpec,
+  pageTemplates: DocxPageTemplateSpec[],
 ): Promise<boolean> {
+  if (pageTemplates.length === 0) {
+    return false;
+  }
+
   const documentXml = archive.file(DOCUMENT_XML_PATH);
   const contentTypesXml = archive.file(CONTENT_TYPES_XML_PATH);
   if (!documentXml || !contentTypesXml) {
@@ -996,61 +1000,85 @@ async function applyDocxPageTemplateToArchive(
     documentRoot.setAttribute("xmlns:r", "http://schemas.openxmlformats.org/officeDocument/2006/relationships");
   }
 
-  const sectPr = findOrCreateBodySectionProperties(body, documentModel);
+  const bodySectPr = findOrCreateBodySectionProperties(body, documentModel);
+  const baseSectPr = cloneElement(bodySectPr, documentModel);
+  const populatedSegments = pageTemplates
+    .map((pageTemplate) => ({
+      pageTemplate,
+      paragraphs: collectParagraphsForBookmarkRange(body, pageTemplate.bookmarkName),
+    }))
+    .filter((segment) => segment.paragraphs.length > 0);
+
+  if (populatedSegments.length === 0) {
+    return false;
+  }
+
   let changed = false;
 
-  if (pageTemplate.header) {
-    const headerRelId = ensureRelationship(
-      relsRoot,
-      "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header",
-      "header1.xml",
-      relsModel,
-    );
-    if (setSectionReference(sectPr, "w:headerReference", headerRelId, documentModel)) {
-      changed = true;
-    }
-    archive.file(HEADER_XML_PATH, buildPageRegionPartXml(documentModel, pageTemplate.header, pageTemplate, "header"));
-    if (ensureContentTypeOverride(
-      contentTypesRoot,
-      "/word/header1.xml",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml",
-      contentTypesModel,
-    )) {
-      changed = true;
-    }
-    changed = true;
-  }
+  for (let index = 0; index < populatedSegments.length; index += 1) {
+    const { pageTemplate, paragraphs } = populatedSegments[index];
+    const sectPr = index === populatedSegments.length - 1
+      ? bodySectPr
+      : assignParagraphSectionProperties(paragraphs[paragraphs.length - 1], documentModel);
+    const nextSectPr = buildSectionPropertiesForPageTemplate(baseSectPr, documentModel);
 
-  if (pageTemplate.footer) {
-    const footerRelId = ensureRelationship(
-      relsRoot,
-      "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer",
-      "footer1.xml",
-      relsModel,
-    );
-    if (setSectionReference(sectPr, "w:footerReference", footerRelId, documentModel)) {
-      changed = true;
+    if (index !== populatedSegments.length - 1) {
+      setSectionType(nextSectPr, "continuous", documentModel);
+    } else {
+      removeSectionType(nextSectPr);
     }
-    archive.file(FOOTER_XML_PATH, buildPageRegionPartXml(documentModel, pageTemplate.footer, pageTemplate, "footer"));
-    if (ensureContentTypeOverride(
-      contentTypesRoot,
-      "/word/footer1.xml",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml",
-      contentTypesModel,
-    )) {
-      changed = true;
-    }
-    changed = true;
-  }
 
-  if (!changed) {
-    return false;
+    const headerPath = `word/header${index + 1}.xml`;
+    const footerPath = `word/footer${index + 1}.xml`;
+    if (pageTemplate.header) {
+      const headerRelId = ensureRelationship(
+        relsRoot,
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header",
+        `header${index + 1}.xml`,
+        relsModel,
+      );
+      setSectionReference(nextSectPr, "w:headerReference", headerRelId, documentModel);
+      archive.file(headerPath, buildPageRegionPartXml(documentModel, pageTemplate.header, pageTemplate, "header"));
+      ensureContentTypeOverride(
+        contentTypesRoot,
+        `/${headerPath}`,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml",
+        contentTypesModel,
+      );
+      changed = true;
+    } else if (removeSectionReferences(nextSectPr, "w:headerReference")) {
+      changed = true;
+    }
+
+    if (pageTemplate.footer) {
+      const footerRelId = ensureRelationship(
+        relsRoot,
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer",
+        `footer${index + 1}.xml`,
+        relsModel,
+      );
+      setSectionReference(nextSectPr, "w:footerReference", footerRelId, documentModel);
+      archive.file(footerPath, buildPageRegionPartXml(documentModel, pageTemplate.footer, pageTemplate, "footer"));
+      ensureContentTypeOverride(
+        contentTypesRoot,
+        `/${footerPath}`,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml",
+        contentTypesModel,
+      );
+      changed = true;
+    } else if (removeSectionReferences(nextSectPr, "w:footerReference")) {
+      changed = true;
+    }
+
+    if (replaceSectionProperties(sectPr, nextSectPr)) {
+      changed = true;
+    }
   }
 
   archive.file(DOCUMENT_XML_PATH, new XMLSerializer().serializeToString(documentModel));
   archive.file(DOCUMENT_RELS_XML_PATH, new XMLSerializer().serializeToString(relsModel));
   archive.file(CONTENT_TYPES_XML_PATH, new XMLSerializer().serializeToString(contentTypesModel));
-  return true;
+  return changed;
 }
 
 function findOrCreateBodySectionProperties(body: XmlElement, document: XmlDocument): XmlElement {
@@ -1060,6 +1088,18 @@ function findOrCreateBodySectionProperties(body: XmlElement, document: XmlDocume
   }
   const sectPr = document.createElement("w:sectPr");
   body.appendChild(sectPr);
+  return sectPr;
+}
+
+function assignParagraphSectionProperties(paragraph: XmlElement, document: XmlDocument): XmlElement {
+  const paragraphProperties = findOrCreateParagraphProperties(paragraph, document);
+  const existing = findFirstElement(paragraphProperties, "w:sectPr");
+  if (existing) {
+    return existing;
+  }
+
+  const sectPr = document.createElement("w:sectPr");
+  paragraphProperties.appendChild(sectPr);
   return sectPr;
 }
 
@@ -1134,6 +1174,111 @@ function setSectionReference(
   reference.setAttribute("r:id", relationshipId);
   sectPr.appendChild(reference);
   return true;
+}
+
+function removeSectionReferences(
+  sectPr: XmlElement,
+  elementName: "w:headerReference" | "w:footerReference",
+): boolean {
+  let changed = false;
+  for (const child of [...elementChildren(sectPr)]) {
+    if (child.nodeName === elementName && child.getAttribute("w:type") === "default") {
+      sectPr.removeChild(child);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function buildSectionPropertiesForPageTemplate(baseSectPr: XmlElement, document: XmlDocument): XmlElement {
+  return cloneElement(baseSectPr, document);
+}
+
+function replaceSectionProperties(target: XmlElement, replacement: XmlElement): boolean {
+  const replacementMarkup = new XMLSerializer().serializeToString(replacement);
+  const targetMarkup = new XMLSerializer().serializeToString(target);
+  if (replacementMarkup === targetMarkup) {
+    return false;
+  }
+
+  while (target.firstChild) {
+    target.removeChild(target.firstChild);
+  }
+  for (const child of [...elementChildren(replacement)]) {
+    target.appendChild(child.cloneNode(true));
+  }
+  for (const attribute of listAttributes(target)) {
+    target.removeAttribute(attribute);
+  }
+  for (const attribute of listAttributes(replacement)) {
+    const value = replacement.getAttribute(attribute);
+    if (value !== null) {
+      target.setAttribute(attribute, value);
+    }
+  }
+  return true;
+}
+
+function setSectionType(
+  sectPr: XmlElement,
+  value: "continuous",
+  document: XmlDocument,
+): void {
+  const existing = findFirstElement(sectPr, "w:type");
+  if (existing) {
+    existing.setAttribute("w:val", value);
+    return;
+  }
+  const element = document.createElement("w:type");
+  element.setAttribute("w:val", value);
+  sectPr.appendChild(element);
+}
+
+function removeSectionType(sectPr: XmlElement): void {
+  for (const child of [...elementChildren(sectPr)]) {
+    if (child.nodeName === "w:type") {
+      sectPr.removeChild(child);
+    }
+  }
+}
+
+function collectParagraphsForBookmarkRange(body: XmlElement, bookmarkName: string): XmlElement[] {
+  const paragraphs: XmlElement[] = [];
+  let activeBookmarkId: string | null = null;
+
+  for (const child of elementChildren(body)) {
+    if (child.nodeName === "w:bookmarkStart" && child.getAttribute("w:name") === bookmarkName) {
+      activeBookmarkId = child.getAttribute("w:id");
+      continue;
+    }
+    if (activeBookmarkId && child.nodeName === "w:bookmarkEnd" && child.getAttribute("w:id") === activeBookmarkId) {
+      activeBookmarkId = null;
+      continue;
+    }
+    if (activeBookmarkId && child.nodeName === "w:p") {
+      paragraphs.push(child);
+    }
+  }
+
+  return paragraphs;
+}
+
+function cloneElement(element: XmlElement, document: XmlDocument): XmlElement {
+  return new DOMParser().parseFromString(
+    new XMLSerializer().serializeToString(element),
+    "application/xml",
+  ).documentElement as XmlElement;
+}
+
+function listAttributes(element: XmlElement): string[] {
+  const attributes: string[] = [];
+  for (let index = 0; index < element.attributes.length; index += 1) {
+    const item = element.attributes.item(index);
+    if (item?.name) {
+      attributes.push(item.name);
+    }
+  }
+  return attributes;
 }
 
 function buildPageRegionPartXml(

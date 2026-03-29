@@ -5,18 +5,14 @@ import type {
   HeadingStyle,
   HeadingStyleMap,
   LineSpacingValue,
-  PageRegionSpec,
   PageSizeValue,
   SpacingValue,
-  StegoDocumentNode,
-  StegoPageTemplateNode
+  StegoDocumentNode
 } from "../../../ir/index.ts";
 import { formatSpacingValue } from "./spacing.ts";
 
 export type NormalizedPageLayout = {
   geometry: string[];
-  footer?: PageRegionSpec;
-  header?: PageRegionSpec;
   fontFamily?: FontFamilyValue;
   fontSize?: FontSizeValue;
   lineSpacing?: LineSpacingValue;
@@ -28,7 +24,6 @@ export type NormalizedPageLayout = {
 };
 
 export function normalizePageLayout(document: StegoDocumentNode): NormalizedPageLayout {
-  const pageTemplate = document.children.find((node): node is StegoPageTemplateNode => node.kind === "pageTemplate");
   const geometry = [];
   const size = document.page?.size;
   const margin = formatSpacingValue(document.page?.margin);
@@ -42,8 +37,6 @@ export function normalizePageLayout(document: StegoDocumentNode): NormalizedPage
 
   return {
     geometry,
-    header: pageTemplate?.header,
-    footer: pageTemplate?.footer,
     fontFamily: document.bodyStyle?.fontFamily,
     fontSize: document.bodyStyle?.fontSize,
     lineSpacing: document.bodyStyle?.lineSpacing,

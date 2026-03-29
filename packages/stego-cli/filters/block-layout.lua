@@ -376,8 +376,39 @@ local function apply_latex_inline_styles(span)
   return result
 end
 
+local function latex_page_style_name(marker_id)
+  if not marker_id or marker_id == "" or marker_id == "none" then
+    return "stegopagetemplatenone"
+  end
+  local normalized = marker_id:gsub("[^%w]+", "")
+  if normalized == "" then
+    normalized = "segment"
+  end
+  return "stegopagetemplate" .. normalized
+end
+
+local function apply_latex_page_template(div)
+  local marker_id = get_layout_value(div, "page-template")
+  if not marker_id then
+    return nil
+  end
+
+  local blocks = {
+    pandoc.RawBlock("latex", "\\pagestyle{" .. latex_page_style_name(marker_id) .. "}"),
+    pandoc.RawBlock("latex", "\\thispagestyle{" .. latex_page_style_name(marker_id) .. "}"),
+  }
+  for _, block in ipairs(div.content) do
+    table.insert(blocks, block)
+  end
+  return blocks
+end
+
 function Div(div)
   if FORMAT:match("latex") then
+    local page_template = apply_latex_page_template(div)
+    if page_template then
+      return page_template
+    end
     return apply_latex_layout(div)
   end
   if FORMAT:match("html") or FORMAT:match("epub") or FORMAT:match("revealjs") then

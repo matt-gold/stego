@@ -65,16 +65,17 @@ Hello template world.
   writeFile(path.join(projectRoot, "templates", "book.template.tsx"), `import { defineTemplate, Stego } from "@stego-labs/engine";
 export default defineTemplate((ctx) => (
   <Stego.Document page={{ size: "6x9", margin: "0.75in" }}>
-    <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }} />
-    <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
-    <Stego.Image src="assets/maps/city-plan.png" alt="Map" width="60%" layout="block" align="center" />
-    {Stego.groupBy(ctx.allLeaves, (leaf) => asString(leaf.metadata.chapter)).map((group) => (
-      <Stego.Section role="chapter">
-        <Stego.Heading level={2}>Chapter {group.value}</Stego.Heading>
-        {group.items.map((leaf) => <Stego.Markdown leaf={leaf} />)}
-      </Stego.Section>
-    ))}
-    <Stego.Paragraph><Stego.Link leaf="SRC-ONE" /></Stego.Paragraph>
+    <Stego.PageTemplate footer={{ right: <Stego.PageNumber /> }}>
+      <Stego.Heading level={1}>{String(ctx.project.metadata.title ?? ctx.project.id)}</Stego.Heading>
+      <Stego.Image src="assets/maps/city-plan.png" alt="Map" width="60%" layout="block" align="center" />
+      {Stego.groupBy(ctx.allLeaves, (leaf) => asString(leaf.metadata.chapter)).map((group) => (
+        <Stego.Section role="chapter">
+          <Stego.Heading level={2}>Chapter {group.value}</Stego.Heading>
+          {group.items.map((leaf) => <Stego.Markdown leaf={leaf} />)}
+        </Stego.Section>
+      ))}
+      <Stego.Paragraph><Stego.Link leaf="SRC-ONE" /></Stego.Paragraph>
+    </Stego.PageTemplate>
   </Stego.Document>
 ));
 
