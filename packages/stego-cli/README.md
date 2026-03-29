@@ -28,6 +28,8 @@ stego template build -p fiction-example
 - `stego-docs` (the full documentation project)
 - `fiction-example` (a fiction-oriented demo using chapter and reference leaves)
 
+Stego is built around a simple idea: your manuscript lives as structured markdown in `content/`, and templates turn that content into the outputs you need.
+
 ## Core model
 
 - `content/` holds authored leaves
@@ -80,8 +82,14 @@ Current behavior:
 - template export supports `md`, `docx`, `pdf`, and `epub`
 - `md` is the low-fidelity compiled/debug artifact: useful for inspection, diffing, and portable handoff, but not a full presentation-fidelity target for all Stego layout primitives
 - `md` is a special-case export artifact: it stays on the deterministic default template path unless you explicitly bypass it with `--template`
-- `docx`, `pdf`, and `epub` are the presentation targets when you need richer layout fidelity
-- `dist/<project-id>.template.md` and `dist/<project-id>.template.backend-document.json` are written for inspection during `template build`
+- `docx`, `pdf`, `epub`, and `latex` are the presentation targets when you need richer layout fidelity
+- `dist/<project-id>.template.md` and `dist/<project-id>.template.backend-document.json` are written during `template build` so you can inspect both the compiled text and the richer backend render plan
+
+In practice:
+
+- the generated markdown is what Pandoc reads
+- the backend-document JSON is Stego's structured export contract
+- DOCX/PDF/EPUB/LaTeX preparation uses both
 
 ### Default vs advanced templates
 
@@ -97,6 +105,34 @@ Advanced template mode is for sophisticated projects that want target-aware temp
 - `stego export --format docx|pdf|epub|latex` chooses the unique matching discovered template
 - if more than one discovered template supports the same presentation target, export fails with an ambiguity error until you pass `--template`
 - `stego template build` and `stego template export` remain the direct single-template debug/bypass commands
+
+## Project config highlights
+
+Two project settings matter early for most teams:
+
+- `images`: default image presentation rules
+- `manuscriptSubdir`: which subtree under `content/` should count as "the manuscript" for manuscript-scoped conveniences
+
+Example:
+
+```json
+{
+  "manuscriptSubdir": "manuscript",
+  "images": {
+    "layout": "block",
+    "align": "center",
+    "width": "50%",
+    "classes": ["illustration"]
+  }
+}
+```
+
+`manuscriptSubdir` is relative to `content/`. It drives manuscript-scoped conveniences such as:
+
+- the default target for `stego new`
+- manuscript-focused metrics in the extension
+
+It does not automatically filter build or export. Templates still decide which leaves become output.
 
 ## Images
 
@@ -122,16 +158,6 @@ Set project-level image defaults in `stego-project.json`:
 ```
 
 Leaf frontmatter `images` only supports per-path overrides.
-
-You can also declare the manuscript subtree in `stego-project.json`:
-
-```json
-{
-  "manuscriptSubdir": "manuscript"
-}
-```
-
-This drives manuscript-scoped conveniences such as the default target for `stego new` and manuscript-focused extension metrics. Build and export still see all `content/` leaves unless template code narrows the set.
 
 ## Command reference
 

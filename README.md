@@ -1,20 +1,21 @@
 # Stego
 
-Stego turns JSX into a powerful book-authoring tool.
+Stego turns a manuscript into structured data you can write with, inspect, validate, and transform.
 
 <div align="center">
   <img src="packages/stego-extension/assets/stego.png" alt="Stego logo" width="128" />
 </div>
 
-It combines a TSX templating engine with a CLI workflow (`@stego-labs/cli`) and a VS Code UI (`stego-extension`) so authors can draft, validate, and export long-form projects from structured source files.
+It combines a TSX templating engine with a CLI workflow (`@stego-labs/cli`) and a VS Code UI (`stego-extension`) so authors can draft, validate, analyze, and export long-form projects from structured source files.
 
 ## What Stego Is For
 
-- Writing and organizing long-form content in plain markdown and TSX - like a react component for your novel or paper.
-- Managing reference systems, lore, story bibles, etc - like a database for your novel or paper.
-- Running stage-aware quality gates and validation checks - like lint for your novel or paper.
-- Working with teams or AI via a text-anchored comment resolution system.
-- Building and exporting a canonical markdown manuscript to docx, pdf, epub, and more.
+- Writing and organizing long-form content in plain markdown and TSX.
+- Treating manuscript content as data that templates can transform into multiple outputs.
+- Managing reference systems, lore, story bibles, and other non-manuscript content in the same project.
+- Running stage-aware quality gates and validation checks.
+- Working with teams or AI through a text-anchored comment resolution system.
+- Exporting to markdown, docx, pdf, epub, and latex from the same source project.
 - Working in a Git-friendly, automation-friendly, AI-friendly environment.
 
 ## Core Model
@@ -22,7 +23,10 @@ It combines a TSX templating engine with a CLI workflow (`@stego-labs/cli`) and 
 - Authored source lives under `content/` as "leaf" files with frontmatter metadata and body text.
 - Directories under `content/` let you organize your files into nested "branches".
 - Branch `_branch.md` files define inheritable rules to quickly configure groups of leaf metadata.
-- Templates in `templates/` receive the content tree as data, allowing compiled manuscripts to take any shape the author desires.
+- Templates in `templates/` receive the content tree as data, allowing compiled manuscripts, reports, appendices, and other derived outputs to take any shape you need.
+- Projects can distinguish between manuscript material and other content such as references, notes, or appendices while keeping everything in the same source tree.
+
+In other words: Stego is not just a formatter. It gives you a structured manuscript model that templates and tools can compute over.
 
 ## Packages
 
@@ -56,7 +60,7 @@ For complete docs, start here:
 - `stego check-stage`: run stage-gate checks.
 - `stego lint`: run markdown and spelling checks.
 - `stego build`: compile the default manuscript template path.
-- `stego export`: export to `md`, `docx`, `pdf`, or `epub`.
+- `stego export`: export to `md`, `docx`, `pdf`, `epub`, or `latex`.
 - `stego template build|export`: work directly with template files and target-aware template mode.
 
 ## Quick Start
@@ -87,8 +91,16 @@ stego build -p fiction-example
 - Stego templates are plain TSX modules powered by `@stego-labs/engine`.
 - The default path is `templates/book.template.tsx`.
 - Templates receive tree structure as `ctx.content`, as well as the flattened `ctx.allLeaves` with `ctx.allBranches`.
+- Templates can also inspect manuscript text directly with helpers such as `Stego.getText(...)`, `Stego.getWords(...)`, and `Stego.getWordCount(...)`.
 - `stego build` and `stego export` use the default template workflow.
 - `stego template build` and `stego template export` are the direct template-debug and multi-template commands.
+
+`stego template build` writes two especially useful inspection artifacts:
+
+- compiled markdown
+- a backend-document JSON render plan
+
+The markdown is what Pandoc reads. The backend-document JSON carries the richer presentation metadata Stego still needs for filters, export preparation, and postprocessing.
 
 ## License
 

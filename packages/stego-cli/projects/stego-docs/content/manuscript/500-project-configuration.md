@@ -71,7 +71,23 @@ The official manuscript subtree also belongs in `stego-project.json`:
 }
 ```
 
-That setting is relative to `content/`. It drives manuscript-scoped conveniences such as the default target for `stego new` and the extension overview metrics. Templates still receive the full content tree and decide for themselves which leaves become compiled manuscript output.
+That setting is relative to `content/`.
+
+Think of it as the answer to: "Which part of `content/` is the manuscript draft?"
+
+In v1 it drives manuscript-scoped conveniences such as:
+
+- the default target for `stego new`
+- manuscript-focused metrics in the extension
+- other editor workflows that need a practical manuscript scope
+
+It does not change the underlying content model:
+
+- templates still receive the full content tree
+- `build` and `export` still see all leaves unless template code narrows the set
+- reference material under other branches is still normal Stego content
+
+If `manuscriptSubdir` is absent, Stego keeps older projects working by falling back to `content/manuscript/` when that directory exists, and to `content/` otherwise.
 
 Leaf files can define per-path overrides with `images` frontmatter. Global keys should stay in project config.
 
@@ -85,9 +101,20 @@ Templates are plain TSX modules powered by `@stego-labs/engine`. They receive pr
 
 Each branch has a structural `id`, an optional `parentId`, a `leaves` array for the direct leaves in that branch, and a `branches` array for child branches. Each leaf also exposes `branchId` so template code can move in either direction.
 
-Use template code to group leaves, insert headings, control page breaks, and render frontmatter or backmatter. Ordered grouping is typically done with `Stego.splitBy(ctx.allLeaves, ...)`, which preserves file order and lets boundary-only metadata flow across subsequent leaves.
+Use template code to group leaves, insert headings, control page breaks, render frontmatter or backmatter, and build alternate outputs such as reports or stats pages.
+
+Ordered grouping is typically done with `Stego.splitBy(ctx.allLeaves, ...)`, which preserves file order and lets boundary-only metadata flow across subsequent leaves.
 
 Use `Stego.groupBy(...)` when you want bucketed summaries that ignore file-order boundaries.
+
+Templates can also inspect manuscript text directly through helpers such as:
+
+- `Stego.getText(...)`
+- `Stego.getTextTokens(...)`
+- `Stego.getWords(...)`
+- `Stego.getWordCount(...)`
+
+That makes it practical to build manuscript title pages with dynamic word counts, analysis templates, glossaries, or other data-driven outputs without leaving the template layer.
 
 Stego supports two lanes:
 
