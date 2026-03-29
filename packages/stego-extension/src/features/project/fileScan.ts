@@ -1,6 +1,8 @@
 import * as path from 'path';
+import * as fsSync from 'fs';
 import { promises as fs, type Dirent } from 'fs';
 import { isBranchFile, isSupportedLeafContentFile } from '@stego-labs/shared/domain/content';
+import { resolveProjectManuscriptScope } from '@stego-labs/shared/domain/project';
 import { CONTENT_DIR } from '../../shared/constants';
 import { normalizeFsPath, uniqueResolvedPaths } from '../../shared/path';
 import type { ProjectBranch } from '../../shared/types';
@@ -95,12 +97,17 @@ export async function collectProjectContentFiles(projectDir: string): Promise<st
   return uniqueResolvedPaths(files).sort((a, b) => a.localeCompare(b));
 }
 
-export async function collectManuscriptMarkdownFiles(projectDir: string): Promise<string[]> {
+export async function collectManuscriptMarkdownFiles(projectDir: string, manuscriptDir?: string): Promise<string[]> {
   const contentRoot = path.join(projectDir, CONTENT_DIR);
-  if (!(await isDirectory(contentRoot))) {
+  const resolvedManuscriptDir = manuscriptDir ?? resolveProjectManuscriptScope(
+    contentRoot,
+    undefined,
+    (filePath) => fsSync.existsSync(filePath) && fsSync.statSync(filePath).isDirectory()
+  ).manuscriptDir;
+  if (!(await isDirectory(resolvedManuscriptDir))) {
     return [];
   }
-  return uniqueResolvedPaths(await collectMarkdownFiles(contentRoot));
+  return uniqueResolvedPaths(await collectMarkdownFiles(resolvedManuscriptDir));
 }
 
 export async function isDirectory(dirPath: string): Promise<boolean> {

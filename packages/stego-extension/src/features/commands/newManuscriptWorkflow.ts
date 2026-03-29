@@ -8,7 +8,6 @@ import { pickToastDetails, resolveProjectScriptContext, resolveWorkflowCommandIn
 import type { WorkflowRunResult } from './workflowUtils';
 
 const DEFAULT_NEW_LEAF_SLUG = 'new-leaf';
-const DEFAULT_MANUSCRIPT_BRANCH_DIR = 'manuscript';
 
 type LeafOrderEntry = {
   order: number;
@@ -21,7 +20,11 @@ export async function runNewManuscriptWorkflow(): Promise<WorkflowRunResult> {
     return { ok: false, cancelled: true };
   }
 
-  const targetDir = await resolveTargetLeafDir(context.projectDir, context.document.uri.fsPath);
+  const targetDir = await resolveTargetLeafDir(
+    context.projectDir,
+    context.project.manuscriptDir,
+    context.document.uri.fsPath
+  );
   const contentRoot = path.join(context.projectDir, CONTENT_DIR);
   const targetDirRelative = toContentRelativeDir(contentRoot, targetDir);
   const existingLeafFiles = await listLeafFiles(targetDir);
@@ -342,20 +345,22 @@ async function inferDefaultLeafFilename(targetDir: string): Promise<string> {
   return `${nextPrefix}-${DEFAULT_NEW_LEAF_SLUG}.md`;
 }
 
-async function resolveTargetLeafDir(projectDir: string, activeFilePath: string): Promise<string> {
-  const contentRoot = path.join(projectDir, CONTENT_DIR);
+async function resolveTargetLeafDir(
+  projectDir: string,
+  manuscriptDir: string,
+  activeFilePath: string
+): Promise<string> {
   const normalizedActiveFilePath = path.resolve(activeFilePath);
-  const relativeToContent = path.relative(contentRoot, normalizedActiveFilePath);
-  if (!relativeToContent.startsWith('..') && !path.isAbsolute(relativeToContent)) {
+  const relativeToManuscript = path.relative(manuscriptDir, normalizedActiveFilePath);
+  if (!relativeToManuscript.startsWith('..') && !path.isAbsolute(relativeToManuscript)) {
     return path.dirname(normalizedActiveFilePath);
   }
 
-  const manuscriptDir = path.join(contentRoot, DEFAULT_MANUSCRIPT_BRANCH_DIR);
   if (await isDirectory(manuscriptDir)) {
     return manuscriptDir;
   }
 
-  return contentRoot;
+  return path.join(projectDir, CONTENT_DIR);
 }
 
 function toContentRelativeDir(contentRoot: string, targetDir: string): string | undefined {

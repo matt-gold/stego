@@ -143,6 +143,7 @@ test("new-project creates scaffold and returns JSON envelope", () => {
     const projectJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "stego-project.json"), "utf8"));
     assert.equal("compileStructure" in projectJson, false);
     assert.equal("requiredMetadata" in projectJson, false);
+    assert.equal(projectJson.manuscriptSubdir, "manuscript");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

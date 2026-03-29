@@ -7,6 +7,7 @@ export type ProjectMeta = {
   title?: string;
   subtitle?: string;
   author?: string;
+  manuscriptSubdir?: string;
   [key: string]: unknown;
 };
 

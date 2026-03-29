@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { CliError } from "@stego-labs/shared/contracts/cli";
-import { isValidProjectId } from "@stego-labs/shared/domain/project";
+import { DEFAULT_MANUSCRIPT_SUBDIR, isValidProjectId } from "@stego-labs/shared/domain/project";
 import type { CreateProjectInput, CreateProjectResult } from "../types.ts";
 import { ensureDirectory, pathExists, writeTextFile } from "../infra/project-repo.ts";
 
@@ -60,7 +60,8 @@ export function createProject(input: CreateProjectInput): CreateProjectResult {
     `${JSON.stringify(
       {
         id: projectId,
-        title: input.title?.trim() || toDisplayTitle(projectId)
+        title: input.title?.trim() || toDisplayTitle(projectId),
+        manuscriptSubdir: DEFAULT_MANUSCRIPT_SUBDIR,
       },
       null,
       2

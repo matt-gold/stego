@@ -45,6 +45,8 @@ function createProjectContext(
     projectDir,
     projectMtimeMs: Date.now(),
     projectTitle: 'Test Project',
+    manuscriptDir: path.join(projectDir, 'content'),
+    manuscriptScopeKey: '.',
     imageDefaults: {},
     branches: [],
     templates: [],
@@ -277,6 +279,43 @@ test('overview cache handles invalidation and reuse scenarios', async () => {
   assert.equal(branchReady.loading, false);
   assert.equal(branchReady.overview?.manuscriptFileCount, 2);
   assert.equal(branchReady.overview?.mapRows.length, 1);
+
+  fs.rmSync(projectDir, { recursive: true, force: true });
+});
+
+test('overview cache limits manuscript metrics to configured manuscript subtree', async () => {
+  const projectDir = createTempProject();
+  const refreshTracker = createRefreshTracker();
+  const commentReader = createCommentReader();
+  const gateSnapshot: SidebarOverviewGateSnapshot = {
+    stageCheck: { state: 'never' },
+    build: { state: 'never' }
+  };
+
+  const manuscriptLeaf = path.join(projectDir, 'content', 'draft', 'chapters', '100-opening.md');
+  const referenceLeaf = path.join(projectDir, 'content', 'reference', '900-notes.md');
+  writeFile(manuscriptLeaf, '---\nstatus: draft\n---\nOne two three.\n');
+  writeFile(referenceLeaf, '---\nstatus: draft\n---\nReference words should not count here.\n');
+
+  const cache = new OverviewSummaryCache({
+    getGateSnapshot: () => gateSnapshot,
+    requestRefresh: refreshTracker.callback,
+    readCommentStateForFile: commentReader.read,
+    now: () => '2026-03-01T06:31:35.598Z'
+  });
+
+  const context = createProjectContext(projectDir, {
+    manuscriptSubdir: 'draft/chapters',
+    manuscriptDir: path.join(projectDir, 'content', 'draft', 'chapters'),
+    manuscriptScopeKey: 'draft/chapters'
+  });
+
+  const ready = await loadReadySnapshot(cache, context);
+  assert.equal(ready.loading, false);
+  assert.equal(ready.overview?.manuscriptFileCount, 1);
+  assert.equal(ready.overview?.wordCount, 3);
+  assert.equal(ready.overview?.mapRows.length, 1);
+  assert.equal(ready.overview?.mapRows[0]?.filePath, manuscriptLeaf);
 
   fs.rmSync(projectDir, { recursive: true, force: true });
 });
